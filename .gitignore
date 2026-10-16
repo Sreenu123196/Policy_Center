@@ -1,0 +1,20 @@
+# Dependencies (restore with npm install)
+node_modules/
+
+# Runtime data: rebuilt from the demo seed on first start, or with npm run generate
+data/
+
+# Account-specific assistant settings; copy chat.config.example.json to create it
+chat.config.json
+
+# Secrets and local environment
+.env
+.env.*
+
+# Editor and OS files
+*.tmp
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

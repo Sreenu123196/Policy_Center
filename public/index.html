@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PolicyCenter Simulator</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#/desktop"><span class="logo">PC</span> PolicyCenter <small>Simulator</small></a>
+    <nav class="mainnav">
+      <a href="#/desktop" data-nav="desktop">Desktop</a>
+      <a href="#/accounts" data-nav="account">Accounts</a>
+      <a href="#/policies" data-nav="polic">Policies</a>
+      <a href="#/admin" data-nav="admin">Administration</a>
+    </nav>
+    <form class="topsearch" data-form="search" role="search">
+      <input name="q" type="search" placeholder="Search accounts, policies, jobs" aria-label="Search">
+    </form>
+    <label class="userpick">
+      <span id="user-role"></span>
+      <select id="user-select" aria-label="Signed-in user"></select>
+    </label>
+  </header>
+  <main id="app" class="page"><div class="loading">Loading…</div></main>
+  <div id="modal" class="modal-backdrop" hidden></div>
+  <div id="toasts" class="toasts" aria-live="polite"></div>
+  <button id="chat-toggle" class="chat-toggle" aria-label="Open PolicyCenter Assistant" aria-expanded="false">Ask PolicyCenter</button>
+  <section id="chat" class="chat" hidden aria-label="PolicyCenter Assistant">
+    <header class="chat-head">
+      <div><strong>PolicyCenter Assistant</strong><div id="chat-mode" class="chat-mode"></div></div>
+      <div class="toolbar"><button class="btn small" id="chat-new">New chat</button><button class="btn small" id="chat-close" aria-label="Close assistant">✕</button></div>
+    </header>
+    <div id="chat-log" class="chat-log" aria-live="polite"></div>
+    <div id="chat-suggest" class="chat-suggest"></div>
+    <form id="chat-form" class="chat-form">
+      <textarea id="chat-input" rows="2" placeholder="Ask about a policy, a premium, referrals…" aria-label="Message"></textarea>
+      <button type="button" class="chat-icon-btn" id="chat-mic" aria-label="Speak your question" title="Speak your question">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+      </button>
+      <button class="chat-send-btn" id="chat-send" aria-label="Send message" title="Send" disabled>
+        <svg class="icon-send" viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+        <svg class="icon-stop" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2.5" fill="currentColor"/></svg>
+      </button>
+    </form>
+  </section>
+  <script src="app.js"></script>
+</body>
+</html>
