@@ -9,7 +9,10 @@ const { RATE_BOOKS } = require('./rateBooks');
 const { CANCEL_REASONS, AppError } = require('./policyCenter');
 
 const Anthropic = AnthropicSDK.default || AnthropicSDK;
-const MODEL = process.env.CHAT_MODEL || 'claude-opus-5-5';
+const MODEL = process.env.CHAT_MODEL || 'claude-haiku-5-5';
+// Server-side refusal fallback ("fallbacks": "default") exists only on these models; Haiku 5.5 has none.
+const FALLBACK_MODELS = ['claude-fable-5-1', 'claude-opus-5-5', 'claude-opus-5', 'claude-sonnet-5-5'];
+const fallbackParams = () => (FALLBACK_MODELS.includes(MODEL) ? { betas: ['server-side-fallback-2026-07-01'], fallbacks: 'default' } : {});
 const MAX_TOOL_ROUNDS = 8;
 const MAX_TURNS = 40;
 const MAX_CONVERSATIONS = 200;
@@ -454,8 +457,7 @@ class Chatbot {
         const stream = this.client.beta.messages.stream({
           model: MODEL,
           max_tokens: 16000,
-          betas: ['server-side-fallback-2026-07-01'],
-          fallbacks: 'default',
+          ...fallbackParams(),
           output_config: { effort: 'low' },
           cache_control: { type: 'ephemeral' },
           system: SYSTEM_PROMPT,

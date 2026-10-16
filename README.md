@@ -62,7 +62,7 @@ It explains premiums from the rating worksheet and underwriting issues, and summ
 knows which record you have open, so "Why is this premium so high?" works on a policy or job page. Record numbers
 in its answers are links.
 
-- **Claude mode:** set an Anthropic API key before starting the server. The assistant then runs `claude-opus-5-5`
+- **Claude mode:** set an Anthropic API key before starting the server. The assistant then runs Claude Haiku 5.5 (`claude-haiku-5-5`)
   with tool use over nine read-only PolicyCenter tools (`src/chatbot.js`).
 
   ```bash
@@ -72,8 +72,8 @@ in its answers are links.
   A user-scoped key (`sk-ant-usr-...`) also needs your workspace ID (`wrkspc_...`), either in `chat.config.json`
   (copy `chat.config.example.json`)
   as `{"workspaceId": "..."}` or in `ANTHROPIC_WORKSPACE_ID`.
-  Set `CHAT_MODEL` to use a different model. Server-side refusal fallbacks are enabled, and effort is set to `low`
-  to keep chat fast. API usage is billed to that key.
+  Set `CHAT_MODEL` to use a different model (for example `claude-opus-5-5`). Effort is set to `low` to keep
+  chat fast. Server-side refusal fallback is turned on for models that support it; Haiku 5.5 has none. API usage is billed to that key.
 - **Offline mode:** used when no key is set. It answers lookups by number, referrals, book summaries and name
   searches directly from the data, with no AI.
 - **Security:** tools run as the signed-in user, so agents only see their own producer code's records. The

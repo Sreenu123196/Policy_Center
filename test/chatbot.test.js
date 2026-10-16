@@ -78,8 +78,10 @@ test('claude mode: runs the tool loop, returns the answer, keeps history append-
   assert.equal(toolResult.type, 'tool_result');
   assert.equal(toolResult.tool_use_id, 'tu1');
   assert.equal(JSON.parse(toolResult.content).policyNumber, policyNumber);
-  assert.equal(second.model, 'claude-opus-5-5');
-  assert.equal(second.fallbacks, 'default');
+  assert.equal(second.model, 'claude-haiku-5-5');
+  assert.equal(second.fallbacks, undefined, 'Haiku 5.5 has no server-side fallback');
+  assert.equal(second.betas, undefined);
+  assert.deepEqual(second.output_config, { effort: 'low' });
   assert.match(second.messages[0].content, /Viewing: policy, record PA-/);
 
   await bot.chat({ conversationId: r.conversationId, message: 'And the billing?' }, users.agent);
