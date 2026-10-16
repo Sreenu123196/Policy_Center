@@ -924,6 +924,7 @@ function chatSuggestions() {
 
 function chatReset() {
   if (CHAT.abort) CHAT.abort.abort();
+  stopVoice(true);
   CHAT.conversationId = null;
   document.getElementById('chat-log').innerHTML = '';
   const offline = CHAT.status && CHAT.status.mode === 'offline';
@@ -1052,6 +1053,10 @@ function chatUpdateSend() {
 }
 
 // Voice input through the browser's Web Speech API (Chrome and Edge). Hidden where unsupported.
+// The mic stays on until the user clicks it again (or sends the message). Browsers end a recognition
+// session on their own after a pause or about a minute, so a new session is started each time one ends.
+let stopVoice = () => {};
+
 function setupVoice(input) {
   const mic = document.getElementById('chat-mic');
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1059,34 +1064,84 @@ function setupVoice(input) {
     mic.hidden = true;
     return;
   }
+  let listening = false;
   let rec = null;
   let base = '';
-  const stop = () => { if (rec) rec.stop(); };
-  mic.addEventListener('click', () => {
-    if (rec) return stop();
+  let quickEnds = 0;
+
+  const setButton = (on) => {
+    mic.classList.toggle('listening', on);
+    mic.setAttribute('aria-label', on ? 'Stop listening' : 'Speak your question');
+    mic.title = on ? 'Stop listening' : 'Speak your question';
+  };
+
+  const startSession = () => {
+    // Text already in the box (including earlier sessions) is kept; new speech is appended.
+    base = input.value ? input.value.replace(/\s*$/, ' ') : '';
+    const started = Date.now();
     rec = new Recognition();
     rec.lang = navigator.language || 'en-US';
     rec.interimResults = true;
-    rec.continuous = false;
-    base = input.value ? input.value.replace(/\s*$/, ' ') : '';
+    rec.continuous = true;
     rec.onresult = (ev) => {
-      const said = [...ev.results].map((r) => r[0].transcript).join('');
-      input.value = base + said;
+      input.value = base + [...ev.results].map((r) => r[0].transcript).join('');
       chatUpdateSend();
     };
     rec.onerror = (ev) => {
-      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') toast('Microphone access is blocked. Allow it in the browser to use voice input.', 'error');
-      else if (ev.error !== 'no-speech' && ev.error !== 'aborted') toast(`Voice input stopped: ${ev.error}`, 'error');
+      if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
+        listening = false;
+        toast('Microphone access is blocked. Allow it in the browser to use voice input.', 'error');
+      } else if (ev.error === 'audio-capture') {
+        listening = false;
+        toast('No microphone was found. Check that one is connected and selected.', 'error');
+      } else if (ev.error === 'network') {
+        listening = false;
+        toast('Voice input needs an internet connection.', 'error');
+      }
+      // "no-speech" and "aborted" are normal during long pauses; the session simply restarts.
     };
     rec.onend = () => {
       rec = null;
-      mic.classList.remove('listening');
-      mic.setAttribute('aria-label', 'Speak your question');
-      input.focus();
+      // Guard against a tight restart loop if the browser keeps ending sessions immediately.
+      quickEnds = Date.now() - started < 1000 ? quickEnds + 1 : 0;
+      if (quickEnds >= 5) {
+        listening = false;
+        toast('Voice input keeps stopping. Check the microphone and try again.', 'error');
+      }
+      if (listening) {
+        setTimeout(() => { if (listening && !rec) startSession(); }, 150);
+      } else {
+        setButton(false);
+        input.focus();
+      }
     };
-    mic.classList.add('listening');
-    mic.setAttribute('aria-label', 'Stop listening');
-    rec.start();
+    try {
+      rec.start();
+    } catch {
+      rec = null;
+      listening = false;
+      setButton(false);
+    }
+  };
+
+  // discard: drop speech still being processed (used when the message is sent or the chat closes).
+  stopVoice = (discard = false) => {
+    listening = false;
+    if (!rec) return setButton(false);
+    if (discard) {
+      rec.onresult = null;
+      rec.abort();
+    } else {
+      rec.stop();
+    }
+  };
+
+  mic.addEventListener('click', () => {
+    if (listening) return stopVoice();
+    listening = true;
+    quickEnds = 0;
+    setButton(true);
+    startSession();
   });
 }
 
@@ -1095,6 +1150,7 @@ function setupChat() {
   const toggle = document.getElementById('chat-toggle');
   const input = document.getElementById('chat-input');
   const open = (show) => {
+    if (!show) stopVoice(true);
     panel.hidden = !show;
     toggle.hidden = show;
     toggle.setAttribute('aria-expanded', String(show));
@@ -1120,6 +1176,7 @@ function setupChat() {
       if (CHAT.abort) CHAT.abort.abort();
       return;
     }
+    stopVoice(true);
     const t = input.value;
     if (!t.trim() || CHAT.busy) return;
     input.value = '';
