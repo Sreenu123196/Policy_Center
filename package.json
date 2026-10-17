@@ -15,6 +15,7 @@
   "license": "UNLICENSED",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.135.0",
-    "@google-cloud/speech": "^8.2.0"
+    "@google-cloud/speech": "^8.2.0",
+    "nodemailer": "^10.1.2"
   }
 }

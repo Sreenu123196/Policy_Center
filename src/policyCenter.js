@@ -149,6 +149,7 @@ class PolicyCenter {
       policies: this.db.policies.filter((p) => p.accountId === id).map((p) => this.policySummary(p)),
       jobs: this.db.jobs.filter((j) => j.accountId === id).map((j) => this.jobSummary(j)).reverse(),
       activities: this.db.activities.filter((a) => a.accountId === id).reverse(),
+      messages: this.db.messages.filter((m) => m.accountId === id).sort((a, b) => b.sentAt.localeCompare(a.sentAt)),
     };
   }
 

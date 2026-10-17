@@ -228,7 +228,53 @@ async function pageAccount(id) {
     </div>
     <div class="card"><h2>Policy transactions (jobs)</h2>
       ${table(['Job', 'Type', 'Product', 'Policy', 'Effective', 'Status', '$Amount', 'Updated'], d.jobs.map((j) => [jobLink(j), esc(j.type), productLabel(j.product), policyLink(j), esc(j.effectiveDate), badge(j.status), money(j.amount), when(j.updatedAt)]), 'No jobs')}
-    </div>`);
+    </div>
+    ${messagesCard({ accountId: a.id, list: d.messages })}`);
+}
+
+// ------------------------------------------------------------------ customer messages
+
+function composeBody(form) {
+  const fd = new FormData(form);
+  const body = { accountId: form.dataset.id, channel: fd.get('channel'), template: fd.get('template'), language: fd.get('language') };
+  if (fd.get('policyId')) body.policyId = fd.get('policyId');
+  if (fd.get('claimId')) body.claimId = fd.get('claimId');
+  return body;
+}
+
+async function composeModal(accountId) {
+  const [acct, status, claims] = await Promise.all([api('GET', `/accounts/${accountId}`), api('GET', '/messages/status'), api('GET', '/claims')]);
+  const policyNumbers = new Set(acct.policies.map((p) => p.policyNumber));
+  const mine = claims.filter((c) => policyNumbers.has(c.policyNumber));
+  const chOpts = ['email', 'whatsapp'].map((c) => {
+    const st = status.channels[c] || { enabled: false };
+    return `<option value="${c}">${c === 'email' ? 'Email' : 'WhatsApp'}${st.enabled ? '' : ' (not set up)'}</option>`;
+  }).join('');
+  const tplOpts = status.templates.map((t) => `<option value="${t.key}">${esc(t.label)}</option>`).join('');
+  openModal(`<h2>Send message to ${esc(acct.account.name)}</h2>
+    <form data-form="compose-message" data-id="${esc(accountId)}">
+      <div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Channel', `<select name="channel">${chOpts}</select>`)}
+        ${field('Template', `<select name="template">${tplOpts}</select>`)}
+        ${field('Language', '<select name="language"><option value="en">English</option><option value="hi">हिंदी (Hindi)</option><option value="te">తెలుగు (Telugu)</option></select>')}
+        ${field('Policy', `<select name="policyId"><option value="">Choose a policy</option>${acct.policies.map((p) => `<option value="${esc(p.id)}">${esc(p.policyNumber)} · ${esc(p.product)}</option>`).join('')}</select>`)}
+        ${field('Claim (for claim updates)', `<select name="claimId"><option value="">None</option>${mine.map((c) => `<option value="${esc(c.id)}">${esc(c.claimNumber)} · ${esc(c.status)}</option>`).join('')}</select>`)}
+      </div>
+      <div class="toolbar" style="margin:12px 0"><button type="button" class="btn" data-action="message-preview">Preview message</button></div>
+      <div id="msg-preview" class="card" style="background:var(--surface-2)" hidden></div>
+      <label class="field check"><input type="checkbox" name="confirm"> <span>I have checked the recipient and the message</span></label>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Send message</button></div>
+    </form>`, true);
+}
+
+function messagesCard(messages) {
+  return `<div class="card"><div class="spread"><h2>Messages</h2><button class="btn small primary" data-action="compose-message" data-account="${messages.accountId}">Send message</button></div>
+    ${table(['Sent', 'Channel', 'Template', 'Language', 'To', 'Status', 'By', 'Message'], messages.list.map((m) => [
+      when(m.sentAt), esc(m.channel), esc(m.template), esc(m.language), esc(m.to || '—'), badge(m.status === 'Sent' ? 'Delivered' : m.status),
+      esc(m.sentByName), `<div style="white-space:pre-wrap;max-width:360px">${m.subject ? `<strong>${esc(m.subject)}</strong><br>` : ''}${esc(m.body)}${m.error ? `<br><span class="muted">Error: ${esc(m.error)}</span>` : ''}</div>`,
+    ]), 'No messages yet')}
+  </div>`;
 }
 
 function newSubmissionModal(accountId) {
@@ -771,6 +817,16 @@ async function followUpHistoryModal(policyId, number) {
 }
 
 const ACTIONS = {
+  'compose-message': (d) => composeModal(d.account),
+  'message-preview': async (d, el) => {
+    const out = document.getElementById('msg-preview');
+    out.hidden = false;
+    out.textContent = 'Preparing the message…';
+    const p = await api('POST', '/messages/preview', composeBody(el.closest('form')));
+    out.innerHTML = `<div class="muted">To: ${esc(p.to || 'no address on file')} · ${esc(p.channel === 'email' ? 'Email' : 'WhatsApp')}</div>`
+      + (p.subject ? `<div style="margin-top:6px"><strong>${esc(p.subject)}</strong></div>` : '')
+      + `<div style="margin-top:6px;white-space:pre-wrap">${esc(p.body)}</div>`;
+  },
   'sales-tab': (d) => { SALES.tab = d.tab; pageSales(); },
   'log-followup': (d) => followUpModal(d.id, d.number),
   'followup-history': (d) => followUpHistoryModal(d.id, d.number),
@@ -840,6 +896,14 @@ const ACTIONS = {
 };
 
 const FORMS = {
+  'compose-message': async (fd, form) => {
+    if (!fd.get('confirm')) throw new Error('Tick the box to confirm the recipient and message before sending');
+    const rec = await api('POST', '/messages/send', { ...composeBody(form), confirm: true });
+    closeModal();
+    if (rec.status === 'Sent') toast(`Message sent (${rec.messageNumber})`, 'success');
+    else toast(`Message failed: ${rec.error}`, 'error');
+    pageAccount(form.dataset.id);
+  },
   'sales-filter': (fd) => { SALES.period = String(fd.get('period') || 'month'); SALES.product = String(fd.get('product') || ''); pageSales(); },
   followup: async (fd, form) => {
     await api('POST', `/sales/policies/${encodeURIComponent(form.dataset.id)}/followups`, { date: fd.get('date'), channel: fd.get('channel'), result: fd.get('result'), notes: fd.get('notes') });

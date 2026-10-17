@@ -6,7 +6,7 @@ const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS } = require('./policyCenter');
 
-function createApi(pc, store, { reseed, chatbot, speech } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging } = {}) {
   const routes = [];
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
@@ -43,6 +43,7 @@ function createApi(pc, store, { reseed, chatbot, speech } = {}) {
     pc.jobDetail(pc.approveIssue(params.id, decodeURIComponent(params.key), body.note, user).id, user));
 
   route('GET', '/policies', ({ user, query }) => pc.listPolicies(query.get('q'), user));
+  route('GET', '/claims', ({ user, query }) => pc.listClaims(user, { status: query.get('status') || undefined }));
   route('GET', '/policies/:id', ({ user, params }) => pc.policyDetail(params.id, user));
   route('POST', '/policies/:id/change', ({ user, params, body }) => pc.jobDetail(pc.startPolicyChange(params.id, body, user).id, user));
   route('POST', '/policies/:id/cancel', ({ user, params, body }) => pc.jobDetail(pc.startCancellation(params.id, body, user).id, user));
@@ -89,6 +90,11 @@ function createApi(pc, store, { reseed, chatbot, speech } = {}) {
   route('GET', '/sales/followups', ({ user }) => pc.followUpsVisible(user));
   route('GET', '/sales/policies/:id/followups', ({ user, params }) => pc.followUpHistory(params.id, user));
   route('POST', '/sales/policies/:id/followups', ({ user, params, body }) => pc.logFollowUp(params.id, body, user));
+  // Customer messages (email and WhatsApp). Sending needs confirm: true in the body.
+  route('GET', '/messages/status', () => (messaging ? messaging.status() : { channels: {}, templates: [] }));
+  route('POST', '/messages/preview', ({ user, body }) => messaging.preview(body, user), { readOnly: true });
+  route('POST', '/messages/send', ({ user, body }) => messaging.send(body, user));
+  route('GET', '/accounts/:id/messages', ({ user, params }) => messaging.messagesFor(params.id, user));
   route('POST', '/admin/reset', ({ user }) => {
     pc.requireAuthority(user, 2, 'reset demo data');
     store.reset();

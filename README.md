@@ -111,6 +111,30 @@ in its most prominent language, so heavily mixed speech may come back in one scr
   is `{conversationId?, message, context}`. Conversations are kept in server memory and reset when the server
   restarts.
 
+## Customer messages (email and WhatsApp)
+
+On a customer's page, **Send message** opens a form: choose a channel, a template (renewal reminder, lapse
+warning, claim update) and a language (English, Hindi, Telugu). **Preview** shows the message, and nothing is sent
+until you tick the confirmation box. Every attempt, including failures, is saved on the customer's record.
+Nothing is sent to customers until these settings are in place.
+
+**Email (Gmail):** create a Google App Password for the Gmail account (Google Account → Security → 2-Step
+Verification → App passwords), then start the server with:
+
+```powershell
+$env:GMAIL_USER="yourname@gmail.com"; $env:GMAIL_APP_PASSWORD="<16-character app password>"; npm start
+```
+
+**WhatsApp (Meta Cloud API):** this needs a Meta Business account, a WhatsApp Business phone number, and each
+message template approved by Meta before first use. The approved template text must match the templates in
+`src/messaging.js`. Then start the server with:
+
+```powershell
+$env:WHATSAPP_TOKEN="<access token>"; $env:WHATSAPP_PHONE_ID="<phone number id>"; npm start
+```
+
+Phone numbers are sent as digits with a country code. A 10-digit number is treated as an Indian mobile (+91).
+
 ## Bulk test data
 
 ```bash
