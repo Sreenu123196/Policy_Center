@@ -10,8 +10,9 @@
 //     transactions)
 //   Rating factors, UW    no           yes           no                    yes
 //     notes
-//   Sales analytics and   own only     no            no                    all
+//   Sales analytics and   own only     no            all (read only)       all
 //     lapsing lists
+//   Logging follow-ups    own only     no            no                    all
 //   Portfolio, claims and no           yes           no                    yes
 //     billing reports                              (claims and billing:  (all)
 //                                                   no; portfolio: no)
@@ -33,9 +34,11 @@ const canSeeUnderwritingNotes = (user) => ['underwriter', 'manager'].includes(le
 const canSeeClaimReserves = (user) => ['underwriter', 'manager'].includes(levelOf(user));
 const canSeeBilling = (user) => levelOf(user) === 'manager';
 
-// Sales figures: agents see their own; managers see every producer; nobody else.
-const canSeeSales = (user) => ['agent', 'manager'].includes(levelOf(user));
+// Sales figures: agents see their own; executives and managers see every salesperson (executives read only).
+const canSeeSales = (user) => ['agent', 'executive', 'manager'].includes(levelOf(user));
 const salesScope = (user) => (isAgent(user) ? 'own' : 'all');
+// Writing follow-up notes: agents for their own sales, managers for all. Executives only read.
+const canLogFollowUps = (user) => ['agent', 'manager'].includes(levelOf(user));
 
 // Portfolio and claims reports: underwriters and managers. Billing reports: managers only.
 const canSeePortfolioReport = (user) => ['underwriter', 'manager'].includes(levelOf(user));
@@ -47,6 +50,6 @@ const roleLabel = (user) => ({ agent: 'Agent', underwriter: user.role, executive
 module.exports = {
   levelOf, isAgent, isManager,
   canSeeRatingFactors, canSeeUnderwritingNotes, canSeeClaimReserves, canSeeBilling,
-  canSeeSales, salesScope, canSeePortfolioReport, canSeeClaimsReport, canSeeBillingReport,
+  canSeeSales, salesScope, canLogFollowUps, canSeePortfolioReport, canSeeClaimsReport, canSeeBillingReport,
   roleLabel,
 };

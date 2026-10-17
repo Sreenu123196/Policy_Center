@@ -36,8 +36,10 @@ test('roles: an insurance executive sees policies and claim status, but no billi
   assert.equal(pc.claimDetail(claim.id, executive).reserve, undefined);
   assert.throws(() => pc.claimsReport(executive), /underwriters and UW managers/);
   assert.throws(() => pc.billingReport(executive), /UW managers/);
-  assert.throws(() => pc.salesAnalytics(executive, {}), /agents and UW managers/);
-  assert.throws(() => pc.lapsePolicies(executive), /agents and UW managers/);
+  // Executives can read sales figures for every salesperson, but cannot log follow-ups.
+  assert.equal(pc.salesAnalytics(executive, { period: 'year' }).scope, 'all salespeople');
+  assert.ok(Array.isArray(pc.lapsePolicies(executive)));
+  assert.throws(() => pc.logFollowUp(policy.id, { channel: 'Phone', result: 'Interested' }, executive), /cannot log follow-ups/);
   assert.equal(pc.listPolicies('', executive).length >= 1, true, 'policies are visible');
   assert.ok(users);
 });
@@ -66,7 +68,7 @@ test('roles: an underwriter keeps underwriting detail and claims, but not billin
   assert.equal(pc.claimDetail(claim.id, users.uw).reserve, 1500);
   assert.equal(pc.claimsReport(users.uw).claims, 1);
   assert.throws(() => pc.billingReport(users.uw), /UW managers/);
-  assert.throws(() => pc.salesAnalytics(users.uw, {}), /agents and UW managers/);
+  assert.throws(() => pc.salesAnalytics(users.uw, {}), /agents, insurance executives and UW managers/);
 });
 
 test('roles: agents see their own customers only, with no billing, reserves or reports beyond their sales', () => {

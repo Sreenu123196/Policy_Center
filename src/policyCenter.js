@@ -8,7 +8,7 @@ const { rate, replacementCostEstimate, round2 } = require('./rating');
 const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
-const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
+const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
 
 // Authority levels for each staff role (see permissions.js).
@@ -1435,7 +1435,7 @@ class PolicyCenter {
   }
 
   salesAnalytics(user, { period = 'month', product } = {}) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
     if (!['day', 'month', 'year'].includes(period)) throw new AppError(422, 'Period must be day, month or year');
     const keyOf = (date) => (period === 'day' ? date : period === 'month' ? date.slice(0, 7) : date.slice(0, 4));
     const buckets = new Map();
@@ -1462,7 +1462,7 @@ class PolicyCenter {
   // Lapsing: the current term ends within LAPSING_WINDOW_DAYS and nothing has renewed yet.
   // Lapsed: the term ended within the last LAPSED_WINDOW_DAYS and nothing has renewed.
   lapsePolicies(user) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
     const today = this.today();
     const out = [];
     for (const p of this.db.policies) {
@@ -1493,7 +1493,8 @@ class PolicyCenter {
   }
 
   logFollowUp(policyId, input, user) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
+    if (!canLogFollowUps(user)) throw new AppError(403, 'Insurance executives can view sales but cannot log follow-ups');
     const policy = this.policy(policyId, user);
     const seller = this.salespersonOf(policy);
     if (salesScope(user) !== 'all' && seller.id !== user.id) throw new AppError(403, 'Only the salesperson who sold this policy can log follow-ups for it');
@@ -1513,7 +1514,7 @@ class PolicyCenter {
   }
 
   followUpHistory(policyId, user) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
     const policy = this.policy(policyId, user);
     return this.db.followUps
       .filter((f) => f.policyId === policy.id)
@@ -1522,7 +1523,7 @@ class PolicyCenter {
 
   // Every follow-up the user may see, newest first, with the customer's name.
   followUpsVisible(user) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
     return this.db.followUps
       .map((f) => {
         const p = this.db.policies.find((x) => x.id === f.policyId);
@@ -1592,7 +1593,7 @@ class PolicyCenter {
   // Sales report: new business written (policies whose first job was a Submission) with an effective
   // date in [from, to]. Agents get their own producer code only; underwriting staff get every producer.
   salesReport(user, { from, to, product } = {}) {
-    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents, insurance executives and UW managers');
     if (!D.isDate(from) || !D.isDate(to)) throw new AppError(422, 'Sales dates must be yyyy-mm-dd');
     if (from > to) throw new AppError(422, 'The start date is after the end date');
     const scope = salesScope(user);
