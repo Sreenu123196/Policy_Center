@@ -16,6 +16,9 @@ const USERS = [
   { id: 'agent2', name: 'Blair Broker', role: 'Agent', authority: 0, producerCode: 'PC-200' },
   { id: 'uw', name: 'Uma Underwriter', role: 'Underwriter', authority: 1 },
   { id: 'uwm', name: 'Morgan Lee', role: 'UW Manager', authority: 2 },
+  { id: 'sudhakar', name: 'Sudhakar', role: 'UW Manager', authority: 2 },
+  { id: 'venkatesh', name: 'Venkatesh', role: 'Insurance Executive', authority: 1, reportsTo: 'sudhakar' },
+  { id: 'naagarjuna', name: 'Naagarjuna', role: 'Insurance Executive', authority: 1, reportsTo: 'sudhakar' },
 ];
 
 const opt = (value, label) => ({ value, label });
