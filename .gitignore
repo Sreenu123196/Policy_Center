@@ -1,6 +1,9 @@
 # Dependencies (restore with npm install)
 node_modules/
 
+# Local speech service: its Python environment (recreate with the README steps)
+.whisper/
+
 # Runtime data: rebuilt from the demo seed on first start, or with npm run generate
 data/
 

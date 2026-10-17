@@ -111,6 +111,32 @@ in its most prominent language, so heavily mixed speech may come back in one scr
   is `{conversationId?, message, context}`. Conversations are kept in server memory and reset when the server
   restarts.
 
+## Local speech (Whisper, on this computer)
+
+The mic records what you say, and a speech service on this computer turns it into text. It detects English,
+Hindi or Telugu by itself, and the assistant replies in the same language. No account or key is needed, and
+the audio never leaves the computer.
+
+One-time setup, from the PolicyCenter-Sim folder:
+
+```powershell
+python -m venv .whisper
+.whisper\Scripts\python.exe -m pip install faster-whisper
+```
+
+Start the speech service in its own PowerShell window (keep it open while you use the app):
+
+```powershell
+.whisper\Scripts\python.exe scripts\whisper_server.py
+```
+
+The first start downloads the model once: about 1.5 GB for the default `medium` model, which is the one to use
+for Telugu. For a smaller, faster download set `$env:WHISPER_MODEL="small"` first (less accurate for Telugu).
+When it is ready it prints `Speech service ready at http://127.0.0.1:8178`. Then start the app as usual.
+
+Recording stops when you click the mic again, or after about 55 seconds. Speech is turned into text after you
+stop speaking, so replies take a few seconds longer than typing.
+
 ## Customer messages (email and WhatsApp)
 
 On a customer's page, **Send message** opens a form: choose a channel, a template (renewal reminder, lapse
