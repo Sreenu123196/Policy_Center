@@ -876,6 +876,7 @@ function chatContext() {
 // A small, safe Markdown subset: paragraphs, bullets, tables, **bold**, `code`, record-number links.
 function renderMarkdown(text) {
   const inline = (t) => esc(t)
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // Markdown links: keep the text; record numbers get linked below
     .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
     .replace(/`([^`]+)`/g, '<code>$1</code>')
     .replace(/\b((?:PA|HO)-\d{7})\b/g, '<a href="#/policy/$1">$1</a>')
@@ -1059,11 +1060,21 @@ let stopVoice = () => {};
 
 function setupVoice(input) {
   const mic = document.getElementById('chat-mic');
+  const langPick = document.getElementById('chat-voice-lang');
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     mic.hidden = true;
+    langPick.hidden = true;
     return;
   }
+  // Speech recognition must be told which language to expect. English (India) also handles
+  // Hinglish and Tenglish spoken in Roman letters; Hindi and Telugu write in their own scripts.
+  const saved = readPref('pcVoiceLang');
+  if (saved && [...langPick.options].some((o) => o.value === saved)) langPick.value = saved;
+  langPick.addEventListener('change', () => {
+    writePref('pcVoiceLang', langPick.value);
+    if (rec) rec.stop(); // the next session starts in the new language
+  });
   let listening = false;
   let rec = null;
   let base = '';
@@ -1080,7 +1091,7 @@ function setupVoice(input) {
     base = input.value ? input.value.replace(/\s*$/, ' ') : '';
     const started = Date.now();
     rec = new Recognition();
-    rec.lang = navigator.language || 'en-US';
+    rec.lang = langPick.value || 'en-IN';
     rec.interimResults = true;
     rec.continuous = true;
     rec.onresult = (ev) => {

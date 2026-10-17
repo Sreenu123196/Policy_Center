@@ -27,7 +27,13 @@ How to work:
 - When explaining a premium, use the rating worksheet: name the factors that drive it most, with their values.
 - You are read-only. You cannot quote, bind, change, cancel or approve anything. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
 - Each message may start with a bracketed note about the screen the user has open and today's date. Use it to resolve "this policy" or "this job".
-- Keep answers short and scannable: a sentence or two, then bullets or a small table when listing several records. Use $ amounts with cents. Always write record numbers in full so they become links.`;
+- Keep answers short and scannable: a sentence or two, then bullets or a small table when listing several records. Use $ amounts with cents. Always write record numbers in full as plain text (no Markdown links); the app turns them into links.
+
+Language:
+- Users write or speak in English, Hindi, Telugu, or a mix such as Hinglish (Hindi and English) or Tenglish (Telugu and English). Speech arrives as transcribed text and may have small transcription errors; read it for meaning.
+- Reply in the language and script of the user's latest message. Hindi in Devanagari gets a reply in Devanagari; Telugu in Telugu script gets a reply in Telugu script; English gets English.
+- Mixed messages get a reply in the same mix and the same script. Romanized Hinglish (for example "J0000005 kyon blocked hai?") gets romanized Hinglish back; romanized Tenglish (for example "ee policy premium enduku ekkuva undi?") gets romanized Tenglish back. Do not switch a romanized message into Devanagari or Telugu script.
+- In every language, keep record numbers, dollar amounts, dates, coverage names and insurance terms that people use in English (premium, deductible, underwriting, bind, quote, referral) in English. Name screens and buttons in English exactly as they appear in the app (for example "Risk analysis", "Approve"), because the app's screens are in English.`;
 
 // ------------------------------------------------------------------ tools
 
@@ -179,7 +185,13 @@ function compactPeriod(product, period) {
     };
   }
   const covs = Object.entries(period.line.coverages).filter(([, c]) => c.selected).map(([code, c]) => `${code}${Object.keys(c.terms).length ? ' ' + Object.values(c.terms).join('/') : ''}`);
-  return { paymentPlan: period.paymentPlan, form: period.line.form, dwelling: period.line.dwelling, coverages: covs };
+  return {
+    paymentPlan: period.paymentPlan,
+    form: period.line.form,
+    dwelling: period.line.dwelling,
+    units: { distanceToFireStation: 'miles', squareFeet: 'square feet', roofAge: 'years', priorClaims: 'claims in the last 5 years' },
+    coverages: covs,
+  };
 }
 
 const costSummary = (q) => (q && q.costs ? q.costs.map((c) => ({ item: `${c.coverable}: ${c.coverageName}`, amount: c.amount })) : undefined);
@@ -325,10 +337,39 @@ function safeRunTool(pc, user, name, input) {
 
 const fmt = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+// Names the language style of a message so the model gets an explicit, per-turn instruction.
+// Romanized Hinglish and Tenglish look like English to a quick read, so they are spotted from
+// common Hindi and Telugu words written in Roman letters.
+const HINGLISH = /\b(hai|hain|kya|kyon|kyun|kaise|kitna|kitne|kitni|mein|mujhe|batao|bataiye|dikhao|nahi|nahin|aur|bhi|wala|wali|karo|kijiye|chahiye|abhi|kab|kahan|iska|iski|kaun|kaunsa)\b/;
+const TENGLISH = /\b(enduku|enti|emiti|ela|elaa|cheppu|cheppandi|chupinchu|chupinchandi|undi|unnayi|ledu|levu|kavali|ayindi|avutundi|ee|aa|ga|lo|ki|naku|meeru|nenu|chala|ekkuva|takkuva|enni|entha)\b/;
+
+function replyLanguage(text) {
+  if (/[ఀ-౿]/.test(text)) return 'Telugu in Telugu script (keep insurance terms, record numbers and amounts in English).';
+  if (/[ऀ-ॿ]/.test(text)) return 'Hindi in Devanagari script (keep insurance terms, record numbers and amounts in English).';
+  const lower = text.toLowerCase();
+  const hi = (lower.match(new RegExp(HINGLISH.source, 'g')) || []).length;
+  const te = (lower.match(new RegExp(TENGLISH.source, 'g')) || []).length;
+  // "ki", "lo", "ga", "aa", "ee" are short and could appear elsewhere, so Tenglish needs two signals.
+  if (te >= 2 && te >= hi) return 'romanized Tenglish: Telugu sentences written in Roman letters, mixed with English insurance terms, the way the user wrote. Use Telugu connecting words (enduku ante, kabatti, mariyu, meeru, undi, ledu), never Hindi ones (kyunki, aur, aap, hai). Write bullet points in Tenglish too; only names, numbers, dates and insurance terms stay in English. Do not answer in plain English and do not use Telugu script.';
+  if (hi >= 1) return 'romanized Hinglish: Hindi sentences written in Roman letters, mixed with English insurance terms, the way the user wrote. Write bullet points in Hinglish too (for example "Premium: $1,974.20 hai, jisme tax shamil hai"); only names, numbers, dates and insurance terms stay in English. Do not answer in plain English and do not use Devanagari.';
+  return 'the same language as the user’s message.';
+}
+
+// Offline keyword matching in English, Hindi, Telugu, and romanized Hinglish / Tenglish.
+// (Devanagari and Telugu letters are not "word" characters to \b, so those words match as plain substrings.)
+const OFFLINE_WORDS = {
+  // Hinglish "is" ("is policy") is left out: it would also match the English word.
+  thisRecord: { latin: /\b(this|current|ye|yeh|yah|iska|iski|iske|ee|idi|deeni|deni)\b/, native: ['यह', 'ये', 'इस', 'ఈ', 'ఇది', 'దీని'] },
+  workQueue: { latin: /referral|activit|queue|approv|pending|open job|baaki|baki|lambit/, native: ['रेफरल', 'लंबित', 'बाकी', 'मंजूरी', 'రెఫరల్', 'పెండింగ్', 'ఆమోదం'] },
+  summary: { latin: /summary|portfolio|book|how many|total|count|kitne|kitni|kitna|saransh|enni|entha|motham/, native: ['सारांश', 'कितने', 'कितनी', 'कुल', 'సారాంశం', 'ఎన్ని', 'మొత్తం'] },
+};
+const saysAny = (key, lower, text) => OFFLINE_WORDS[key].latin.test(lower) || OFFLINE_WORDS[key].native.some((w) => text.includes(w));
+const NON_LATIN_SCRIPT = /[ऀ-ॿఀ-౿]/;
+
 function offlineAnswer(pc, user, message, context) {
   const text = str(message);
   const lower = text.toLowerCase();
-  const num = text.match(/\b(PA-\d{7}|HO-\d{7}|J\d{7}|A\d{7})\b/i) || (/\b(this|current)\b/.test(lower) && context && context.record ? [context.record, context.record] : null);
+  const num = text.match(/\b(PA-\d{7}|HO-\d{7}|J\d{7}|A\d{7})\b/i) || (saysAny('thisRecord', lower, text) && context && context.record ? [context.record, context.record] : null);
   const out = [];
   try {
     if (num) {
@@ -350,15 +391,26 @@ function offlineAnswer(pc, user, message, context) {
         if (p.cancellation) out.push(`- Cancelled ${p.cancellation.effective} (${p.cancellation.reason}), return premium ${fmt(p.cancellation.returnPremium)}`);
         if (p.openJob) out.push(`- Open job: ${p.openJob}`);
       }
-    } else if (/referral|activit|queue|approv|pending|open job/.test(lower)) {
+    } else if (saysAny('workQueue', lower, text)) {
       const q = runTool(pc, user, 'list_work_queue', {});
       out.push(q.openReferrals.length ? `You have ${q.openReferrals.length} open referral(s):` : 'No open referrals.', ...q.openReferrals.map((a) => `- ${a.job}: ${a.detail.split('\n')[0]} (${a.assignedTo}, due ${a.due})`));
       if (q.openJobs.length) out.push(`Open jobs: ${q.openJobs.map((j) => `${j.jobNumber} (${j.type}, ${j.status})`).join(', ')}`);
-    } else if (/summary|portfolio|book|how many|total|count/.test(lower)) {
+    } else if (saysAny('summary', lower, text)) {
       const s = runTool(pc, user, 'portfolio_summary', {});
       out.push(`You can see ${s.accounts} accounts and ${s.policies} policies.`, ...Object.entries(s.byStatus).map(([k, v]) => `- ${k}: ${v.policies} policies, ${fmt(v.termPremium)}`), ...Object.entries(s.byProduct).map(([k, v]) => `- ${k}: ${v.policies} policies, ${fmt(v.termPremium)}`));
     } else if (text.length >= 3) {
-      const r = runTool(pc, user, 'search', { query: text.replace(/^(find|search|show|look up|lookup)\s+/i, '') });
+      let r = runTool(pc, user, 'search', { query: text.replace(/^(find|search|show|look up|lookup)\s+/i, '') });
+      // Mixed-language messages ("Rivera ki policy dikhao", "Rivera policy chupinchu"): try each Latin word as a name.
+      if (!r.accounts.length && !r.policies.length) {
+        const seen = new Set();
+        const merged = { accounts: [], policies: [] };
+        for (const word of text.match(/[A-Za-z]{4,}/g) || []) {
+          const hit = runTool(pc, user, 'search', { query: word });
+          for (const a of hit.accounts) if (!seen.has(a.accountNumber)) { seen.add(a.accountNumber); merged.accounts.push(a); }
+          for (const p of hit.policies) if (!seen.has(p.policyNumber)) { seen.add(p.policyNumber); merged.policies.push(p); }
+        }
+        if (merged.accounts.length + merged.policies.length <= 10) r = merged;
+      }
       const n = r.accounts.length + r.policies.length;
       if (n) out.push('Here is what I found:', ...r.accounts.map((a) => `- Account ${a.accountNumber}: ${a.name}, ${a.city} ${a.state}`), ...r.policies.map((p) => `- ${p.policyNumber}: ${p.insured}, ${p.product}, ${p.status}, ${fmt(p.termPremium)}`));
     }
@@ -367,6 +419,7 @@ function offlineAnswer(pc, user, message, context) {
     out.push(`I couldn't find that: ${err.message}.`);
   }
   if (!out.length) out.push('In offline mode I can look up a policy, job or account by number (for example PA-0000001 or J0000005), list your referrals, summarize the book of business, or search by name or city.');
+  if (NON_LATIN_SCRIPT.test(text)) out.push('\n(Offline mode replies in English only. With an API key set, I reply in Hindi or Telugu.)');
   return out.join('\n');
 }
 
@@ -444,10 +497,18 @@ class Chatbot {
       return { conversationId: conv.id, mode: 'offline', reply, toolsUsed: [], notice: this.offlineReason };
     }
 
+    const style = replyLanguage(text);
     const note = `[Today: ${this.pc.today()}. Signed in as ${user.name} (${user.role}). Viewing: ${context && context.page ? context.page : 'unknown'}${context && context.record ? `, record ${context.record}` : ''}]`;
     // History is append-only: assistant content (including thinking blocks) goes back unchanged, and
     // the conversation is only updated once the whole turn has succeeded.
-    const pending = [...conv.messages, { role: 'user', content: `${note}\n${text}` }];
+    // The reply style goes in a mid-conversation system message right after the question: the model
+    // weighs it as an operator instruction, which keeps short Hinglish/Tenglish questions from drifting
+    // into plain English.
+    const pending = [
+      ...conv.messages,
+      { role: 'user', content: `${note}\n${text}` },
+      { role: 'system', content: `Reply language for this answer: ${style} Start directly with the answer; never label or mention the language.` },
+    ];
     const toolsUsed = [];
     let streamed = '';
     let jsonRetries = 0;
@@ -544,4 +605,4 @@ class Chatbot {
   }
 }
 
-module.exports = { Chatbot, TOOLS, runTool, offlineAnswer, validateInput };
+module.exports = { Chatbot, TOOLS, runTool, offlineAnswer, validateInput, replyLanguage };
