@@ -83,6 +83,12 @@ function createApi(pc, store, { reseed, chatbot, speech } = {}) {
     if (!speech) throw new AppError(503, 'Cloud speech is not set up on the server');
     return speech.transcribe(body);
   }, { readOnly: true, raw: true });
+  // Sales analytics, lapsing policies and follow-ups.
+  route('GET', '/sales/analytics', ({ user, query }) => pc.salesAnalytics(user, { period: query.get('period') || 'month', product: query.get('product') || undefined }));
+  route('GET', '/sales/lapsing', ({ user }) => pc.lapsePolicies(user));
+  route('GET', '/sales/followups', ({ user }) => pc.followUpsVisible(user));
+  route('GET', '/sales/policies/:id/followups', ({ user, params }) => pc.followUpHistory(params.id, user));
+  route('POST', '/sales/policies/:id/followups', ({ user, params, body }) => pc.logFollowUp(params.id, body, user));
   route('POST', '/admin/reset', ({ user }) => {
     pc.requireAuthority(user, 2, 'reset demo data');
     store.reset();

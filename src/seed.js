@@ -155,6 +155,10 @@ function seed(pc) {
     pc.payClaim(claim.id, { amount: 1200, note: 'Paid in full' }, uw);
     pc.closeClaim(claim.id, { reason: 'Settled in full' }, uw);
   });
+  // 8. Follow-up: Daniel Kim's auto policy is lapsing (the term ends soon); his salesperson called and left a voicemail.
+  asOf(day(-4), () => {
+    pc.logFollowUp(policyOf(kim, 'PersonalAuto').id, { channel: 'Phone', result: 'No answer', notes: 'Left a voicemail about renewal options' }, user('agent'));
+  });
 }
 
 module.exports = { seed };

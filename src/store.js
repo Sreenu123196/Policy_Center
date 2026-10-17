@@ -5,7 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], documents: [], events: [], claims: [] });
+const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], documents: [], events: [], claims: [], followUps: [] });
 
 class Store {
   constructor(file) {

@@ -103,6 +103,7 @@ const ROUTES = [
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
   [/^#\/search\/(.*)$/, pageSearch],
+  [/^#\/sales$/, pageSales],
   [/^#\/admin$/, pageAdmin],
 ];
 
@@ -706,7 +707,73 @@ async function pageAdmin() {
 
 // ------------------------------------------------------------------ actions
 
+// ------------------------------------------------------------------ sales
+
+const SALES = { tab: 'analytics', period: 'month', product: '' };
+const FOLLOW_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
+const FOLLOW_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
+
+async function pageSales() {
+  const tabs = [['analytics', 'Sales analytics'], ['lapsing', 'Lapsing & lapsed'], ['history', 'Follow-up history']];
+  const tabBar = `<div class="tabs">${tabs.map(([k, n]) => `<button class="${SALES.tab === k ? 'active' : ''}" data-action="sales-tab" data-tab="${k}">${n}</button>`).join('')}</div>`;
+  let body;
+  if (SALES.tab === 'analytics') {
+    const q = `period=${encodeURIComponent(SALES.period)}${SALES.product ? `&product=${encodeURIComponent(SALES.product)}` : ''}`;
+    const d = await api('GET', `/sales/analytics?${q}`);
+    body = `<form class="toolbar" data-form="sales-filter" style="margin-bottom:12px">
+        ${field('Period', `<select name="period">${['day', 'month', 'year'].map((p) => `<option value="${p}" ${sel(p, SALES.period)}>${p === 'day' ? 'Daily' : p === 'month' ? 'Monthly' : 'Yearly'}</option>`).join('')}</select>`)}
+        ${field('Product', `<select name="product"><option value="">All products</option>${Object.values(S.meta.products).map((p) => `<option value="${p.code}" ${sel(p.code, SALES.product)}>${esc(p.name)}</option>`).join('')}</select>`)}
+        <button class="btn">Show</button>
+      </form>
+      <div class="muted" style="margin-bottom:10px">Policies sold, by the day they were bound. Premium includes tax. Showing ${esc(d.scope)}.</div>`
+      + (d.buckets.length
+        ? d.buckets.map((b) => `<h3>${esc(b.period)} · ${b.total.policies} policies · ${money(b.total.premium)}</h3>`
+          + table(['Salesperson', '$Policies', '$Premium'], b.salespeople.map((s) => [esc(s.name), s.policies, money(s.premium)]))).join('')
+        : '<div class="empty">No sales in this view yet.</div>');
+  } else if (SALES.tab === 'lapsing') {
+    const rows = await api('GET', '/sales/lapsing');
+    body = '<div class="muted" style="margin-bottom:10px">Lapsing: the term ends within 60 days and nothing has renewed. Lapsed: the term ended in the last 90 days and nothing has renewed.</div>'
+      + table(['Policy', 'Insured', 'Status', '$Premium', 'Ends', 'Days left', 'Salesperson', 'Last follow-up', ''], rows.map((r) => [
+        policyLink({ policyNumber: r.policyNumber, policyId: r.policyId }), esc(r.insured), badge(r.status), money(r.premium), esc(r.expirationDate),
+        r.daysToExpiry, esc(r.salesperson.name),
+        r.lastFollowUp ? `${esc(r.lastFollowUp.date)} · ${esc(r.lastFollowUp.channel)} · ${esc(r.lastFollowUp.result)}` : '<span class="muted">None yet</span>',
+        `<div class="toolbar"><button class="btn small primary" data-action="log-followup" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">Log follow-up</button><button class="btn small" data-action="followup-history" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">History</button></div>`,
+      ]), 'No lapsing or lapsed policies for you');
+  } else {
+    const rows = await api('GET', '/sales/followups');
+    body = table(['Date', 'Policy', 'Insured', 'Channel', 'Result', 'Salesperson', 'Notes'], rows.map((f) => [
+      esc(f.date), policyLink({ policyNumber: f.policyNumber, policyId: f.policyId }), esc(f.insured), esc(f.channel), esc(f.result),
+      esc((S.meta.users.find((u) => u.id === f.salespersonId) || { name: f.salespersonId }).name), esc(f.notes || ''),
+    ]), 'No follow-ups logged yet');
+  }
+  view(`<div class="eyebrow">Sales</div><h1>Sales</h1>${tabBar}<div class="card">${body}</div>`);
+}
+
+function followUpModal(policyId, number) {
+  openModal(`<h2>Log follow-up · ${esc(number)}</h2>
+    <form data-form="followup" data-id="${esc(policyId)}">
+      <div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Date', `<input type="date" name="date" value="${S.meta.today}" max="${S.meta.today}" required>`)}
+        ${field('Channel', `<select name="channel">${FOLLOW_CHANNELS.map((c) => `<option>${c}</option>`).join('')}</select>`)}
+        ${field('Result', `<select name="result">${FOLLOW_RESULTS.map((r) => `<option>${r}</option>`).join('')}</select>`)}
+      </div>
+      ${field('Notes', '<textarea name="notes" rows="3" style="width:100%" placeholder="What the customer said, and the next step"></textarea>')}
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Save follow-up</button></div>
+    </form>`);
+}
+
+async function followUpHistoryModal(policyId, number) {
+  const rows = await api('GET', `/sales/policies/${encodeURIComponent(policyId)}/followups`);
+  openModal(`<h2>Follow-up history · ${esc(number)}</h2>`
+    + table(['Date', 'Channel', 'Result', 'Notes', 'Logged by'], rows.map((f) => [esc(f.date), esc(f.channel), esc(f.result), esc(f.notes || ''), esc(f.loggedByName)]), 'No follow-ups yet')
+    + '<div class="actions"><button class="btn" data-action="close-modal">Close</button></div>', true);
+}
+
 const ACTIONS = {
+  'sales-tab': (d) => { SALES.tab = d.tab; pageSales(); },
+  'log-followup': (d) => followUpModal(d.id, d.number),
+  'followup-history': (d) => followUpHistoryModal(d.id, d.number),
   'close-modal': () => closeModal(),
   print: () => window.print(),
   'new-submission': (d) => newSubmissionModal(d.account),
@@ -773,6 +840,13 @@ const ACTIONS = {
 };
 
 const FORMS = {
+  'sales-filter': (fd) => { SALES.period = String(fd.get('period') || 'month'); SALES.product = String(fd.get('product') || ''); pageSales(); },
+  followup: async (fd, form) => {
+    await api('POST', `/sales/policies/${encodeURIComponent(form.dataset.id)}/followups`, { date: fd.get('date'), channel: fd.get('channel'), result: fd.get('result'), notes: fd.get('notes') });
+    closeModal();
+    toast('Follow-up saved', 'success');
+    pageSales();
+  },
   search: (fd) => { const q = String(fd.get('q') || '').trim(); if (q) location.hash = '#/search/' + encodeURIComponent(q); },
   'account-search': (fd) => { S.accountQuery = String(fd.get('q') || ''); pageAccounts(); },
   'policy-search': (fd) => { S.policyQuery = String(fd.get('q') || ''); pagePolicies(); },
@@ -1177,16 +1251,29 @@ async function setupVoice(input) {
   }
 
   // ---------------- browser engine (fallback)
+  // Chrome and Edge recognise one language per session and cannot detect it, so this engine
+  // listens as English (India). Telugu and Hindi speech need the Google engine above.
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     mic.hidden = true;
     return;
   }
+  const englishOnlyLabel = 'Speak in English (Telugu and Hindi voice needs Google speech set up)';
   let listening = false;
   let rec = null;
   let base = '';
   let quickEnds = 0;
+  let silentEnds = 0;
   let ended = null;
+  let savedPlaceholder = input.placeholder;
+  let toldEnglishOnly = false;
+
+  const idle = () => {
+    setButton('idle');
+    mic.title = englishOnlyLabel;
+    mic.setAttribute('aria-label', englishOnlyLabel);
+    input.placeholder = savedPlaceholder;
+  };
 
   const startSession = () => {
     base = input.value ? input.value.replace(/\s*$/, ' ') : '';
@@ -1196,19 +1283,26 @@ async function setupVoice(input) {
     rec.interimResults = true;
     rec.continuous = true;
     rec.onresult = (ev) => {
+      silentEnds = 0;
       input.value = base + [...ev.results].map((r) => r[0].transcript).join('');
       chatUpdateSend();
     };
     rec.onerror = (ev) => {
       if (ev.error === 'not-allowed' || ev.error === 'service-not-allowed') {
         listening = false;
-        toast('Microphone access is blocked. Allow it in the browser to use voice input.', 'error');
+        toast('Chrome is blocking the microphone. Click the mic icon in the address bar, choose Allow, then try again.', 'error');
       } else if (ev.error === 'audio-capture') {
         listening = false;
-        toast('No microphone was found. Check that one is connected and selected.', 'error');
+        toast('No microphone was found. Check that one is connected and selected in Chrome.', 'error');
       } else if (ev.error === 'network') {
         listening = false;
-        toast('Voice input needs an internet connection.', 'error');
+        toast("Chrome's speech service could not be reached. Check the internet connection.", 'error');
+      } else if (ev.error === 'no-speech') {
+        // Chrome heard nothing for several seconds. Say so once, instead of failing silently.
+        silentEnds += 1;
+        if (silentEnds === 1) {
+          toast("I can't hear any English speech. Check Chrome is using the right microphone (mic icon in the address bar). Telugu and Hindi speech need Google speech set up.", 'error');
+        }
       }
     };
     rec.onend = () => {
@@ -1221,7 +1315,7 @@ async function setupVoice(input) {
       if (listening) {
         setTimeout(() => { if (listening && !rec) startSession(); }, 150);
       } else {
-        setButton('idle');
+        idle();
         if (ended) { ended(); ended = null; }
         input.focus();
       }
@@ -1231,7 +1325,7 @@ async function setupVoice(input) {
     } catch {
       rec = null;
       listening = false;
-      setButton('idle');
+      idle();
     }
   };
 
@@ -1239,7 +1333,7 @@ async function setupVoice(input) {
   VOICE.stop = (discard) => new Promise((resolve) => {
     listening = false;
     if (!rec) {
-      setButton('idle');
+      idle();
       return resolve();
     }
     ended = resolve;
@@ -1253,12 +1347,19 @@ async function setupVoice(input) {
 
   mic.addEventListener('click', () => {
     if (listening) return VOICE.stop(false);
+    if (!toldEnglishOnly) {
+      toldEnglishOnly = true;
+      toast('Voice is in English mode. To speak Telugu or Hindi, set up Google speech (see README); typing in Telugu or Hindi works now.');
+    }
     listening = true;
     quickEnds = 0;
+    silentEnds = 0;
+    savedPlaceholder = input.placeholder;
+    input.placeholder = 'Listening in English… click the mic to stop';
     setButton('listening');
     startSession();
   });
-  setButton('idle');
+  idle();
 }
 
 function setupChat() {

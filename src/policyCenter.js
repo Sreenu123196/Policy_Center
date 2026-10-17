@@ -10,6 +10,11 @@ const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
 const { salesScope, canSeeClaimReserves } = require('./permissions');
 
+const FOLLOW_UP_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
+const FOLLOW_UP_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
+const LAPSING_WINDOW_DAYS = 60; // a policy whose term ends within this many days is lapsing
+const LAPSED_WINDOW_DAYS = 90;  // a policy whose term ended this many days ago, not renewed, is lapsed
+
 const CLAIM_TYPES = ['Collision', 'Comprehensive', 'Liability', 'Medical', 'Property', 'Theft', 'Water', 'Wind or hail', 'Other'];
 
 class AppError extends Error {
@@ -1111,6 +1116,128 @@ class PolicyCenter {
     claim.reserve = round2(claim.payments.reduce((s, p) => s + p.amount, 0));
     this.publish('ClaimClosed', { claimNumber: claim.claimNumber, reason: claim.closeReason });
     return this.claimView(claim, user);
+  }
+
+  // ------------------------------------------------------------------ sales analytics
+  // A sale is a policy whose first job was a Submission. Its salesperson is the user who started that
+  // submission, and it is counted on the day the policy was bound. Agents see their own sales only;
+  // underwriting staff and managers see every salesperson.
+
+  salespersonOf(policy) {
+    const job = this.db.jobs.find((j) => j.policyId === policy.id && j.type === 'Submission');
+    const id = job ? job.createdBy : null;
+    const user = USERS.find((u) => u.id === id);
+    return { id, name: user ? user.name : id || 'Unknown' };
+  }
+
+  saleRows(user, { product } = {}) {
+    const rows = [];
+    for (const p of this.db.policies) {
+      const account = this.db.accounts.find((a) => a.id === p.accountId);
+      if (!account || !this.canSee(user, account)) continue;
+      if (product && p.product !== product) continue;
+      const first = p.versions[0];
+      if (!first || first.jobType !== 'Submission') continue;
+      const seller = this.salespersonOf(p);
+      if (salesScope(user) !== 'all' && seller.id !== user.id) continue;
+      rows.push({ policyNumber: p.policyNumber, product: p.product, boundDate: first.boundAt.slice(0, 10), premium: round2(first.quote.premium + first.quote.taxes), salesperson: seller });
+    }
+    return rows;
+  }
+
+  salesAnalytics(user, { period = 'month', product } = {}) {
+    if (!['day', 'month', 'year'].includes(period)) throw new AppError(422, 'Period must be day, month or year');
+    const keyOf = (date) => (period === 'day' ? date : period === 'month' ? date.slice(0, 7) : date.slice(0, 4));
+    const buckets = new Map();
+    for (const r of this.saleRows(user, { product })) {
+      const key = keyOf(r.boundDate);
+      if (!buckets.has(key)) buckets.set(key, { period: key, total: { policies: 0, premium: 0 }, salespeople: {} });
+      const b = buckets.get(key);
+      b.total.policies++;
+      b.total.premium = round2(b.total.premium + r.premium);
+      const sp = b.salespeople[r.salesperson.id] || (b.salespeople[r.salesperson.id] = { id: r.salesperson.id, name: r.salesperson.name, policies: 0, premium: 0 });
+      sp.policies++;
+      sp.premium = round2(sp.premium + r.premium);
+    }
+    return {
+      period,
+      product: product || 'all products',
+      scope: salesScope(user) === 'all' ? 'all salespeople' : 'your sales only',
+      buckets: [...buckets.values()]
+        .sort((a, b) => b.period.localeCompare(a.period))
+        .map((b) => ({ ...b, salespeople: Object.values(b.salespeople).sort((x, y) => y.premium - x.premium) })),
+    };
+  }
+
+  // Lapsing: the current term ends within LAPSING_WINDOW_DAYS and nothing has renewed yet.
+  // Lapsed: the term ended within the last LAPSED_WINDOW_DAYS and nothing has renewed.
+  lapsePolicies(user) {
+    const today = this.today();
+    const out = [];
+    for (const p of this.db.policies) {
+      if (p.cancellation) continue;
+      const account = this.db.accounts.find((a) => a.id === p.accountId);
+      if (!account || !this.canSee(user, account)) continue;
+      const seller = this.salespersonOf(p);
+      if (salesScope(user) !== 'all' && seller.id !== user.id) continue;
+      const last = this.lastTerm(p);
+      const days = D.daysBetween(today, last.expirationDate);
+      let status = null;
+      if (days >= 0 && days <= LAPSING_WINDOW_DAYS) status = 'Lapsing';
+      else if (days < 0 && -days <= LAPSED_WINDOW_DAYS) status = 'Lapsed';
+      if (!status) continue;
+      if (this.db.jobs.some((j) => j.policyId === p.id && j.type === 'Renewal' && OPEN.includes(j.status))) continue;
+      const notes = this.db.followUps.filter((f) => f.policyId === p.id).sort((a, b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
+      const latest = notes[0] || null;
+      out.push({
+        policyId: p.id, policyNumber: p.policyNumber, insured: this.accountName(account), product: p.product, status,
+        expirationDate: last.expirationDate, daysToExpiry: days,
+        premium: round2(last.latest.quote.premium + last.latest.quote.taxes),
+        salesperson: seller,
+        lastFollowUp: latest ? { date: latest.date, channel: latest.channel, result: latest.result } : null,
+        followUpCount: notes.length,
+      });
+    }
+    return out.sort((a, b) => a.daysToExpiry - b.daysToExpiry);
+  }
+
+  logFollowUp(policyId, input, user) {
+    const policy = this.policy(policyId, user);
+    const seller = this.salespersonOf(policy);
+    if (salesScope(user) !== 'all' && seller.id !== user.id) throw new AppError(403, 'Only the salesperson who sold this policy can log follow-ups for it');
+    const channel = str(input.channel);
+    if (!FOLLOW_UP_CHANNELS.includes(channel)) throw new AppError(422, `Channel must be one of ${FOLLOW_UP_CHANNELS.join(', ')}`);
+    const result = str(input.result);
+    if (!FOLLOW_UP_RESULTS.includes(result)) throw new AppError(422, `Result must be one of ${FOLLOW_UP_RESULTS.join(', ')}`);
+    const date = str(input.date) || this.today();
+    if (!D.isDate(date)) throw new AppError(422, 'Follow-up date must be yyyy-mm-dd');
+    if (date > this.today()) throw new AppError(422, 'Follow-up date cannot be in the future');
+    const followUp = {
+      id: this.store.id('fu'), policyId: policy.id, policyNumber: policy.policyNumber, salespersonId: seller.id,
+      date, channel, result, notes: str(input.notes), loggedBy: user.id, loggedByName: user.name, loggedAt: this.now(),
+    };
+    this.db.followUps.push(followUp);
+    return followUp;
+  }
+
+  followUpHistory(policyId, user) {
+    const policy = this.policy(policyId, user);
+    return this.db.followUps
+      .filter((f) => f.policyId === policy.id)
+      .sort((a, b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
+  }
+
+  // Every follow-up the user may see, newest first, with the customer's name.
+  followUpsVisible(user) {
+    return this.db.followUps
+      .map((f) => {
+        const p = this.db.policies.find((x) => x.id === f.policyId);
+        const account = p && this.db.accounts.find((a) => a.id === p.accountId);
+        return { f, account };
+      })
+      .filter(({ f, account }) => account && this.canSee(user, account) && (salesScope(user) === 'all' || f.salespersonId === user.id))
+      .sort((a, b) => b.f.date.localeCompare(a.f.date) || b.f.loggedAt.localeCompare(a.f.loggedAt))
+      .map(({ f, account }) => ({ ...f, insured: this.accountName(account) }));
   }
 
   // Sales report: new business written (policies whose first job was a Submission) with an effective
