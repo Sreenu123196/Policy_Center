@@ -140,6 +140,21 @@ function seed(pc) {
       vehicles: [{ year: 2023, make: 'Tesla', model: 'Model 3', vin: '5YJ3E1EA7PF317001', usage: 'Commute', annualMiles: 9000, marketValue: 38000, garagingZip: '11201' }],
     },
   });
+
+  // 7. Claims: one open auto claim with a partial payment, and one closed claim on Daniel Kim's auto policy.
+  const policyOf = (acct, product) => pc.db.policies.find((p) => p.accountId === acct.id && p.product === product);
+  const uw = user('uwm');
+  asOf(day(-55), () => {
+    const claim = pc.openClaim(policyOf(rivera, 'PersonalAuto').id, { lossDate: day(-60), lossType: 'Collision', description: 'Rear-ended at a red light; rear bumper and tail light damaged' }, user('agent'));
+    pc.setClaimReserve(claim.id, 3200, uw);
+    pc.payClaim(claim.id, { amount: 1100, note: 'Body shop estimate, first part' }, uw);
+  });
+  asOf(day(-30), () => {
+    const claim = pc.openClaim(policyOf(kim, 'PersonalAuto').id, { lossDate: day(-95), lossType: 'Wind or hail', description: 'Hail damage to the hood and roof' }, user('agent'));
+    pc.setClaimReserve(claim.id, 1200, uw);
+    pc.payClaim(claim.id, { amount: 1200, note: 'Paid in full' }, uw);
+    pc.closeClaim(claim.id, { reason: 'Settled in full' }, uw);
+  });
 }
 
 module.exports = { seed };

@@ -7,6 +7,7 @@ const AnthropicSDK = require('@anthropic-ai/sdk');
 const { PRODUCTS, STATES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { CANCEL_REASONS, AppError } = require('./policyCenter');
+const { canSeeRatingFactors, canSeeUnderwritingNotes } = require('./permissions');
 
 const Anthropic = AnthropicSDK.default || AnthropicSDK;
 const MODEL = process.env.CHAT_MODEL || 'claude-haiku-5-5';
@@ -22,7 +23,10 @@ const SYSTEM_PROMPT = `You are the PolicyCenter Assistant inside a policy admini
 You help agents, underwriters and managers find accounts, policies and jobs, explain premiums, underwriting issues, coverages, billing and policy history, and summarize the book of business.
 
 How to work:
-- Answer from tool results only. Never invent policy numbers, amounts, dates, coverages or rules. If a tool does not return something, say you could not find it.
+- Answer from tool results only. Never invent policy numbers, amounts, dates, coverages, rules, counts or totals. If a tool does not return something, say you could not find it.
+- Claims: use list_claims and get_claim. Quote claim numbers, loss dates, paid amounts and status exactly as returned. Reserves appear only when the tool returns them; if a user asks for a reserve and it is missing, say reserves are internal to underwriting. Never estimate or make up figures for data that is not in the results.
+- For sales, new business or written premium questions, use sales_report. For book-of-business and policy counts, use portfolio_summary or list_policies. Quote the exact figures the tool returns and say what period and scope they cover.
+- Tool results already show only what the signed-in user may see. Never mention or guess at data that is not in the results. If a user asks for rating factors or underwriting notes and the tool says they are internal, say so and do not work around it.
 - Look things up before answering questions about specific records. Policy numbers look like PA-0000001 or HO-0000001, jobs like J0000001, accounts like A0000001.
 - When explaining a premium, use the rating worksheet: name the factors that drive it most, with their values.
 - You are read-only. You cannot quote, bind, change, cancel or approve anything. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
@@ -104,6 +108,37 @@ const TOOLS = [
     },
   },
   {
+    name: 'list_claims',
+    description: 'List claims on policies the signed-in user can see, optionally for one policy number or one status (Open or Closed). Returns claim number, policy, insured, loss date, loss type, status, and amounts paid.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        policy: { type: 'string', description: 'Policy number, e.g. PA-0000001' },
+        status: { type: 'string', enum: ['Open', 'Closed'] },
+      },
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_claim',
+    description: 'Get one claim by claim number (CL-0000001) or id: policy, loss details, status, payments, and reserve when the user may see it.',
+    input_schema: { type: 'object', properties: { claim: { type: 'string' } }, required: ['claim'], additionalProperties: false },
+  },
+  {
+    name: 'sales_report',
+    description: 'Sales figures: new business written (policies bound as new submissions) with effective dates from to to, counted and totalled by product, state and (for underwriting staff) producer. Agents only get their own producer code. Use it for any question about sales, new business or written premium in a period.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Start date, yyyy-mm-dd' },
+        to: { type: 'string', description: 'End date, yyyy-mm-dd' },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners'] },
+      },
+      required: ['from', 'to'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_product_rules',
     description: 'Reference information: the product model (coverages, limits, forms, payment plans), underwriting rules and authority levels, cancellation reasons and methods, and the rate books.',
     input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
@@ -167,6 +202,9 @@ function toolLabel(name, input = {}) {
     case 'get_job': return `Looking up job ${input.job}`;
     case 'get_rating_worksheet': return `Reading the rating worksheet for ${input.record}`;
     case 'list_work_queue': return 'Checking the work queue';
+    case 'sales_report': return `Reading sales from ${input.from} to ${input.to}`;
+    case 'list_claims': return input.policy ? `Listing claims on ${input.policy}` : 'Listing claims';
+    case 'get_claim': return `Looking up claim ${input.claim}`;
     case 'portfolio_summary': return 'Summarizing the book of business';
     case 'list_policies': return 'Listing policies';
     case 'get_product_rules': return `Reading the ${input.topic} rules`;
@@ -245,12 +283,17 @@ function runTool(pc, user, name, input) {
       return {
         jobNumber: j.jobNumber, type: j.type, status: j.status, product: j.product, account: `${j.account.name} (${j.account.accountNumber})`, policyNumber: j.policy ? j.policy.policyNumber : null,
         term: `${j.period.effectiveDate} to ${j.period.expirationDate}`, effective: j.period.editEffectiveDate, notice: j.notice ? j.notice.text : null,
-        underwritingIssues: (j.uwIssues || []).map((i) => ({ issue: i.name, description: i.description, blocks: i.blockingPoint, approvalNeeded: i.requiredRole || 'cannot be approved', approved: i.approved, approvedBy: i.approval ? i.approval.byName : null, note: i.approval ? i.approval.note : null })),
+        underwritingIssues: (j.uwIssues || []).map((i) => ({
+          issue: i.name, description: i.description, blocks: i.blockingPoint, approvalNeeded: i.requiredRole || 'cannot be approved', approved: i.approved,
+          ...(canSeeUnderwritingNotes(user) ? { approvedBy: i.approval ? i.approval.byName : null, note: i.approval ? i.approval.note : null } : {}),
+        })),
         quote: j.quote ? { premium: j.quote.premium, taxes: j.quote.taxes, fees: j.quote.fees, total: j.quote.total, changeAmount: j.quote.changeAmount, proration: j.quote.proration, rateBook: j.quote.rateBook ? `${j.quote.rateBook.code} ${j.quote.rateBook.version}` : null } : null,
         cancellation: j.cancellation || null,
         details: j.period.line ? compactPeriod(j.product, j.period) : null,
         openActivities: j.activities.filter((a) => a.status === 'Open').map((a) => ({ subject: a.subject, assignedTo: a.assignedTo })),
-        history: j.history.slice(-8).map((h) => `${h.at.slice(0, 10)} ${h.byName}: ${h.action}${h.detail ? ' - ' + h.detail : ''}`),
+        history: j.history.slice(-8).map((h) => (canSeeUnderwritingNotes(user)
+          ? `${h.at.slice(0, 10)} ${h.byName}: ${h.action}${h.detail ? ' - ' + h.detail : ''}`
+          : `${h.at.slice(0, 10)}: ${h.action}`)),
       };
     }
     case 'get_rating_worksheet': {
@@ -259,6 +302,14 @@ function runTool(pc, user, name, input) {
       if (!quote || !quote.costs) return { error: 'This record has no rated quote yet.' };
       const f = str(input.coverage).toLowerCase();
       const costs = quote.costs.filter((c) => !f || c.coverageName.toLowerCase().includes(f) || c.coverable.toLowerCase().includes(f));
+      if (!canSeeRatingFactors(user)) {
+        // Agents see what each coverage costs, not the internal rating factors behind it.
+        return {
+          premium: quote.premium, taxes: quote.taxes, fees: quote.fees, total: quote.total,
+          costs: costs.map((c) => ({ item: `${c.coverable}: ${c.coverageName}`, term: c.termValue, amount: c.amount })),
+          note: 'Rating factors are internal to underwriting and are not shown to agents.',
+        };
+      }
       return {
         rateBook: quote.rateBook, premium: quote.premium, taxes: quote.taxes, fees: quote.fees, total: quote.total,
         ratedDriver: quote.ratedDriver || undefined, replacementCostEstimate: quote.replacementCost || undefined,
@@ -272,6 +323,15 @@ function runTool(pc, user, name, input) {
         openJobs: d.openJobs.map((j) => ({ jobNumber: j.jobNumber, type: j.type, status: j.status, account: j.accountName, product: j.product, amount: j.amount })),
       };
     }
+    case 'list_claims': {
+      const list = pc.listClaims(user, { policy: str(input.policy) || undefined, status: input.status });
+      return { claims: list.map(({ payments, ...rest }) => rest), count: list.length };
+    }
+    case 'get_claim': {
+      return pc.claimDetail(str(input.claim).toUpperCase().startsWith('CL-') ? str(input.claim).toUpperCase() : str(input.claim), user);
+    }
+    case 'sales_report':
+      return pc.salesReport(user, { from: str(input.from), to: str(input.to), product: input.product });
     case 'portfolio_summary':
     case 'list_policies': {
       let list = pc.listPolicies('', user).map((p) => ({ ...p, state: (pc.db.accounts.find((a) => a.id === p.accountId) || { address: {} }).address.state }));
@@ -391,6 +451,9 @@ function offlineAnswer(pc, user, message, context) {
         if (p.cancellation) out.push(`- Cancelled ${p.cancellation.effective} (${p.cancellation.reason}), return premium ${fmt(p.cancellation.returnPremium)}`);
         if (p.openJob) out.push(`- Open job: ${p.openJob}`);
       }
+    } else if (/claim/i.test(text) && !num) {
+      const c = runTool(pc, user, 'list_claims', {});
+      out.push(c.count ? `You can see ${c.count} claim(s):` : 'No claims found.', ...c.claims.map((x) => `- ${x.claimNumber} on ${x.policyNumber} (${x.insured}): ${x.lossType}, ${x.status}, paid ${fmt(x.paid)}, loss ${x.lossDate}`));
     } else if (saysAny('workQueue', lower, text)) {
       const q = runTool(pc, user, 'list_work_queue', {});
       out.push(q.openReferrals.length ? `You have ${q.openReferrals.length} open referral(s):` : 'No open referrals.', ...q.openReferrals.map((a) => `- ${a.job}: ${a.detail.split('\n')[0]} (${a.assignedTo}, due ${a.due})`));

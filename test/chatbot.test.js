@@ -45,6 +45,7 @@ function fakeClient(responses) {
 
 test('tool definitions are well formed and every tool runs', () => {
   const { pc, users, policyNumber, job } = bookWithPolicy();
+  const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Collision', description: 'Rear bumper' }, users.uw);
   for (const t of TOOLS) {
     assert.equal(t.input_schema.type, 'object');
     assert.equal(t.input_schema.additionalProperties, false);
@@ -53,7 +54,7 @@ test('tool definitions are well formed and every tool runs', () => {
     search: { query: 'Insured' }, get_account: { account: 'A0000001' }, get_policy: { policy: policyNumber },
     get_job: { job: job.jobNumber }, get_rating_worksheet: { record: policyNumber, coverage: 'Collision' },
     list_work_queue: {}, portfolio_summary: { product: 'PersonalAuto' }, list_policies: { sort: 'premium_desc', limit: 5 },
-    get_product_rules: { topic: 'Homeowners' },
+    get_product_rules: { topic: 'Homeowners' }, sales_report: { from: '2020-01-01', to: '2030-12-31' }, list_claims: {}, get_claim: { claim: claim.claimNumber },
   };
   for (const t of TOOLS) assert.ok(runTool(pc, users.uw, t.name, inputs[t.name]), t.name);
   const ws = runTool(pc, users.uw, 'get_rating_worksheet', inputs.get_rating_worksheet);
@@ -214,4 +215,130 @@ test('languages: offline mode understands Hindi, Telugu, Hinglish and Tenglish k
   assert.match(await ask('Insured ki policy dikhao'), /Here is what I found/, 'Hinglish name search');
   assert.match(await ask('ఈ పాలసీ గురించి చెప్పు', onPolicy), /English only/, 'native script gets an English-only note offline');
   assert.ok(!(await ask('What is the summary?', onPolicy)).includes(`**${policyNumber}**`), 'English "is" does not mean "this record"');
+});
+
+// ---------------------------------------------------------------- roles and data limits
+
+function twoProducerBook() {
+  const env = setup('2026-03-01');
+  const { pc, users, run } = env;
+  const a1 = run(() => account(pc, users.agent));
+  const a2 = run(() => account(pc, pc.user('agent2'), { firstName: 'Other', producerCode: 'PC-200' }));
+  for (const [acct, user] of [[a1, users.agent], [a2, pc.user('agent2')]]) {
+    const job = run(() => autoSubmission(pc, user, acct, '2026-03-01'));
+    run(() => pc.quote(job.id, user));
+    run(() => pc.bind(job.id, user));
+  }
+  return { ...env, a1, a2 };
+}
+
+test('roles: agents get coverage costs but never rating factors', () => {
+  const { pc, users, policyNumber } = bookWithPolicy();
+  const agent = runTool(pc, users.agent, 'get_rating_worksheet', { record: policyNumber });
+  assert.ok(agent.costs.length > 0);
+  assert.ok(agent.costs.every((c) => c.amount !== undefined && c.factors === undefined), 'no factors for agents');
+  assert.ok(agent.note && /internal to underwriting/.test(agent.note));
+  const uw = runTool(pc, users.uw, 'get_rating_worksheet', { record: policyNumber });
+  assert.ok(uw.costs.every((c) => Array.isArray(c.factors) && c.factors.length > 0), 'underwriters see factors');
+});
+
+test('roles: agents do not see underwriting approver names or notes', () => {
+  const { pc, users, run, store } = setup('2026-03-01');
+  const acct = run(() => account(pc, users.agent));
+  const job = run(() => autoSubmission(pc, users.agent, acct, '2026-03-01', { drivers: [{ firstName: 'Risky', lastName: 'Driver', dob: '1985-01-01', licenseNumber: 'X1', licenseState: 'OH', yearsLicensed: 15, accidents: 2, violations: 0 }] }));
+  run(() => pc.quote(job.id, users.agent));
+  const issue = job.uwIssues.find((i) => i.blockingPoint === 'BlocksQuote');
+  run(() => pc.approveIssue(job.id, issue.key, 'Confidential MVR note', users.uw));
+  const forAgent = runTool(pc, users.agent, 'get_job', { job: job.jobNumber });
+  assert.ok(!JSON.stringify(forAgent).includes('Confidential MVR note'), 'agent does not see the note');
+  assert.ok(forAgent.underwritingIssues.every((i) => i.approvedBy === undefined));
+  const forUw = runTool(pc, users.uw, 'get_job', { job: job.jobNumber });
+  assert.ok(JSON.stringify(forUw).includes('Confidential MVR note'), 'underwriter sees the note');
+  assert.ok(store);
+});
+
+test('sales report: agents see their own producer only; managers see every producer', () => {
+  const { pc, users, a1, a2 } = twoProducerBook();
+  const range = { from: '2026-01-01', to: '2026-12-31' };
+  const agent = pc.salesReport(users.agent, range);
+  assert.equal(agent.policies, 1);
+  assert.equal(agent.scope, 'your producer code only');
+  assert.equal(agent.byProducer, undefined);
+  const agent2 = pc.salesReport(pc.user('agent2'), range);
+  assert.equal(agent2.policies, 1);
+  const manager = pc.salesReport(users.uwm, range);
+  assert.equal(manager.policies, 2);
+  assert.equal(manager.scope, 'all producers');
+  assert.equal(Object.keys(manager.byProducer).length, 2);
+  assert.equal(manager.byProduct.PersonalAuto.policies, 2);
+  assert.ok(a1 && a2);
+});
+
+test('sales report: rejects bad dates and counts only new business in the period', () => {
+  const { pc, users } = twoProducerBook();
+  assert.throws(() => pc.salesReport(users.uwm, { from: '2026-02-30', to: '2026-12-31' }), /yyyy-mm-dd/);
+  assert.throws(() => pc.salesReport(users.uwm, { from: '2026-12-31', to: '2026-01-01' }), /after the end date/);
+  assert.equal(pc.salesReport(users.uwm, { from: '2030-01-01', to: '2030-12-31' }).policies, 0);
+});
+
+test('roles: the assistant is told about missing claims data and the report tools', () => {
+  const { pc, users } = bookWithPolicy();
+  const client = fakeClient([{ stop_reason: 'end_turn', content: [{ type: 'text', text: 'ok' }] }]);
+  return new Chatbot(pc, { client }).chat({ message: 'How many claims were paid?' }, users.uw).then(() => {
+    const system = client.requests[0].system;
+    assert.match(system, /list_claims and get_claim/);
+    assert.match(system, /sales_report/);
+    assert.ok(client.requests[0].tools.some((t) => t.name === 'sales_report'));
+  });
+});
+
+// ---------------------------------------------------------------- claims
+
+test('claims: open, reserve, pay and close, with rules enforced', () => {
+  const { pc, users, job } = bookWithPolicy();
+  const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Collision', description: 'Hit a pole' }, users.agent);
+  assert.match(claim.claimNumber, /^CL-\d{7}$/);
+  assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2026-03-02', lossType: 'Collision' }, users.agent), /future/);
+  assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2025-01-01', lossType: 'Collision' }, users.agent), /No term/);
+  assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Aliens' }, users.agent), /Loss type/);
+  pc.setClaimReserve(claim.id, 2000, users.uw);
+  assert.throws(() => pc.setClaimReserve(claim.id, 100, users.agent), /authority/);
+  pc.payClaim(claim.id, { amount: 800, note: 'Repair estimate' }, users.uw);
+  assert.throws(() => pc.setClaimReserve(claim.id, 500, users.uw), /below/);
+  assert.throws(() => pc.payClaim(claim.id, { amount: 1500 }, users.uw), /exceed the reserve/);
+  const closed = pc.closeClaim(claim.id, { reason: 'Settled' }, users.uw);
+  assert.equal(closed.status, 'Closed');
+  assert.equal(closed.paid, 800);
+  assert.throws(() => pc.payClaim(claim.id, { amount: 10 }, users.uw), /Closed/);
+});
+
+test('claims: agents see status and paid amounts but never reserves', () => {
+  const { pc, users, job } = bookWithPolicy();
+  const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Collision' }, users.agent);
+  pc.setClaimReserve(claim.id, 2000, users.uw);
+  pc.payClaim(claim.id, { amount: 500 }, users.uw);
+  const asAgent = pc.claimDetail(claim.claimNumber, users.agent);
+  assert.equal(asAgent.status, 'Open');
+  assert.equal(asAgent.paid, 500);
+  assert.equal(asAgent.reserve, undefined);
+  assert.equal(asAgent.outstanding, undefined);
+  const asUw = pc.claimDetail(claim.claimNumber, users.uw);
+  assert.equal(asUw.reserve, 2000);
+  assert.equal(asUw.outstanding, 1500);
+  assert.equal(pc.listClaims(users.agent, {})[0].reserve, undefined);
+  assert.equal(pc.listClaims(users.uw, { status: 'Open' }).length, 1);
+  assert.equal(pc.listClaims(users.uw, { status: 'Closed' }).length, 0);
+});
+
+test('claims: the assistant lists and reads claims through the same rules', () => {
+  const { pc, users, job } = bookWithPolicy();
+  const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Theft' }, users.uw);
+  pc.setClaimReserve(claim.id, 900, users.uw);
+  const agentList = runTool(pc, users.agent, 'list_claims', {});
+  assert.equal(agentList.count, 1);
+  assert.equal(agentList.claims[0].claimNumber, claim.claimNumber);
+  assert.equal(agentList.claims[0].reserve, undefined);
+  assert.throws(() => runTool(pc, pc.user('agent2'), 'get_claim', { claim: claim.claimNumber }), /not found/i);
+  const uwView = runTool(pc, users.uw, 'get_claim', { claim: claim.claimNumber });
+  assert.equal(uwView.reserve, 900);
 });

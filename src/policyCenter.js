@@ -8,6 +8,9 @@ const { rate, replacementCostEstimate, round2 } = require('./rating');
 const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
+const { salesScope, canSeeClaimReserves } = require('./permissions');
+
+const CLAIM_TYPES = ['Collision', 'Comprehensive', 'Liability', 'Medical', 'Property', 'Theft', 'Water', 'Wind or hail', 'Other'];
 
 class AppError extends Error {
   constructor(status, message, details) {
@@ -996,6 +999,154 @@ class PolicyCenter {
       accounts: this.listAccounts(q, user).slice(0, 20),
       policies: this.listPolicies(q, user).slice(0, 20),
       jobs: this.listJobs(user).filter((j) => [j.jobNumber, j.accountName, j.type, j.policyNumber].join(' ').toLowerCase().includes(str(q).toLowerCase())).slice(0, 20),
+    };
+  }
+
+  // ------------------------------------------------------------------ claims
+  // A claim is a loss reported on a policy. Reserve = the expected remaining cost (internal);
+  // paid = money already paid out. Outstanding = reserve minus paid, never below zero.
+
+  claim(id, user) {
+    const c = this.db.claims.find((x) => x.id === id || x.claimNumber === id);
+    if (!c) throw new AppError(404, 'Claim not found');
+    if (user) this.policy(c.policyId, user);
+    return c;
+  }
+
+  claimView(c, user) {
+    const paid = round2(c.payments.reduce((s, p) => s + p.amount, 0));
+    const policy = this.db.policies.find((p) => p.id === c.policyId);
+    return {
+      id: c.id, claimNumber: c.claimNumber, policyNumber: policy ? policy.policyNumber : null, product: c.product,
+      insured: this.accountName(this.db.accounts.find((a) => a.id === c.accountId)),
+      lossDate: c.lossDate, lossType: c.lossType, description: c.description, status: c.status,
+      reportedOn: c.reportedOn, paid, payments: c.payments, closedOn: c.closedOn || null, closeReason: c.closeReason || null,
+      ...(user && !canSeeClaimReserves(user) ? {} : { reserve: c.reserve, outstanding: round2(Math.max(0, c.reserve - paid)) }),
+    };
+  }
+
+  claimDetail(id, user) {
+    const c = this.claim(id, user);
+    return this.claimView(c, user);
+  }
+
+  listClaims(user, { policy, status } = {}) {
+    return this.db.claims
+      .filter((c) => {
+        const account = this.db.accounts.find((a) => a.id === c.accountId);
+        return account && this.canSee(user, account);
+      })
+      .filter((c) => !policy || this.db.policies.find((p) => p.id === c.policyId)?.policyNumber === policy)
+      .filter((c) => !status || c.status === status)
+      .map((c) => this.claimView(c, user))
+      .reverse();
+  }
+
+  openClaim(policyId, input, user) {
+    const policy = this.policy(policyId, user);
+    const lossDate = str(input.lossDate);
+    if (!D.isDate(lossDate)) throw new AppError(422, 'Loss date must be yyyy-mm-dd');
+    if (lossDate > this.today()) throw new AppError(422, 'Loss date cannot be in the future');
+    const inTerm = this.terms(policy).some((t) => t.effectiveDate <= lossDate && lossDate < t.expirationDate);
+    if (!inTerm) throw new AppError(422, `No term of ${policy.policyNumber} covers ${lossDate}`);
+    const lossType = str(input.lossType);
+    if (!CLAIM_TYPES.includes(lossType)) throw new AppError(422, `Loss type must be one of ${CLAIM_TYPES.join(', ')}`);
+    const reserve = input.reserve === undefined || input.reserve === '' ? 0 : Number(input.reserve);
+    if (!Number.isFinite(reserve) || reserve < 0) throw new AppError(422, 'Reserve must be zero or more');
+    const claim = {
+      id: this.store.id('clm'),
+      claimNumber: this.store.number('CL-', 7),
+      policyId: policy.id,
+      accountId: policy.accountId,
+      product: policy.product,
+      lossDate,
+      lossType,
+      description: str(input.description),
+      status: 'Open',
+      reportedOn: this.today(),
+      reserve: round2(reserve),
+      payments: [],
+      createdBy: user.id,
+    };
+    this.db.claims.push(claim);
+    this.publish('ClaimOpened', { claimNumber: claim.claimNumber, policyNumber: policy.policyNumber, lossDate, lossType });
+    return claim;
+  }
+
+  assertOpenClaim(claim) {
+    if (claim.status !== 'Open') throw new AppError(409, `Claim ${claim.claimNumber} is ${claim.status}`);
+  }
+
+  setClaimReserve(id, amount, user) {
+    this.requireAuthority(user, 1, 'set claim reserves');
+    const claim = this.claim(id, user);
+    this.assertOpenClaim(claim);
+    const value = Number(amount);
+    const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
+    if (!Number.isFinite(value) || value < paid) throw new AppError(422, `Reserve cannot be below the ${round2(paid)} already paid`);
+    claim.reserve = round2(value);
+    return this.claimView(claim, user);
+  }
+
+  payClaim(id, { amount, note }, user) {
+    this.requireAuthority(user, 1, 'pay claims');
+    const claim = this.claim(id, user);
+    this.assertOpenClaim(claim);
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) throw new AppError(422, 'Payment must be more than zero');
+    const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
+    if (round2(paid + value) > claim.reserve) throw new AppError(422, 'Payment would exceed the reserve; raise the reserve first');
+    claim.payments.push({ date: this.today(), amount: round2(value), note: str(note), by: user.id });
+    this.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: round2(value) });
+    return this.claimView(claim, user);
+  }
+
+  closeClaim(id, { reason }, user) {
+    this.requireAuthority(user, 1, 'close claims');
+    const claim = this.claim(id, user);
+    this.assertOpenClaim(claim);
+    claim.status = 'Closed';
+    claim.closedOn = this.today();
+    claim.closeReason = str(reason) || 'Settled';
+    claim.reserve = round2(claim.payments.reduce((s, p) => s + p.amount, 0));
+    this.publish('ClaimClosed', { claimNumber: claim.claimNumber, reason: claim.closeReason });
+    return this.claimView(claim, user);
+  }
+
+  // Sales report: new business written (policies whose first job was a Submission) with an effective
+  // date in [from, to]. Agents get their own producer code only; underwriting staff get every producer.
+  salesReport(user, { from, to, product } = {}) {
+    if (!D.isDate(from) || !D.isDate(to)) throw new AppError(422, 'Sales dates must be yyyy-mm-dd');
+    if (from > to) throw new AppError(422, 'The start date is after the end date');
+    const scope = salesScope(user);
+    const rows = [];
+    for (const p of this.db.policies) {
+      const account = this.db.accounts.find((a) => a.id === p.accountId);
+      if (!account || !this.canSee(user, account)) continue;
+      if (product && p.product !== product) continue;
+      const first = p.versions[0];
+      if (!first || first.jobType !== 'Submission') continue;
+      if (first.effectiveDate < from || first.effectiveDate > to) continue;
+      rows.push({ producerCode: account.producerCode, product: p.product, state: first.period.state, premium: round2(first.quote.premium + first.quote.taxes) });
+    }
+    const tally = (keyOf) => {
+      const out = {};
+      for (const r of rows) {
+        const k = keyOf(r);
+        out[k] = out[k] || { policies: 0, writtenPremium: 0 };
+        out[k].policies++;
+        out[k].writtenPremium = round2(out[k].writtenPremium + r.premium);
+      }
+      return out;
+    };
+    const producerName = (code) => (PRODUCER_CODES.find((p) => p.code === code) || {}).name || code;
+    return {
+      from, to, product: product || 'all products', scope: scope === 'own' ? 'your producer code only' : 'all producers',
+      policies: rows.length,
+      writtenPremium: round2(rows.reduce((s, r) => s + r.premium, 0)),
+      byProduct: tally((r) => r.product),
+      byState: tally((r) => r.state),
+      byProducer: scope === 'all' ? Object.fromEntries(Object.entries(tally((r) => r.producerCode)).map(([code, v]) => [`${code} ${producerName(code)}`, v])) : undefined,
     };
   }
 
