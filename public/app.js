@@ -3,7 +3,7 @@
 
 const OPEN = ['Draft', 'Quoted'];
 const EDITABLE_TYPES = ['Submission', 'PolicyChange', 'Renewal'];
-const S = { meta: null, user: readPref('pcUser') || 'agent', jv: null, policy: null, policyTab: 'summary', batch: null };
+const S = { meta: null, me: null, jv: null, policy: null, policyTab: 'summary', batch: null };
 
 // ------------------------------------------------------------------ utilities
 
@@ -16,7 +16,7 @@ const when = (s) => (s ? new Date(s).toLocaleString() : '—');
 const slug = (t) => String(t).toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
 const badge = (t) => `<span class="badge b-${slug(t)}">${esc(t)}</span>`;
 const clone = (o) => JSON.parse(JSON.stringify(o));
-const me = () => S.meta.users.find((u) => u.id === S.user);
+const me = () => S.me;
 const product = (code) => S.meta.products[code];
 const sel = (a, b) => (String(a) === String(b) ? 'selected' : '');
 const dis = (editable) => (editable ? '' : 'disabled');
@@ -34,10 +34,11 @@ function setPath(obj, path, value) {
 async function api(method, path, body) {
   const res = await fetch('/api' + path, {
     method,
-    headers: { 'Content-Type': 'application/json', 'X-User': S.user },
+    headers: { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const data = await res.json().catch(() => ({}));
+  if (res.status === 401 && !String(path).startsWith('/auth/')) signInScreen('Your session has ended. Sign in again.');
   if (!res.ok) {
     const err = new Error(data.error || res.statusText);
     err.status = res.status;
@@ -104,6 +105,7 @@ const ROUTES = [
   [/^#\/job\/([^/]+)$/, pageJob],
   [/^#\/search\/(.*)$/, pageSearch],
   [/^#\/sales$/, pageSales],
+  [/^#\/staff$/, pageStaff],
   [/^#\/admin$/, pageAdmin],
 ];
 
@@ -819,7 +821,42 @@ async function followUpHistoryModal(policyId, number) {
     + '<div class="actions"><button class="btn" data-action="close-modal">Close</button></div>', true);
 }
 
+// ------------------------------------------------------------------ staff accounts (UW Manager)
+
+function showTemporaryPassword(r) {
+  openModal(`<h2>Account ready: ${esc(r.username)}</h2>
+    <p>Give this temporary password to ${esc(r.name)}. They must choose their own password at first sign-in. It is shown only once.</p>
+    <div class="card" style="font-family:Consolas,monospace;font-size:20px;text-align:center;letter-spacing:.05em">${esc(r.temporaryPassword)}</div>
+    <div class="actions"><button class="btn primary" data-action="close-modal">Done</button></div>`);
+}
+
+async function pageStaff() {
+  const rows = await api('GET', '/staff');
+  const roles = ['Agent', 'Underwriter', 'Insurance Executive', 'UW Manager'];
+  view(`<div class="eyebrow">Administration</div><h1>Staff accounts</h1>
+    <div class="grid two">
+      <div class="card"><h2>Create an account</h2>
+        <form data-form="create-staff"><div class="form-errors"></div>
+          ${field('Username', '<input name="username" placeholder="for example venkatesh.r" required>')}
+          ${field('Full name', '<input name="name" required>')}
+          ${field('Role', `<select name="role">${roles.map((r) => `<option>${r}</option>`).join('')}</select>`)}
+          ${field('Producer code (agents only)', `<select name="producerCode"><option value="">None</option>${S.meta.producerCodes.map((p) => `<option value="${p.code}">${p.code} · ${esc(p.name)}</option>`).join('')}</select>`)}
+          ${field('Reports to (username)', `<input name="reportsTo" value="${esc(S.me.username || S.me.id)}">`)}
+          <div class="toolbar" style="margin-top:12px"><button class="btn primary">Create account</button></div>
+        </form>
+      </div>
+      <div class="card"><h2>Accounts</h2>
+        ${table(['Username', 'Name', 'Role', 'Status', ''], rows.map((r) => [
+          esc(r.username), esc(r.name), esc(r.role), r.active ? badge('Active') : badge('Off'),
+          `<div class="toolbar"><button class="btn small" data-action="reset-staff" data-id="${esc(r.id)}">${r.hasPassword ? 'Reset password' : 'Create password'}</button><button class="btn small danger" data-action="toggle-staff" data-id="${esc(r.id)}" data-active="${r.active}">${r.active ? 'Turn off' : 'Turn on'}</button></div>`,
+        ]))}
+      </div>
+    </div>`);
+}
+
 const ACTIONS = {
+  'reset-staff': async (d) => { const r = await api('POST', `/staff/${encodeURIComponent(d.id)}/reset`); showTemporaryPassword(r); pageStaff(); },
+  'toggle-staff': async (d) => { await api('POST', `/staff/${encodeURIComponent(d.id)}/active`, { active: d.active !== 'true' }); pageStaff(); },
   'compose-message': (d) => composeModal(d.account),
   'message-preview': async (d, el) => {
     const out = document.getElementById('msg-preview');
@@ -899,6 +936,25 @@ const ACTIONS = {
 };
 
 const FORMS = {
+  signin: async (fd) => {
+    await api('POST', '/auth/login', { username: fd.get('username'), password: fd.get('password') });
+    location.reload();
+  },
+  'change-password': async (fd) => {
+    if (fd.get('next') !== fd.get('confirm')) throw new Error('The two new passwords do not match');
+    await api('POST', '/auth/password', { current: fd.get('current'), next: fd.get('next') });
+    toast('Password saved', 'success');
+    location.reload();
+  },
+  'create-staff': async (fd, form) => {
+    const r = await api('POST', '/staff', {
+      username: fd.get('username'), name: fd.get('name'), role: fd.get('role'),
+      producerCode: fd.get('producerCode') || undefined, reportsTo: fd.get('reportsTo') || undefined,
+    });
+    form.reset();
+    showTemporaryPassword(r);
+    pageStaff();
+  },
   'compose-message': async (fd, form) => {
     if (!fd.get('confirm')) throw new Error('Tick the box to confirm the recipient and message before sending');
     const rec = await api('POST', '/messages/send', { ...composeBody(form), confirm: true });
@@ -1133,7 +1189,7 @@ async function chatSend(text) {
   try {
     const res = await fetch('/api/chat/stream', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-User': S.user },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ conversationId: CHAT.conversationId, message, context: chatContext() }),
       signal: CHAT.abort.signal,
     });
@@ -1273,7 +1329,7 @@ async function setupVoice(input) {
       input.placeholder = 'Transcribing…';
       pending = (async () => {
         try {
-          const res = await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'audio/wav', 'X-User': S.user }, body: encodeWav(r.chunks, r.ctx.sampleRate) });
+          const res = await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: encodeWav(r.chunks, r.ctx.sampleRate) });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || res.statusText);
           if (!data.text) toast('No speech was recognised. Try again a little closer to the mic.', 'error');
@@ -1482,18 +1538,54 @@ function setupChat() {
   window.addEventListener('hashchange', () => { if (!panel.hidden) chatSuggestions(); });
 }
 
+// ------------------------------------------------------------------ sign-in
+
+function setSignedOutChrome(on) {
+  document.querySelector('.mainnav').hidden = on;
+  document.getElementById('signout').hidden = on;
+  if (on) document.getElementById('whoami').textContent = '';
+}
+
+function signInScreen(message) {
+  setSignedOutChrome(true);
+  view(`<div class="card" style="max-width:380px;margin:40px auto">
+    <div class="eyebrow">PolicyCenter</div><h1>Sign in</h1>
+    ${message ? `<div class="banner error">${esc(message)}</div>` : ''}
+    <form data-form="signin"><div class="form-errors"></div>
+      ${field('Username', '<input name="username" autocomplete="username" required>')}
+      ${field('Password', '<input name="password" type="password" autocomplete="current-password" required>')}
+      <div class="toolbar" style="margin-top:12px"><button class="btn primary">Sign in</button></div>
+    </form></div>`);
+}
+
+function changePasswordScreen(first) {
+  setSignedOutChrome(true);
+  view(`<div class="card" style="max-width:420px;margin:40px auto">
+    <div class="eyebrow">${first ? 'Your first sign-in' : 'Account'}</div><h1>Choose a new password</h1>
+    <p class="muted">${first ? 'Your password was set by your manager. Choose your own password to continue.' : 'Enter your current password and choose a new one.'}</p>
+    <form data-form="change-password"><div class="form-errors"></div>
+      ${field('Current password', '<input name="current" type="password" autocomplete="current-password" required>')}
+      ${field('New password (at least 8 characters)', '<input name="next" type="password" minlength="8" autocomplete="new-password" required>')}
+      ${field('Repeat new password', '<input name="confirm" type="password" minlength="8" autocomplete="new-password" required>')}
+      <div class="toolbar" style="margin-top:12px"><button class="btn primary">Save password</button></div>
+    </form></div>`);
+}
+
 async function boot() {
+  const r = await fetch('/api/auth/me');
+  if (r.status === 401) return signInScreen();
+  const data = await r.json();
+  S.me = data.user;
+  if (data.mustChangePassword) return changePasswordScreen(true);
   S.meta = await api('GET', '/meta');
-  if (!S.meta.users.some((u) => u.id === S.user)) S.user = 'agent';
-  const select = document.getElementById('user-select');
-  select.innerHTML = S.meta.users.map((u) => `<option value="${u.id}" ${sel(u.id, S.user)}>${esc(u.name)} (${esc(u.role)})</option>`).join('');
-  select.addEventListener('change', () => {
-    S.user = select.value;
-    writePref('pcUser', S.user);
-    toast(`Signed in as ${me().name}`);
-    if (document.getElementById('chat-log').children.length) chatReset();
-    router();
-  });
+  setSignedOutChrome(false);
+  document.getElementById('whoami').textContent = `${S.me.name} · ${S.me.role}`;
+  document.querySelectorAll('[data-nav="staff"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.getElementById('signout').onclick = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    location.hash = '#/desktop';
+    signInScreen('You have signed out.');
+  };
   window.addEventListener('hashchange', router);
   setupChat();
   router();

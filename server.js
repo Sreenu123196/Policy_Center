@@ -14,6 +14,7 @@ const { seed } = require('./src/seed');
 const { Chatbot } = require('./src/chatbot');
 const { Speech } = require('./src/speech');
 const { Messaging, emailTransport, whatsappTransport } = require('./src/messaging');
+const { Auth } = require('./src/auth');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -30,9 +31,21 @@ if (store.isEmpty()) {
 const chatbot = new Chatbot(pc);
 const speech = new Speech();
 const messaging = new Messaging(pc, { transports: { email: emailTransport(), whatsapp: whatsappTransport() } });
-const api = createApi(pc, store, { reseed, chatbot, speech, messaging });
+const auth = new Auth(pc);
+const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth });
+// First start: the UW Manager (sudhakar) gets a one-time password to sign in and create the other accounts.
+const first = pc.bootstrapManager();
+if (first) {
+  store.save();
+  console.log('------------------------------------------------------------');
+  console.log(`First sign-in: username ${first.username}`);
+  console.log(`Temporary password: ${first.temporaryPassword}`);
+  console.log('Sign in once, choose a new password, then create the other accounts.');
+  console.log('------------------------------------------------------------');
+}
 console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode === 'claude' ? ` (${chatbot.status().model})` : ''}`);
-console.log(`Voice input: ${speech.status().enabled ? `Google Cloud Speech (${speech.status().model}, auto-detects ${speech.status().languages.join(', ')})` : `browser speech recognition (${speech.status().reason})`}`);
+const voice = speech.status();
+console.log(`Voice input: ${voice.enabled ? voice.provider : `browser speech recognition (${voice.reason})`}`);
 
 function serveStatic(pathname, res) {
   const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');

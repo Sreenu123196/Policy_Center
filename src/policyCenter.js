@@ -9,6 +9,10 @@ const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
 const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
+const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
+
+// Authority levels for each staff role (see permissions.js).
+const STAFF_ROLES = { Agent: 0, Underwriter: 1, 'Insurance Executive': 1, 'UW Manager': 2 };
 
 const FOLLOW_UP_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
 const FOLLOW_UP_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
@@ -77,6 +81,20 @@ class PolicyCenter {
     this.clockMs = null;
     this.store = store;
     this.today = today || D.todayISO;
+    // The staff list starts from the built-in team; accounts created later are added to it.
+    if (!this.db.staff.length) {
+      for (const u of USERS) this.db.staff.push({ id: u.id, username: u.id, name: u.name, role: u.role, authority: u.authority, producerCode: u.producerCode || null, reportsTo: u.reportsTo || null, active: true, passwordHash: null, mustChangePassword: false });
+    }
+  }
+
+  // Gives the UW Manager a temporary password on the first start, so someone can sign in and create the other accounts.
+  bootstrapManager() {
+    const s = this.staffById('sudhakar');
+    if (!s || s.passwordHash) return null;
+    const password = temporaryPassword();
+    s.passwordHash = hashPassword(password);
+    s.mustChangePassword = true;
+    return { username: s.username, temporaryPassword: password };
   }
 
   get db() {
@@ -95,7 +113,7 @@ class PolicyCenter {
   // ------------------------------------------------------------------ users & security
 
   user(id) {
-    const u = USERS.find((x) => x.id === id);
+    const u = this.staffById(id);
     if (!u) throw new AppError(401, `Unknown user '${id}'`);
     return u;
   }
@@ -1297,6 +1315,84 @@ class PolicyCenter {
     t.notes.push({ at, by: user.id, byName: user.name, text: body, internal: Boolean(internal && staff) });
     t.history.push({ at, by: user.id, action: 'Note', detail: staff ? 'staff note' : 'customer note' });
     return this.ticketView(t, user);
+  }
+
+  // ------------------------------------------------------------------ staff accounts
+  // Staff who sign in. Created by the UW Manager, who gets a temporary password to pass on.
+  // The person must change it at their first sign-in.
+
+  staffById(id) {
+    return this.db.staff.find((s) => s.id === id) || null;
+  }
+
+  staffByUsername(username) {
+    return this.db.staff.find((s) => s.username === String(username || '').toLowerCase()) || null;
+  }
+
+  userView(s) {
+    return { id: s.id, username: s.username, name: s.name, role: s.role, authority: s.authority, producerCode: s.producerCode || null, reportsTo: s.reportsTo || null, active: s.active };
+  }
+
+  listStaff(user) {
+    this.requireManager(user, 'see the staff list');
+    return this.db.staff.map((s) => ({ ...this.userView(s), mustChangePassword: Boolean(s.mustChangePassword), hasPassword: Boolean(s.passwordHash) }));
+  }
+
+  requireManager(user, action) {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, `Only the UW Manager can ${action}`);
+  }
+
+  // Creates an account and returns the temporary password (shown once).
+  createStaff(input, user) {
+    this.requireManager(user, 'create staff accounts');
+    const username = String(input.username || '').trim().toLowerCase();
+    if (!/^[a-z][a-z0-9.]{2,29}$/.test(username)) throw new AppError(422, 'Username: 3 to 30 letters, numbers or dots, starting with a letter');
+    if (this.staffByUsername(username)) throw new AppError(409, `The username ${username} is already taken`);
+    const name = str(input.name);
+    if (name.length < 2) throw new AppError(422, 'Enter the person\'s name');
+    const role = str(input.role);
+    if (STAFF_ROLES[role] === undefined) throw new AppError(422, `Role must be one of ${Object.keys(STAFF_ROLES).join(', ')}`);
+    const producerCode = role === 'Agent' ? str(input.producerCode) : null;
+    if (role === 'Agent' && !PRODUCER_CODES.some((p) => p.code === producerCode)) throw new AppError(422, 'Agents need a producer code (PC-100 or PC-200)');
+    const reportsTo = role === 'Agent' ? null : (str(input.reportsTo) || user.id);
+    const password = temporaryPassword();
+    const staff = {
+      id: username, username, name, role, authority: STAFF_ROLES[role], producerCode, reportsTo,
+      passwordHash: hashPassword(password), mustChangePassword: true, active: true,
+      createdBy: user.id, createdAt: this.now(),
+    };
+    this.db.staff.push(staff);
+    return { ...this.userView(staff), temporaryPassword: password };
+  }
+
+  resetStaffPassword(id, user) {
+    this.requireManager(user, 'reset passwords');
+    const s = this.staffById(id);
+    if (!s) throw new AppError(404, 'Staff account not found');
+    const password = temporaryPassword();
+    s.passwordHash = hashPassword(password);
+    s.mustChangePassword = true;
+    return { ...this.userView(s), temporaryPassword: password };
+  }
+
+  setStaffActive(id, active, user) {
+    this.requireManager(user, 'turn accounts on or off');
+    const s = this.staffById(id);
+    if (!s) throw new AppError(404, 'Staff account not found');
+    if (s.id === user.id && !active) throw new AppError(422, 'You cannot turn off your own account');
+    s.active = Boolean(active);
+    return this.userView(s);
+  }
+
+  // Changing your own password (also used at the first sign-in).
+  changeOwnPassword(user, { current, next }) {
+    if (!verifyPassword(current, user.passwordHash)) throw new AppError(401, 'The current password is wrong');
+    const value = String(next || '');
+    if (value.length < 8) throw new AppError(422, 'The new password needs at least 8 characters');
+    if (value === String(current)) throw new AppError(422, 'Choose a new password, not the same one');
+    user.passwordHash = hashPassword(value);
+    user.mustChangePassword = false;
+    return this.userView(user);
   }
 
   // ------------------------------------------------------------------ sales analytics

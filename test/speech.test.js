@@ -5,6 +5,7 @@ const http = require('node:http');
 const { Speech } = require('../src/speech');
 const { createApi } = require('../src/api');
 const { setup } = require('./helpers');
+const { cookieFor } = require('./signin');
 
 // Stand-in for Google's v2 SpeechClient: records the request and returns a scripted response.
 function fakeGoogle(response, error) {
@@ -62,16 +63,17 @@ test('speech: without a Google key it reports disabled so the browser mic is use
 test('speech API: accepts raw WAV bytes and returns the transcript', async () => {
   const { pc, store } = setup();
   const google = fakeGoogle({ results: [{ alternatives: [{ transcript: 'mere kitne referrals pending hain' }], languageCode: 'en-IN' }] });
-  const api = createApi(pc, store, { speech: new Speech({ client: google, config }) });
+  const { auth, cookie } = cookieFor(pc, 'uw');
+  const api = createApi(pc, store, { speech: new Speech({ client: google, config }), auth });
   const server = http.createServer((req, res) => { const u = new URL(req.url, 'http://x'); api(req, res, u.pathname, u.searchParams); });
   await new Promise((ok) => server.listen(0, ok));
   const base = `http://localhost:${server.address().port}/api`;
   try {
-    const status = await (await fetch(`${base}/speech/status`, { headers: { 'X-User': 'uw' } })).json();
+    const status = await (await fetch(`${base}/speech/status`, { headers: { Cookie: cookie } })).json();
     assert.equal(status.enabled, true);
     assert.deepEqual(status.languages, ['en-IN', 'hi-IN', 'te-IN']);
     const wav = Buffer.alloc(1500000, 7); // raw audio over the 1 MB JSON limit is accepted
-    const res = await fetch(`${base}/speech`, { method: 'POST', headers: { 'Content-Type': 'audio/wav', 'X-User': 'uw' }, body: wav });
+    const res = await fetch(`${base}/speech`, { method: 'POST', headers: { 'Content-Type': 'audio/wav', Cookie: cookie }, body: wav });
     assert.equal(res.status, 200);
     assert.equal((await res.json()).text, 'mere kitne referrals pending hain');
     assert.equal(google.calls[0].content.length, wav.length, 'audio bytes reach Google unchanged');

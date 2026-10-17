@@ -6,19 +6,39 @@ const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS } = require('./policyCenter');
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {}) {
   const routes = [];
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
-  const route = (method, pattern, handler, { readOnly = method === 'GET', stream = false, raw = false } = {}) => {
+  // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
+  const route = (method, pattern, handler, { readOnly = method === 'GET', stream = false, raw = false, isPublic = false } = {}) => {
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`);
-    routes.push({ method, re, handler, readOnly, stream, raw });
+    routes.push({ method, re, handler, readOnly, stream, raw, isPublic });
   };
+
+  // Sign-in
+  route('POST', '/auth/login', (ctx) => {
+    const { token, ...rest } = auth.login(ctx.body.username, ctx.body.password);
+    ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
+    return rest;
+  }, { isPublic: true });
+  route('POST', '/auth/logout', (ctx) => {
+    if (ctx.token) auth.logout(ctx.token);
+    ctx.setCookie = 'pc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0';
+    return { ok: true };
+  }, { isPublic: true });
+  route('GET', '/auth/me', ({ user, token }) => ({ user: pc.userView(user), mustChangePassword: Boolean(user.mustChangePassword) }), { isPublic: true });
+  route('POST', '/auth/password', ({ user, body }) => pc.changeOwnPassword(user, { current: body.current, next: body.next }), { isPublic: true });
+  // Staff accounts: the UW Manager creates and resets them.
+  route('GET', '/staff', ({ user }) => pc.listStaff(user));
+  route('POST', '/staff', ({ user, body }) => pc.createStaff(body, user));
+  route('POST', '/staff/:id/reset', ({ user, params }) => { const r = pc.resetStaffPassword(params.id, user); auth.endSessionsFor(params.id); return r; });
+  route('POST', '/staff/:id/active', ({ user, params, body }) => { const r = pc.setStaffActive(params.id, body.active, user); if (!body.active) auth.endSessionsFor(params.id); return r; });
 
   route('GET', '/meta', () => ({
     today: pc.today(),
     states: STATES,
-    users: USERS,
+    users: pc.db.staff.map((x) => pc.userView(x)),
     producerCodes: PRODUCER_CODES,
     products: PRODUCTS,
     cancelReasons: CANCEL_REASONS,
@@ -135,10 +155,21 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging } = {}) {
       }
       if (!found) throw new AppError(match ? 405 : 404, match ? 'Method not allowed' : `No route for ${req.method} ${sub}`);
       const body = req.method === 'GET' ? {} : found.raw ? await readBody(req, 4 * 1024 * 1024) : await readJson(req);
-      const user = pc.user(req.headers['x-user'] || 'agent');
-      const ctx = { user, params: match.groups || {}, query, body };
+      // The signed-in user comes from the session cookie, never from a header the caller chooses.
+      const cookie = String(req.headers.cookie || '');
+      const match2 = cookie.match(/(?:^|;\s*)pc_session=([0-9a-f]{64})/);
+      const token = match2 ? match2[1] : null;
+      let user = null;
+      if (auth && token) user = auth.userFor(token);
+      if (!found.isPublic || sub === "/auth/password") {
+        if (!user) throw new AppError(401, 'Sign in to continue');
+        if (user.mustChangePassword && !sub.startsWith('/auth/')) throw new AppError(403, 'Change your temporary password before using the app');
+      }
+      if (found.isPublic && !user && sub === '/auth/me') throw new AppError(401, 'Not signed in');
+      const ctx = { user, token, params: match.groups || {}, query, body };
       if (found.stream) return await found.handler(ctx, res);
       const result = found.readOnly ? await found.handler(ctx) : store.transaction(() => found.handler(ctx));
+      if (ctx.setCookie) res.setHeader('Set-Cookie', ctx.setCookie);
       send(req.method === 'POST' && /\/(accounts|submission)$/.test(sub) ? 201 : 200, result);
     } catch (err) {
       if (err instanceof AppError) return send(err.status, { error: err.message, details: err.details || null });

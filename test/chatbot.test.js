@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Chatbot, TOOLS, runTool } = require('../src/chatbot');
+const { cookieFor } = require('./signin');
 const { setup, account, autoSubmission } = require('./helpers');
 
 function bookWithPolicy() {
@@ -143,18 +144,19 @@ test('SSE endpoint streams meta, delta and done events', async () => {
   const { createApi } = require('../src/api');
   const { pc, store, policyNumber } = bookWithPolicy();
   const bot = new Chatbot(pc, { client: fakeClient([{ stop_reason: 'end_turn', content: [{ type: 'text', text: `Hello from ${policyNumber}` }] }]) });
-  const api = createApi(pc, store, { chatbot: bot });
+  const { auth, cookie } = cookieFor(pc, 'uw');
+  const api = createApi(pc, store, { chatbot: bot, auth });
   const server = http.createServer((req, res) => { const u = new URL(req.url, 'http://x'); api(req, res, u.pathname, u.searchParams); });
   await new Promise((ok) => server.listen(0, ok));
   try {
-    const res = await fetch(`http://localhost:${server.address().port}/api/chat/stream`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-User': 'uw' }, body: JSON.stringify({ message: 'hi' }) });
+    const res = await fetch(`http://localhost:${server.address().port}/api/chat/stream`, { method: 'POST', headers: { 'Content-Type': 'application/json', Cookie: cookie }, body: JSON.stringify({ message: 'hi' }) });
     assert.match(res.headers.get('content-type'), /text\/event-stream/);
     const body = await res.text();
     const types = [...body.matchAll(/^event: (\w+)$/gm)].map((m) => m[1]);
     assert.equal(types[0], 'meta');
     assert.ok(types.filter((t) => t === 'delta').length >= 3);
     assert.equal(types[types.length - 1], 'done');
-    const empty = await (await fetch(`http://localhost:${server.address().port}/api/chat/stream`, { method: 'POST', headers: { 'X-User': 'uw' }, body: JSON.stringify({ message: '' }) })).text();
+    const empty = await (await fetch(`http://localhost:${server.address().port}/api/chat/stream`, { method: 'POST', headers: { Cookie: cookie }, body: JSON.stringify({ message: '' }) })).text();
     assert.match(empty, /event: error\ndata: .*empty/);
   } finally {
     server.close();

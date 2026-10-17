@@ -15,14 +15,15 @@
       <a href="#/policies" data-nav="polic">Policies</a>
       <a href="#/sales" data-nav="sales">Sales</a>
       <a href="#/admin" data-nav="admin">Administration</a>
+      <a href="#/staff" data-nav="staff" hidden>Staff accounts</a>
     </nav>
     <form class="topsearch" data-form="search" role="search">
       <input name="q" type="search" placeholder="Search accounts, policies, jobs" aria-label="Search">
     </form>
-    <label class="userpick">
-      <span id="user-role"></span>
-      <select id="user-select" aria-label="Signed-in user"></select>
-    </label>
+    <div class="userpick">
+      <span id="whoami"></span>
+      <button class="btn small" id="signout" hidden>Sign out</button>
+    </div>
   </header>
   <main id="app" class="page"><div class="loading">Loading…</div></main>
   <div id="modal" class="modal-backdrop" hidden></div>
