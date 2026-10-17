@@ -936,6 +936,11 @@ const ACTIONS = {
 };
 
 const FORMS = {
+  setup: async (fd) => {
+    if (fd.get('password') !== fd.get('confirm')) throw new Error('The two passwords do not match');
+    await api('POST', '/auth/setup', { username: fd.get('username'), password: fd.get('password') });
+    location.reload();
+  },
   signin: async (fd) => {
     await api('POST', '/auth/login', { username: fd.get('username'), password: fd.get('password') });
     location.reload();
@@ -1571,7 +1576,23 @@ function changePasswordScreen(first) {
     </form></div>`);
 }
 
+// First start: until the first account has a password, the first person chooses the username and password.
+function setupScreen() {
+  setSignedOutChrome(true);
+  view(`<div class="card" style="max-width:420px;margin:40px auto">
+    <div class="eyebrow">First start</div><h1>Create your account</h1>
+    <p class="muted">Choose the username and password for the UW Manager account. You use it to sign in and to create the other accounts. Nobody else can sign in until this is done.</p>
+    <form data-form="setup"><div class="form-errors"></div>
+      ${field('Username (3 to 30 letters, numbers or dots)', '<input name="username" autocomplete="username" required>')}
+      ${field('Password (at least 8 characters)', '<input name="password" type="password" minlength="8" autocomplete="new-password" required>')}
+      ${field('Repeat password', '<input name="confirm" type="password" minlength="8" autocomplete="new-password" required>')}
+      <div class="toolbar" style="margin-top:12px"><button class="btn primary">Create account and sign in</button></div>
+    </form></div>`);
+}
+
 async function boot() {
+  const status = await (await fetch('/api/auth/status')).json();
+  if (status.setupNeeded) return setupScreen();
   const r = await fetch('/api/auth/me');
   if (r.status === 401) return signInScreen();
   const data = await r.json();

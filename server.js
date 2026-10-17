@@ -33,16 +33,7 @@ const speech = new Speech();
 const messaging = new Messaging(pc, { transports: { email: emailTransport(), whatsapp: whatsappTransport() } });
 const auth = new Auth(pc);
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth });
-// First start: the UW Manager (sudhakar) gets a one-time password to sign in and create the other accounts.
-const first = pc.bootstrapManager();
-if (first) {
-  store.save();
-  console.log('------------------------------------------------------------');
-  console.log(`First sign-in: username ${first.username}`);
-  console.log(`Temporary password: ${first.temporaryPassword}`);
-  console.log('Sign in once, choose a new password, then create the other accounts.');
-  console.log('------------------------------------------------------------');
-}
+
 console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode === 'claude' ? ` (${chatbot.status().model})` : ''}`);
 const voice = speech.status();
 console.log(`Voice input: ${voice.enabled ? voice.provider : `browser speech recognition (${voice.reason})`}`);

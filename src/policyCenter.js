@@ -87,14 +87,26 @@ class PolicyCenter {
     }
   }
 
-  // Gives the UW Manager a temporary password on the first start, so someone can sign in and create the other accounts.
-  bootstrapManager() {
-    const s = this.staffById('sudhakar');
-    if (!s || s.passwordHash) return null;
-    const password = temporaryPassword();
-    s.passwordHash = hashPassword(password);
-    s.mustChangePassword = true;
-    return { username: s.username, temporaryPassword: password };
+  // First start only: the first person to open the app chooses a username and password for Sudhakar's
+  // UW Manager account. Works only while no account has a password yet.
+  setupFirstManager({ username, password }) {
+    if (this.db.staff.some((x) => x.passwordHash)) throw new AppError(409, 'The app is already set up. Sign in instead.');
+    const uname = String(username || '').trim().toLowerCase();
+    if (!/^[a-z][a-z0-9.]{2,29}$/.test(uname)) throw new AppError(422, 'Username: 3 to 30 letters, numbers or dots, starting with a letter');
+    if (String(password || '').length < 8) throw new AppError(422, 'The password needs at least 8 characters');
+    const manager = this.staffById('sudhakar') || this.db.staff.find((x) => x.role === 'UW Manager');
+    if (!manager) throw new AppError(500, 'No UW Manager account exists to set up');
+    const oldId = manager.id;
+    manager.id = uname;
+    manager.username = uname;
+    for (const x of this.db.staff) if (x.reportsTo === oldId) x.reportsTo = uname;
+    manager.passwordHash = hashPassword(password);
+    manager.mustChangePassword = false;
+    return this.userView(manager);
+  }
+
+  setupNeeded() {
+    return !this.db.staff.some((x) => x.passwordHash);
   }
 
   get db() {

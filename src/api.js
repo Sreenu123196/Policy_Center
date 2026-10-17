@@ -16,6 +16,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
     routes.push({ method, re, handler, readOnly, stream, raw, isPublic });
   };
 
+  // Setup: until the first account has a password, the app asks the first person to choose one.
+  route('GET', '/auth/status', () => ({ setupNeeded: pc.setupNeeded() }), { isPublic: true });
+  route('POST', '/auth/setup', (ctx) => {
+    const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });
+    const { token } = auth.login(view.username, ctx.body.password);
+    ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
+    return { user: view, mustChangePassword: false };
+  }, { isPublic: true });
   // Sign-in
   route('POST', '/auth/login', (ctx) => {
     const { token, ...rest } = auth.login(ctx.body.username, ctx.body.password);
