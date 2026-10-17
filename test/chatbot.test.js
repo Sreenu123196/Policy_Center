@@ -350,3 +350,12 @@ test('claims: the assistant lists and reads claims through the same rules', () =
   const uwView = runTool(pc, users.uw, 'get_claim', { claim: claim.claimNumber });
   assert.equal(uwView.reserve, 900);
 });
+
+test('chatbot: a language picked in the header sets the reply style, and auto detects from the question', () => {
+  const { replyStyle } = require('../src/chatbot');
+  assert.match(replyStyle('te', 'How many referrals do I have?'), /Telugu in Telugu script/);
+  assert.match(replyStyle('hi', 'how many referrals'), /Hindi in Devanagari/);
+  assert.match(replyStyle('en', 'నా దగ్గర ఎన్ని referrals ఉన్నాయి'), /Reply in English/);
+  assert.match(replyStyle('auto', 'నా దగ్గర ఎన్ని referrals ఉన్నాయి'), /Telugu in Telugu script/);
+  assert.match(replyStyle(undefined, 'मेरे पास कितने referrals हैं?'), /Hindi in Devanagari/);
+});

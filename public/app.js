@@ -106,6 +106,8 @@ const ROUTES = [
   [/^#\/search\/(.*)$/, pageSearch],
   [/^#\/sales$/, pageSales],
   [/^#\/staff$/, pageStaff],
+  [/^#\/finance$/, pageFinance],
+  [/^#\/insights$/, pageInsights],
   [/^#\/admin$/, pageAdmin],
 ];
 
@@ -854,6 +856,155 @@ async function pageStaff() {
     </div>`);
 }
 
+// Plain SVG pie chart with a legend. Slices with no value are left out by the caller.
+const PIE_COLORS = ['#0b6bcb', '#2e7d32', '#f9a825', '#c62828', '#6a1b9a', '#00838f', '#ef6c00', '#5d4037'];
+function pieChart(slices, fmt = (v) => v) {
+  const shown = slices.filter((x) => x.value > 0);
+  const total = shown.reduce((s, x) => s + x.value, 0);
+  if (!total) return '<div class="empty">No data in this range</div>';
+  const cx = 100, cy = 100, r = 90;
+  let angle = -Math.PI / 2;
+  const paths = [];
+  const legend = [];
+  shown.forEach((s, i) => {
+    const color = PIE_COLORS[i % PIE_COLORS.length];
+    const pct = s.value / total;
+    const share = `${Math.round(pct * 1000) / 10}%`;
+    const title = `<title>${esc(s.label)}: ${esc(fmt(s.value))} (${share})</title>`;
+    if (shown.length === 1) {
+      paths.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}">${title}</circle>`);
+    } else {
+      const next = angle + pct * 2 * Math.PI;
+      const [x1, y1] = [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+      const [x2, y2] = [cx + r * Math.cos(next), cy + r * Math.sin(next)];
+      const large = pct > 0.5 ? 1 : 0;
+      paths.push(`<path d="M${cx},${cy} L${x1.toFixed(2)},${y1.toFixed(2)} A${r},${r} 0 ${large} 1 ${x2.toFixed(2)},${y2.toFixed(2)} Z" fill="${color}">${title}</path>`);
+      angle = next;
+    }
+    legend.push(`<li><span class="swatch" style="background:${color}"></span><span>${esc(s.label)}</span><span class="muted">${esc(fmt(s.value))} · ${share}</span></li>`);
+  });
+  return `<div class="pie"><svg viewBox="0 0 200 200" role="img" aria-label="Pie chart">${paths.join('')}</svg><ul class="pie-legend">${legend.join('')}</ul></div>`;
+}
+
+// ------------------------------------------------------------------ insights (UW Manager)
+
+const INSIGHTS = { from: '', to: '' };
+
+async function pageInsights() {
+  const q = new URLSearchParams();
+  if (INSIGHTS.from) q.set('from', INSIGHTS.from);
+  if (INSIGHTS.to) q.set('to', INSIGHTS.to);
+  const d = await api('GET', `/insights${q.toString() ? `?${q}` : ''}`);
+  INSIGHTS.from = d.from;
+  INSIGHTS.to = d.to;
+  const fin = await api('GET', `/finance/report?from=${encodeURIComponent(d.from)}&to=${encodeURIComponent(d.to)}`);
+  const t = d.totals;
+  const maxProfit = Math.max(1, ...d.months.map((m) => Math.abs(m.profit)));
+  const bar = (v) => `<div style="height:8px;border-radius:4px;background:${v >= 0 ? 'var(--ok, #2e7d32)' : 'var(--bad, #c62828)'};width:${Math.round((Math.abs(v) / maxProfit) * 100)}%"></div>`;
+  const share = (g) => `${g.share}%`;
+  const range = `from=${encodeURIComponent(d.from)}&to=${encodeURIComponent(d.to)}`;
+  const kpi = (label, value) => `<div class="card"><div class="muted">${label}</div><div style="font-size:24px;font-weight:600;margin-top:4px">${value}</div></div>`;
+  const charts = `<div class="grid two" style="margin-top:16px">
+      <div class="card"><h2>Policies sold by product</h2>${pieChart(d.byProduct.map((g) => ({ label: g.product, value: g.policies })), (v) => `${v} policies`)}</div>
+      <div class="card"><h2>Premium by producer (agency)</h2>${pieChart(d.byProducer.map((g) => ({ label: g.producer, value: g.premium })), money)}</div>
+      <div class="card"><h2>Policies by salesperson</h2>${pieChart(d.bySalesperson.map((g) => ({ label: g.salesperson, value: g.policies })), (v) => `${v} policies`)}</div>
+      <div class="card"><h2>Expenses by category</h2>${pieChart(Object.entries(fin.totals.expenses).map(([k, v]) => ({ label: k, value: v })), money)}</div>
+    </div>`;
+  view(`<div class="eyebrow">Insights</div><h1>Sales and profit dashboard</h1>
+    <div class="card">
+      <form class="toolbar" data-form="insights-range">
+        ${field('From (month)', `<input type="month" name="from" value="${esc(d.from)}" required>`)}
+        ${field('To (month)', `<input type="month" name="to" value="${esc(d.to)}" required>`)}
+        <button class="btn">Show</button>
+        <a class="btn" href="/api/reports/profitability.xlsx?${range}">Download Excel</a>
+        <a class="btn" href="/api/reports/profitability.pdf?${range}">Download PDF</a>
+      </form>
+    </div>
+    <div class="grid four" style="margin-top:16px">
+      ${kpi('Policies sold', t.policiesSold)}
+      ${kpi('Premium sold', money(t.premiumSold))}
+      ${kpi('Income (premium + commission)', money(t.income))}
+      ${kpi('Profit after expenses', `<span style="color:${t.profit >= 0 ? 'var(--ok, #2e7d32)' : 'var(--bad, #c62828)'}">${money(t.profit)}</span>`)}
+    </div>
+    ${charts}
+    <div class="card" style="margin-top:16px"><h2>Month by month</h2>
+      ${table(['Month', 'Policies sold', 'Premium sold', 'Income', 'Expenses', 'Profit', 'Profit trend'],
+        d.months.map((m) => [esc(m.month), m.policiesSold, money(m.premiumSold), money(m.income), money(m.expenses), `<strong>${money(m.profit)}</strong>`, bar(m.profit)]),
+        'No months in this range')}
+    </div>
+    <div class="grid two" style="margin-top:16px">
+      <div class="card"><h2>By product</h2>
+        ${table(['Product', 'Policies', 'Share', 'Premium', 'Commission'], d.byProduct.map((g) => [esc(g.product), g.policies, share(g), money(g.premium), money(g.commission)]), 'No sales in this range')}
+      </div>
+      <div class="card"><h2>By producer (agency)</h2>
+        ${table(['Producer', 'Policies', 'Share', 'Premium', 'Commission'], d.byProducer.map((g) => [esc(g.producer), g.policies, share(g), money(g.premium), money(g.commission)]), 'No sales in this range')}
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px"><h2>By salesperson</h2>
+      ${table(['Salesperson', 'Policies', 'Share', 'Premium', 'Commission'], d.bySalesperson.map((g) => [esc(g.salesperson), g.policies, share(g), money(g.premium), money(g.commission)]), 'No sales in this range')}
+    </div>
+    <div class="card" style="margin-top:16px"><h2>Policies sold per salesperson, per month</h2>
+      ${table(['Salesperson', ...d.matrix.months, 'Total'], d.matrix.rows.map((r) => [esc(r.salesperson), ...r.counts.map((c) => (c ? `<strong>${c}</strong>` : '<span class="muted">0</span>')), `<strong>${r.total}</strong>`]), 'No sales in this range')}
+    </div>`);
+}
+
+// ------------------------------------------------------------------ finance (UW Manager)
+
+const FIN = { from: '', to: '' };
+
+async function pageFinance() {
+  const q = new URLSearchParams();
+  if (FIN.from) q.set('from', FIN.from);
+  if (FIN.to) q.set('to', FIN.to);
+  const qs = q.toString() ? `?${q}` : '';
+  const [r, expenses] = await Promise.all([api('GET', `/finance/report${qs}`), api('GET', `/finance/expenses${qs}`)]);
+  FIN.from = r.from;
+  FIN.to = r.to;
+  const cats = r.categories;
+  const range = `from=${encodeURIComponent(r.from)}&to=${encodeURIComponent(r.to)}`;
+  const headers = ['Month', 'Premium', 'Commission', 'Income', ...cats, 'Expenses', 'Net profit'];
+  const rows = r.months.map((m) => [
+    esc(m.month), money(m.premium), money(m.commission), money(m.income),
+    ...cats.map((c) => money(m.expenses[c])), money(m.totalExpenses), `<strong>${money(m.net)}</strong>`,
+  ]);
+  const t = r.totals;
+  const totalRow = ['<strong>Total</strong>', money(t.premium), money(t.commission), money(t.income), ...cats.map((c) => money(t.expenses[c])), money(t.totalExpenses), `<strong>${money(t.net)}</strong>`];
+  view(`<div class="eyebrow">Finance</div><h1>Profitability and settlement</h1>
+    <p class="muted">Income is billed premium plus ${r.commissionRatePercent}% commission on that premium. Net profit is income minus the expenses entered below.</p>
+    <div class="card">
+      <form class="toolbar" data-form="finance-range">
+        ${field('From (month)', `<input type="month" name="from" value="${esc(r.from)}" required>`)}
+        ${field('To (month)', `<input type="month" name="to" value="${esc(r.to)}" required>`)}
+        <button class="btn">Show</button>
+        <a class="btn" href="/api/reports/profitability.xlsx?${range}">Download Excel</a>
+        <a class="btn" href="/api/reports/profitability.pdf?${range}">Download PDF</a>
+      </form>
+    </div>
+    <div class="card" style="margin-top:16px"><h2>Month by month</h2>
+      ${table(headers, [...rows, totalRow], 'No months in this range')}
+    </div>
+    <div class="grid two" style="margin-top:16px">
+      <div class="card"><h2>Commission rate</h2>
+        <form data-form="finance-commission"><div class="form-errors"></div>
+          ${field('Commission (percent of premium)', `<input name="percent" type="number" min="0" max="100" step="0.1" value="${r.commissionRatePercent}" required>`)}
+          <div class="toolbar" style="margin-top:12px"><button class="btn primary">Save rate</button></div>
+        </form>
+      </div>
+      <div class="card"><h2>Add an expense</h2>
+        <form data-form="finance-expense"><div class="form-errors"></div>
+          ${field('Month', `<input name="month" type="month" value="${esc(r.to)}" required>`)}
+          ${field('Category', `<select name="category">${cats.map((c) => `<option>${esc(c)}</option>`).join('')}</select>`)}
+          ${field('Amount', '<input name="amount" type="number" min="0.01" step="0.01" required>')}
+          ${field('Note (optional)', '<input name="note" placeholder="for example March payroll">')}
+          <div class="toolbar" style="margin-top:12px"><button class="btn primary">Add expense</button></div>
+        </form>
+      </div>
+    </div>
+    <div class="card" style="margin-top:16px"><h2>Expenses in this range</h2>
+      ${table(['Month', 'Category', 'Amount', 'Note', 'Entered by'], expenses.map((e) => [esc(e.month), esc(e.category), money(e.amount), esc(e.note), esc(e.createdByName)]), 'No expenses entered yet')}
+    </div>`);
+}
+
 const ACTIONS = {
   'reset-staff': async (d) => { const r = await api('POST', `/staff/${encodeURIComponent(d.id)}/reset`); showTemporaryPassword(r); pageStaff(); },
   'toggle-staff': async (d) => { await api('POST', `/staff/${encodeURIComponent(d.id)}/active`, { active: d.active !== 'true' }); pageStaff(); },
@@ -968,6 +1119,13 @@ const FORMS = {
     else toast(`Message failed: ${rec.error}`, 'error');
     pageAccount(form.dataset.id);
   },
+  'insights-range': (fd) => { INSIGHTS.from = String(fd.get('from') || ''); INSIGHTS.to = String(fd.get('to') || ''); pageInsights(); },
+  'finance-range': (fd) => { FIN.from = String(fd.get('from') || ''); FIN.to = String(fd.get('to') || ''); pageFinance(); },
+  'finance-commission': async (fd) => { await api('POST', '/finance/commission', { percent: fd.get('percent') }); pageFinance(); },
+  'finance-expense': async (fd) => {
+    await api('POST', '/finance/expenses', { month: fd.get('month'), category: fd.get('category'), amount: fd.get('amount'), note: fd.get('note') });
+    pageFinance();
+  },
   'sales-filter': (fd) => { SALES.period = String(fd.get('period') || 'month'); SALES.product = String(fd.get('product') || ''); pageSales(); },
   followup: async (fd, form) => {
     await api('POST', `/sales/policies/${encodeURIComponent(form.dataset.id)}/followups`, { date: fd.get('date'), channel: fd.get('channel'), result: fd.get('result'), notes: fd.get('notes') });
@@ -1058,6 +1216,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeMod
 // ------------------------------------------------------------------ assistant
 
 const CHAT = { conversationId: null, busy: false, status: null, abort: null };
+const chatLanguage = () => (document.getElementById('chat-lang') || {}).value || 'auto';
 const SUGGESTIONS = {
   policy: ['Summarize this policy', 'Why is this premium so high?', 'What changed on this policy?'],
   job: ['Why is this job blocked?', 'Explain this quote', 'Who can approve the issues?'],
@@ -1195,7 +1354,7 @@ async function chatSend(text) {
     const res = await fetch('/api/chat/stream', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ conversationId: CHAT.conversationId, message, context: chatContext() }),
+      body: JSON.stringify({ conversationId: CHAT.conversationId, message, context: chatContext(), language: chatLanguage() }),
       signal: CHAT.abort.signal,
     });
     if (!res.ok || !res.body) {
@@ -1334,7 +1493,7 @@ async function setupVoice(input) {
       input.placeholder = 'Transcribing…';
       pending = (async () => {
         try {
-          const res = await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: encodeWav(r.chunks, r.ctx.sampleRate) });
+          const res = await fetch(`/api/speech?language=${encodeURIComponent(chatLanguage())}`, { method: 'POST', headers: { 'Content-Type': 'audio/wav' }, body: encodeWav(r.chunks, r.ctx.sampleRate) });
           const data = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(data.error || res.statusText);
           if (!data.text) toast('No speech was recognised. Try again a little closer to the mic.', 'error');
@@ -1494,6 +1653,10 @@ function setupChat() {
   const panel = document.getElementById('chat');
   const toggle = document.getElementById('chat-toggle');
   const input = document.getElementById('chat-input');
+  // Remember the chosen language on this computer (a per-viewer convenience, not stored on the server).
+  const langBox = document.getElementById('chat-lang');
+  try { const saved = localStorage.getItem('chatLanguage'); if (saved) langBox.value = saved; } catch {}
+  langBox.addEventListener('change', () => { try { localStorage.setItem('chatLanguage', langBox.value); } catch {} });
   const open = (show) => {
     if (!show) stopVoice(true);
     panel.hidden = !show;
@@ -1601,7 +1764,7 @@ async function boot() {
   S.meta = await api('GET', '/meta');
   setSignedOutChrome(false);
   document.getElementById('whoami').textContent = `${S.me.name} · ${S.me.role}`;
-  document.querySelectorAll('[data-nav="staff"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.getElementById('signout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     location.hash = '#/desktop';

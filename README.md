@@ -130,8 +130,9 @@ Start the speech service in its own PowerShell window (keep it open while you us
 .whisper\Scripts\python.exe scripts\whisper_server.py
 ```
 
-The first start downloads the model once: about 1.5 GB for the default `medium` model, which is the one to use
-for Telugu. For a smaller, faster download set `$env:WHISPER_MODEL="small"` first (less accurate for Telugu).
+The first start downloads the model once: about 480 MB for the default `small` model, which answers in a few
+seconds. For more accurate Telugu and Hindi, use the larger `medium` model (about 1.5 GB, slower): set
+`$env:WHISPER_MODEL="medium"` first. The service decodes greedily (`WHISPER_BEAM`, default 1) for speed, and prints how long each clip took.
 When it is ready it prints `Speech service ready at http://127.0.0.1:8178`. Then start the app as usual.
 
 Recording stops when you click the mic again, or after about 55 seconds. Speech is turned into text after you

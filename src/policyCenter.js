@@ -1429,7 +1429,7 @@ class PolicyCenter {
       if (!first || first.jobType !== 'Submission') continue;
       const seller = this.salespersonOf(p);
       if (salesScope(user) !== 'all' && seller.id !== user.id) continue;
-      rows.push({ policyNumber: p.policyNumber, product: p.product, boundDate: first.boundAt.slice(0, 10), premium: round2(first.quote.premium + first.quote.taxes), salesperson: seller });
+      rows.push({ policyNumber: p.policyNumber, product: p.product, boundDate: first.boundAt.slice(0, 10), premium: round2(first.quote.premium + first.quote.taxes), salesperson: seller, producerCode: account.producerCode || 'None' });
     }
     return rows;
   }

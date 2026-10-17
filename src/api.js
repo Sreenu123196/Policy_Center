@@ -5,9 +5,13 @@
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS } = require('./policyCenter');
+const { Finance } = require('./finance');
+const { Insights } = require('./insights');
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {}) {
   const routes = [];
+  const finance = new Finance(pc);
+  const insights = new Insights(pc, finance);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -108,9 +112,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
   }, { readOnly: true, stream: true });
   // Voice input: the browser posts a WAV recording; Google detects the language and transcribes it.
   route('GET', '/speech/status', () => (speech ? speech.status() : { enabled: false, reason: 'Speech is not configured' }));
-  route('POST', '/speech', ({ body }) => {
+  route('POST', '/speech', ({ body, query }) => {
     if (!speech) throw new AppError(503, 'Cloud speech is not set up on the server');
-    return speech.transcribe(body);
+    return speech.transcribe(body, { language: query.get('language') || undefined });
   }, { readOnly: true, raw: true });
   // Sales analytics, lapsing policies and follow-ups.
   route('GET', '/sales/analytics', ({ user, query }) => pc.salesAnalytics(user, { period: query.get('period') || 'month', product: query.get('product') || undefined }));
@@ -121,6 +125,20 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
   // Management reports. Access is set per role in src/permissions.js.
   route('GET', '/reports/claims', ({ user }) => pc.claimsReport(user));
   route('GET', '/reports/billing', ({ user, query }) => pc.billingReport(user, { from: query.get('from') || undefined, to: query.get('to') || undefined }));
+  // Monthly profitability and settlement (UW Manager only): premiums + commission, less expenses entered here.
+  const monthRange = (query) => ({ from: query.get('from') || undefined, to: query.get('to') || undefined });
+  route('GET', '/insights', ({ user, query }) => insights.dashboard(user, monthRange(query)));
+  route('GET', '/finance/report', ({ user, query }) => finance.report(user, monthRange(query)));
+  route('GET', '/finance/expenses', ({ user, query }) => finance.expenses(user, monthRange(query)));
+  route('POST', '/finance/expenses', ({ user, body }) => finance.addExpense(user, body));
+  route('POST', '/finance/commission', ({ user, body }) => finance.setCommissionRate(user, body.percent));
+  const download = (type, contentType, make) => route('GET', `/reports/profitability.${type}`, async ({ user, query }, res) => {
+    const file = await make(user, monthRange(query));
+    res.writeHead(200, { 'Content-Type': contentType, 'Content-Disposition': `attachment; filename="settlement-${query.get('from') || 'start'}-to-${query.get('to') || 'end'}.${type}"`, 'Content-Length': file.length });
+    res.end(file);
+  }, { stream: true });
+  download('xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', (u, r) => finance.excel(u, r));
+  download('pdf', 'application/pdf', (u, r) => finance.pdf(u, r));
 
   // Tickets: issues with priority and SLA timers. The queue puts premium customers first.
   route('GET', '/tickets', ({ user, query }) => pc.listTickets(user, { status: query.get('status') || undefined }));

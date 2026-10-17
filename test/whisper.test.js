@@ -54,3 +54,12 @@ test('whisper: status says it runs on this computer', () => {
   assert.equal(st.enabled, true);
   assert.match(st.provider, /Local Whisper/);
 });
+
+test('whisper: a picked language is passed to the local service as a hint', async () => {
+  const { calls, fetchImpl } = fakeWhisper({ text: 'hello', language: 'en', probability: 0.9 });
+  const speech = new Speech({ config, fetchImpl });
+  await speech.transcribe(Buffer.from('RIFF'), { language: 'te' });
+  assert.equal(calls[0].url, 'http://127.0.0.1:8178/transcribe?language=te');
+  await speech.transcribe(Buffer.from('RIFF'), { language: 'auto' });
+  assert.equal(calls[1].url, 'http://127.0.0.1:8178/transcribe');
+});

@@ -240,3 +240,11 @@ pre.payload { margin: 0; font-size: 11px; white-space: pre-wrap; word-break: bre
 @keyframes spin { to { transform: rotate(360deg); } }
 .chat-icon-btn.working { color: var(--accent); animation: spin 1s linear infinite; }
 .chat-icon-btn:disabled { cursor: progress; }
+.chat-lang { font: inherit; font-size: 12px; border-radius: 6px; padding: 3px 6px; background: rgba(255,255,255,.15); color: #fff; border: 1px solid rgba(255,255,255,.35); max-width: 130px; }
+.chat-lang option { color: #111; }
+.pie { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }
+.pie svg { width: 180px; height: 180px; flex: none; }
+.pie-legend { list-style: none; margin: 0; padding: 0; font-size: 13px; min-width: 200px; flex: 1; }
+.pie-legend li { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+.pie-legend li .muted { margin-left: auto; white-space: nowrap; }
+.swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; display: inline-block; }

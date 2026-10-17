@@ -68,8 +68,8 @@ class Speech {
       : { enabled: false, reason: this.reason };
   }
 
-  async transcribe(audio) {
-    if (this.engine === 'whisper') return this.transcribeLocal(audio);
+  async transcribe(audio, options = {}) {
+    if (this.engine === 'whisper') return this.transcribeLocal(audio, options);
     if (!this.client) throw new AppError(503, 'Cloud speech is not set up on the server');
     if (!audio || !audio.length) throw new AppError(422, 'No audio was received');
     if (audio.length > MAX_AUDIO_BYTES) throw new AppError(413, 'The recording is too long; keep it under about a minute');
@@ -99,12 +99,13 @@ class Speech {
 
 // Local Whisper: the browser's recording goes to the speech service on this computer, which detects the
 // language itself. Nothing leaves the computer.
-Speech.prototype.transcribeLocal = async function transcribeLocal(audio) {
+Speech.prototype.transcribeLocal = async function transcribeLocal(audio, options = {}) {
   if (!audio || !audio.length) throw new AppError(422, 'No audio was received');
   if (audio.length > MAX_AUDIO_BYTES) throw new AppError(413, 'The recording is too long; keep it under about a minute');
   let res;
   try {
-    res = await this.fetch(`${this.whisperUrl}/transcribe`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: audio });
+    const hint = ['en', 'hi', 'te'].includes(options.language) ? `?language=${options.language}` : '';
+    res = await this.fetch(`${this.whisperUrl}/transcribe${hint}`, { method: 'POST', headers: { 'Content-Type': 'application/octet-stream' }, body: audio });
   } catch {
     throw new AppError(503, 'The local speech service is not running. Start it in its own PowerShell window (see the README, "Local speech").');
   }

@@ -424,6 +424,17 @@ const fmt = (n) => '$' + Number(n).toLocaleString('en-US', { minimumFractionDigi
 const HINGLISH = /\b(hai|hain|kya|kyon|kyun|kaise|kitna|kitne|kitni|mein|mujhe|batao|bataiye|dikhao|nahi|nahin|aur|bhi|wala|wali|karo|kijiye|chahiye|abhi|kab|kahan|iska|iski|kaun|kaunsa)\b/;
 const TENGLISH = /\b(enduku|enti|emiti|ela|elaa|cheppu|cheppandi|chupinchu|chupinchandi|undi|unnayi|ledu|levu|kavali|ayindi|avutundi|ee|aa|ga|lo|ki|naku|meeru|nenu|chala|ekkuva|takkuva|enni|entha)\b/;
 
+// Reply styles for a language picked in the chat header. 'auto' falls back to detecting it from the question.
+const LANGUAGE_STYLES = {
+  en: 'English. Reply in English, even if the question is written in another language.',
+  te: 'Telugu in Telugu script (keep insurance terms, record numbers and amounts in English).',
+  hi: 'Hindi in Devanagari script (keep insurance terms, record numbers and amounts in English).',
+};
+
+function replyStyle(language, text) {
+  return LANGUAGE_STYLES[language] || replyLanguage(text);
+}
+
 function replyLanguage(text) {
   if (/[ఀ-౿]/.test(text)) return 'Telugu in Telugu script (keep insurance terms, record numbers and amounts in English).';
   if (/[ऀ-ॿ]/.test(text)) return 'Hindi in Devanagari script (keep insurance terms, record numbers and amounts in English).';
@@ -567,7 +578,7 @@ class Chatbot {
   //   delta {text}         the next piece of the answer
   //   reset {}             discard the partial answer (a declined draft is being re-answered)
   // The resolved value is the complete reply.
-  async chat({ conversationId, message, context }, user, emit = () => {}) {
+  async chat({ conversationId, message, context, language }, user, emit = () => {}) {
     const text = str(message);
     if (!text) throw new AppError(422, 'Message is empty');
     if (text.length > 4000) throw new AppError(422, 'Message is too long (4,000 characters max)');
@@ -581,7 +592,7 @@ class Chatbot {
       return { conversationId: conv.id, mode: 'offline', reply, toolsUsed: [], notice: this.offlineReason };
     }
 
-    const style = replyLanguage(text);
+    const style = replyStyle(language, text);
     const note = `[Today: ${this.pc.today()}. Signed in as ${user.name} (${user.role}). Viewing: ${context && context.page ? context.page : 'unknown'}${context && context.record ? `, record ${context.record}` : ''}]`;
     // History is append-only: assistant content (including thinking blocks) goes back unchanged, and
     // the conversation is only updated once the whole turn has succeeded.
@@ -679,7 +690,7 @@ class Chatbot {
       if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
         this.offlineReason = 'The Anthropic credentials were rejected, so the assistant switched to offline mode. Check ANTHROPIC_API_KEY and restart the server for full answers.';
         emit('reset', {});
-        return this.chat({ conversationId: conv.id, message: text, context }, user, emit);
+        return this.chat({ conversationId: conv.id, message: text, context, language }, user, emit);
       }
       if (err instanceof Anthropic.RateLimitError) throw new AppError(429, 'The assistant is busy right now; try again in a moment');
       if (err instanceof Anthropic.APIConnectionError) throw new AppError(503, 'Could not reach the Claude API; check the network and try again');
@@ -690,4 +701,4 @@ class Chatbot {
   }
 }
 
-module.exports = { Chatbot, TOOLS, runTool, offlineAnswer, validateInput, replyLanguage };
+module.exports = { Chatbot, TOOLS, runTool, offlineAnswer, validateInput, replyLanguage, replyStyle };
