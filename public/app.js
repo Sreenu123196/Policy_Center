@@ -1050,48 +1050,149 @@ function chatUpdateSend() {
   btn.classList.toggle('stop', CHAT.busy);
   btn.setAttribute('aria-label', CHAT.busy ? 'Stop answering' : 'Send message');
   btn.title = CHAT.busy ? 'Stop' : 'Send';
-  btn.disabled = !CHAT.busy && !document.getElementById('chat-input').value.trim();
+  // While the mic is on, Send is available too: it finishes the speech and sends it.
+  btn.disabled = !CHAT.busy && !document.getElementById('chat-input').value.trim() && !VOICE.active();
 }
 
-// Voice input through the browser's Web Speech API (Chrome and Edge). Hidden where unsupported.
-// The mic stays on until the user clicks it again (or sends the message). Browsers end a recognition
-// session on their own after a pause or about a minute, so a new session is started each time one ends.
-let stopVoice = () => {};
+// Voice input. Two engines, chosen automatically:
+//  - cloud: the mic records a WAV clip and the server sends it to Google Cloud Speech, which detects
+//    whether it is English, Hindi or Telugu. Nobody has to pick a language. Text appears after the
+//    user stops speaking (click the mic again, or send).
+//  - browser: when cloud speech is not set up, the browser's own recognition is used (Chrome/Edge),
+//    listening as English (India), which also covers Hinglish and Tenglish in Roman letters.
+// Either way the mic stays on until the user stops it, sends the message, or closes the chat.
+const VOICE = {
+  active: () => false,
+  // Stops listening. With discard the speech is dropped; otherwise it lands in the box first.
+  stop: async () => {},
+};
+const stopVoice = (discard = false) => VOICE.stop(discard);
 
-function setupVoice(input) {
+function encodeWav(chunks, sampleRate) {
+  const length = chunks.reduce((n, c) => n + c.length, 0);
+  const view = new DataView(new ArrayBuffer(44 + length * 2));
+  const text = (offset, s) => { for (let i = 0; i < s.length; i++) view.setUint8(offset + i, s.charCodeAt(i)); };
+  text(0, 'RIFF'); view.setUint32(4, 36 + length * 2, true); text(8, 'WAVE');
+  text(12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true); view.setUint16(34, 16, true);
+  text(36, 'data'); view.setUint32(40, length * 2, true);
+  let offset = 44;
+  for (const c of chunks) {
+    for (let i = 0; i < c.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, c[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+    }
+  }
+  return new Blob([view], { type: 'audio/wav' });
+}
+
+async function setupVoice(input) {
   const mic = document.getElementById('chat-mic');
-  const langPick = document.getElementById('chat-voice-lang');
+  const setButton = (state) => {
+    mic.classList.toggle('listening', state === 'listening');
+    mic.classList.toggle('working', state === 'working');
+    const label = { listening: 'Stop and use what I said', working: 'Transcribing…', idle: 'Speak your question (English, हिंदी or తెలుగు)' }[state];
+    mic.setAttribute('aria-label', label);
+    mic.title = label;
+    mic.disabled = state === 'working';
+    chatUpdateSend();
+  };
+  const append = (said) => {
+    if (!said) return;
+    input.value = (input.value ? input.value.replace(/\s*$/, ' ') : '') + said;
+    chatUpdateSend();
+  };
+
+  let status = { enabled: false };
+  try {
+    status = await api('GET', '/speech/status');
+  } catch { /* fall back to browser recognition */ }
+
+  if (status.enabled && navigator.mediaDevices && window.AudioContext) {
+    // ---------------- cloud engine
+    const MAX_SECONDS = 55; // Google's quick recognize call is for clips under a minute
+    let rec = null;
+    let pending = null;
+
+    const finish = async (discard) => {
+      if (!rec) return pending;
+      const r = rec;
+      rec = null;
+      clearTimeout(r.timer);
+      r.source.disconnect();
+      r.node.disconnect();
+      r.stream.getTracks().forEach((t) => t.stop());
+      r.ctx.close();
+      if (discard || !r.chunks.length) {
+        setButton('idle');
+        return null;
+      }
+      setButton('working');
+      const placeholder = input.placeholder;
+      input.placeholder = 'Transcribing…';
+      pending = (async () => {
+        try {
+          const res = await fetch('/api/speech', { method: 'POST', headers: { 'Content-Type': 'audio/wav', 'X-User': S.user }, body: encodeWav(r.chunks, r.ctx.sampleRate) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || res.statusText);
+          if (!data.text) toast('No speech was recognised. Try again a little closer to the mic.', 'error');
+          append(data.text);
+        } catch (err) {
+          toast(`Voice input failed: ${err.message}`, 'error');
+        } finally {
+          input.placeholder = placeholder;
+          setButton('idle');
+          pending = null;
+          input.focus();
+        }
+      })();
+      return pending;
+    };
+
+    const start = async () => {
+      let stream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      } catch (err) {
+        toast(err.name === 'NotAllowedError' ? 'Microphone access is blocked. Allow it in the browser to use voice input.' : 'No microphone was found. Check that one is connected.', 'error');
+        return;
+      }
+      const ctx = new AudioContext({ sampleRate: 16000 });
+      const source = ctx.createMediaStreamSource(stream);
+      // ScriptProcessor is simple and widely supported; it copies raw samples as they arrive.
+      const node = ctx.createScriptProcessor(4096, 1, 1);
+      const chunks = [];
+      node.onaudioprocess = (e) => chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      source.connect(node);
+      node.connect(ctx.destination);
+      rec = { stream, ctx, source, node, chunks, timer: setTimeout(() => { toast('Stopped after 55 seconds; transcribing what you said.'); finish(false); }, MAX_SECONDS * 1000) };
+      setButton('listening');
+    };
+
+    VOICE.active = () => !!rec || !!pending;
+    VOICE.stop = async (discard) => { await finish(discard); if (pending) await pending; };
+    mic.addEventListener('click', () => (rec ? finish(false) : start()));
+    setButton('idle');
+    return;
+  }
+
+  // ---------------- browser engine (fallback)
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     mic.hidden = true;
-    langPick.hidden = true;
     return;
   }
-  // Speech recognition must be told which language to expect. English (India) also handles
-  // Hinglish and Tenglish spoken in Roman letters; Hindi and Telugu write in their own scripts.
-  const saved = readPref('pcVoiceLang');
-  if (saved && [...langPick.options].some((o) => o.value === saved)) langPick.value = saved;
-  langPick.addEventListener('change', () => {
-    writePref('pcVoiceLang', langPick.value);
-    if (rec) rec.stop(); // the next session starts in the new language
-  });
   let listening = false;
   let rec = null;
   let base = '';
   let quickEnds = 0;
-
-  const setButton = (on) => {
-    mic.classList.toggle('listening', on);
-    mic.setAttribute('aria-label', on ? 'Stop listening' : 'Speak your question');
-    mic.title = on ? 'Stop listening' : 'Speak your question';
-  };
+  let ended = null;
 
   const startSession = () => {
-    // Text already in the box (including earlier sessions) is kept; new speech is appended.
     base = input.value ? input.value.replace(/\s*$/, ' ') : '';
     const started = Date.now();
     rec = new Recognition();
-    rec.lang = langPick.value || 'en-IN';
+    rec.lang = 'en-IN';
     rec.interimResults = true;
     rec.continuous = true;
     rec.onresult = (ev) => {
@@ -1109,11 +1210,9 @@ function setupVoice(input) {
         listening = false;
         toast('Voice input needs an internet connection.', 'error');
       }
-      // "no-speech" and "aborted" are normal during long pauses; the session simply restarts.
     };
     rec.onend = () => {
       rec = null;
-      // Guard against a tight restart loop if the browser keeps ending sessions immediately.
       quickEnds = Date.now() - started < 1000 ? quickEnds + 1 : 0;
       if (quickEnds >= 5) {
         listening = false;
@@ -1122,7 +1221,8 @@ function setupVoice(input) {
       if (listening) {
         setTimeout(() => { if (listening && !rec) startSession(); }, 150);
       } else {
-        setButton(false);
+        setButton('idle');
+        if (ended) { ended(); ended = null; }
         input.focus();
       }
     };
@@ -1131,29 +1231,34 @@ function setupVoice(input) {
     } catch {
       rec = null;
       listening = false;
-      setButton(false);
+      setButton('idle');
     }
   };
 
-  // discard: drop speech still being processed (used when the message is sent or the chat closes).
-  stopVoice = (discard = false) => {
+  VOICE.active = () => listening || !!rec;
+  VOICE.stop = (discard) => new Promise((resolve) => {
     listening = false;
-    if (!rec) return setButton(false);
+    if (!rec) {
+      setButton('idle');
+      return resolve();
+    }
+    ended = resolve;
     if (discard) {
       rec.onresult = null;
       rec.abort();
     } else {
       rec.stop();
     }
-  };
+  });
 
   mic.addEventListener('click', () => {
-    if (listening) return stopVoice();
+    if (listening) return VOICE.stop(false);
     listening = true;
     quickEnds = 0;
-    setButton(true);
+    setButton('listening');
     startSession();
   });
+  setButton('idle');
 }
 
 function setupChat() {
@@ -1187,11 +1292,15 @@ function setupChat() {
       if (CHAT.abort) CHAT.abort.abort();
       return;
     }
-    stopVoice(true);
-    const t = input.value;
-    if (!t.trim() || CHAT.busy) return;
-    input.value = '';
-    chatSend(t);
+    // If the mic is on, finish turning speech into text first, then send everything.
+    const send = () => {
+      const t = input.value;
+      if (!t.trim() || CHAT.busy) return;
+      input.value = '';
+      chatSend(t);
+    };
+    if (VOICE.active()) stopVoice(false).then(send);
+    else send();
   });
   input.addEventListener('input', chatUpdateSend);
   setupVoice(input);

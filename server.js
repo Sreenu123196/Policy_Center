@@ -12,6 +12,7 @@ const { PolicyCenter } = require('./src/policyCenter');
 const { createApi } = require('./src/api');
 const { seed } = require('./src/seed');
 const { Chatbot } = require('./src/chatbot');
+const { Speech } = require('./src/speech');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -26,8 +27,10 @@ if (store.isEmpty()) {
   console.log('Loaded demo data');
 }
 const chatbot = new Chatbot(pc);
-const api = createApi(pc, store, { reseed, chatbot });
+const speech = new Speech();
+const api = createApi(pc, store, { reseed, chatbot, speech });
 console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode === 'claude' ? ` (${chatbot.status().model})` : ''}`);
+console.log(`Voice input: ${speech.status().enabled ? `Google Cloud Speech (${speech.status().model}, auto-detects ${speech.status().languages.join(', ')})` : `browser speech recognition (${speech.status().reason})`}`);
 
 function serveStatic(pathname, res) {
   const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');

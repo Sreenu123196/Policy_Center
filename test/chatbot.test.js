@@ -173,6 +173,20 @@ test('languages: the assistant is told to answer in the user\'s language, script
   assert.equal(client.requests[0].messages.length, 2, 'the system message is the last entry of the first request');
 });
 
+test('languages: Telugu and Hindi script messages get medium effort, others low', async () => {
+  const { pc, users } = bookWithPolicy();
+  const client = fakeClient([
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'a' }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'b' }] },
+    { stop_reason: 'end_turn', content: [{ type: 'text', text: 'c' }] },
+  ]);
+  const bot = new Chatbot(pc, { client });
+  await bot.chat({ message: 'నా దగ్గర ఎన్ని referrals ఉన్నాయి?' }, users.uw);
+  await bot.chat({ message: 'मेरे पास कितने referrals हैं?' }, users.uw);
+  await bot.chat({ message: 'mere kitne referrals hain?' }, users.uw);
+  assert.deepEqual(client.requests.map((r) => r.output_config.effort), ['medium', 'medium', 'low']);
+});
+
 test('languages: each message is labelled with the reply style', () => {
   const { replyLanguage } = require('../src/chatbot');
   const style = (q) => replyLanguage(q).split(':')[0];

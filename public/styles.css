@@ -238,4 +238,5 @@ pre.payload { margin: 0; font-size: 11px; white-space: pre-wrap; word-break: bre
 .msg .answer p:last-of-type { display: inline; }
 @keyframes blink { to { visibility: hidden; } }
 @keyframes spin { to { transform: rotate(360deg); } }
-.chat-lang { flex: none; align-self: center; width: auto; max-width: 112px; padding: 5px 6px; border-radius: 99px; font-size: 12px; background: var(--surface-2); }
+.chat-icon-btn.working { color: var(--accent); animation: spin 1s linear infinite; }
+.chat-icon-btn:disabled { cursor: progress; }

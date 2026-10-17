@@ -7,6 +7,11 @@ data/
 # Account-specific assistant settings; copy chat.config.example.json to create it
 chat.config.json
 
+# Google service-account keys must never be committed; keep them outside the project
+*service-account*.json
+*speech-key*.json
+*-credentials.json
+
 # Secrets and local environment
 .env
 .env.*

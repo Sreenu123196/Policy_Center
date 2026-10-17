@@ -79,8 +79,33 @@ in its answers are links.
 - **Security:** tools run as the signed-in user, so agents only see their own producer code's records. The
   assistant is read-only. It can't quote, bind, change or approve, and it tells you which screen to use instead.
 - **Live answers:** replies stream in word by word, with a live line for each lookup ("Looking up policy
-  PA-0000001…"). While it answers, the send arrow becomes a stop button. The mic button does voice input in
-  Chrome and Edge.
+  PA-0000001…"). While it answers, the send arrow becomes a stop button.
+- **Languages:** type or speak English, Hindi, Telugu, Hinglish or Tenglish; the assistant replies in the same
+  language and script.
+- **Voice:** with Google Cloud Speech set up (below), the mic records what you say and Google detects whether it
+  is English, Hindi or Telugu, so there is nothing to choose. Click the mic again or press Send to finish; the text
+  appears after you stop. Without Google, the mic uses the browser's own recognition (Chrome and Edge) as English
+  (India), which handles English, Hinglish and Tenglish.
+
+### Google Cloud Speech setup (automatic language detection)
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), pick or create a project with billing on, and
+   enable the **Cloud Speech-to-Text API**.
+2. Under **IAM & Admin → Service accounts**, create a service account with the **Cloud Speech Client** role.
+3. Open it, choose **Keys → Add key → Create new key → JSON**, and save the file **outside this project folder**
+   (for example `C:\Users\<you>\keys\policycenter-speech.json`). Never commit it.
+4. Start the server with the key path set:
+
+   ```powershell
+   $env:GOOGLE_APPLICATION_CREDENTIALS="C:\Users\<you>\keys\policycenter-speech.json"; $env:ANTHROPIC_API_KEY="<key>"; npm start
+   ```
+
+   The server prints `Voice input: Google Cloud Speech (chirp_3, auto-detects en-IN, hi-IN, te-IN)`.
+
+It uses the Chirp 3 model in Google's `us` region (set `"speechRegion": "eu"` in `chat.config.json` for Europe);
+audio is sent to Google for transcription. Telugu is a Preview language for Chirp 3. Each recording is transcribed
+in its most prominent language, so heavily mixed speech may come back in one script. Optional settings in
+`chat.config.json`: `speechRegion`, `speechLanguages`, `speechModel`.
 - **API:** `POST /api/chat/stream` streams Server-Sent Events (`meta`, `tool`, `delta`, `reset`, `done`, `error`).
   `POST /api/chat` returns the whole answer at once, and `GET /api/chat/status` reports the mode. The request body
   is `{conversationId?, message, context}`. Conversations are kept in server memory and reset when the server

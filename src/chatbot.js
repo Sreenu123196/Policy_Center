@@ -519,7 +519,8 @@ class Chatbot {
           model: MODEL,
           max_tokens: 16000,
           ...fallbackParams(),
-          output_config: { effort: 'low' },
+          // Answers written in Telugu or Hindi script get more care; low effort produced garbled openings there.
+          output_config: { effort: NON_LATIN_SCRIPT.test(text) ? 'medium' : 'low' },
           cache_control: { type: 'ephemeral' },
           system: SYSTEM_PROMPT,
           tools: TOOLS,

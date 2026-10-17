@@ -6,12 +6,13 @@ const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS } = require('./policyCenter');
 
-function createApi(pc, store, { reseed, chatbot } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech } = {}) {
   const routes = [];
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
-  const route = (method, pattern, handler, { readOnly = method === 'GET', stream = false } = {}) => {
+  // raw routes receive the request body as bytes (audio) instead of JSON.
+  const route = (method, pattern, handler, { readOnly = method === 'GET', stream = false, raw = false } = {}) => {
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`);
-    routes.push({ method, re, handler, readOnly, stream });
+    routes.push({ method, re, handler, readOnly, stream, raw });
   };
 
   route('GET', '/meta', () => ({
@@ -76,6 +77,12 @@ function createApi(pc, store, { reseed, chatbot } = {}) {
     }
     res.end();
   }, { readOnly: true, stream: true });
+  // Voice input: the browser posts a WAV recording; Google detects the language and transcribes it.
+  route('GET', '/speech/status', () => (speech ? speech.status() : { enabled: false, reason: 'Speech is not configured' }));
+  route('POST', '/speech', ({ body }) => {
+    if (!speech) throw new AppError(503, 'Cloud speech is not set up on the server');
+    return speech.transcribe(body);
+  }, { readOnly: true, raw: true });
   route('POST', '/admin/reset', ({ user }) => {
     pc.requireAuthority(user, 2, 'reset demo data');
     store.reset();
@@ -100,7 +107,7 @@ function createApi(pc, store, { reseed, chatbot } = {}) {
         }
       }
       if (!found) throw new AppError(match ? 405 : 404, match ? 'Method not allowed' : `No route for ${req.method} ${sub}`);
-      const body = req.method === 'GET' ? {} : await readJson(req);
+      const body = req.method === 'GET' ? {} : found.raw ? await readBody(req, 4 * 1024 * 1024) : await readJson(req);
       const user = pc.user(req.headers['x-user'] || 'agent');
       const ctx = { user, params: match.groups || {}, query, body };
       if (found.stream) return await found.handler(ctx, res);
@@ -114,28 +121,30 @@ function createApi(pc, store, { reseed, chatbot } = {}) {
   };
 }
 
-function readJson(req) {
+function readBody(req, limit) {
   return new Promise((resolve, reject) => {
     let size = 0;
     const chunks = [];
     req.on('data', (c) => {
       size += c.length;
-      if (size > 1e6) {
+      if (size > limit) {
         reject(new AppError(413, 'Request body too large'));
         req.destroy();
       } else chunks.push(c);
     });
-    req.on('end', () => {
-      const text = Buffer.concat(chunks).toString('utf8');
-      if (!text) return resolve({});
-      try {
-        resolve(JSON.parse(text));
-      } catch {
-        reject(new AppError(400, 'Request body is not valid JSON'));
-      }
-    });
+    req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
+}
+
+async function readJson(req) {
+  const text = (await readBody(req, 1e6)).toString('utf8');
+  if (!text) return {};
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new AppError(400, 'Request body is not valid JSON');
+  }
 }
 
 module.exports = { createApi };

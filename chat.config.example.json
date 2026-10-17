@@ -1,3 +1,6 @@
 {
-  "workspaceId": "wrkspc_your_workspace_id"
+  "workspaceId": "wrkspc_your_workspace_id",
+  "speechRegion": "us",
+  "speechLanguages": ["en-IN", "hi-IN", "te-IN"],
+  "speechModel": "chirp_3"
 }
