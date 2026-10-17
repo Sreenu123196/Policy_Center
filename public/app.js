@@ -344,12 +344,15 @@ function renderPolicy() {
     </div>`);
 }
 
+const BILLING_HIDDEN = '<div class="empty">Billing is visible to UW managers only.</div>';
+
 const POLICY_TABS = {
   summary: (p) => `<div class="muted" style="margin-bottom:10px">Showing version from ${esc(p.current.jobType)} ${esc(p.current.jobNumber)}, effective ${esc(p.current.editEffectiveDate)}</div>${periodSummary(p.product, p.current.period)}`,
-  transactions: (p) => table(['Posted', 'Job', 'Type', 'Effective', 'Description', '$Amount'], p.transactions.map((t) => [
+  transactions: (p) => p.billingHidden ? BILLING_HIDDEN : table(['Posted', 'Job', 'Type', 'Effective', 'Description', '$Amount'], p.transactions.map((t) => [
     when(t.postedAt), esc(t.jobNumber), esc(t.jobType), esc(t.effectiveDate), esc(t.description), `<span class="${t.amount < 0 ? 'neg' : ''}">${money(t.amount)}</span>`,
   ])) + `<div class="spread" style="margin-top:10px"><span></span><strong>Written premium: ${money(p.writtenPremium)}</strong></div>`,
   billing: (p) => {
+    if (p.billingHidden) return BILLING_HIDDEN;
     const total = p.invoices.reduce((s, i) => s + i.amount + i.fee, 0);
     return `<div class="muted" style="margin-bottom:10px">Simulated BillingCenter invoice stream for this policy.</div>`
       + table(['Invoice', 'Due', 'Job', 'Description', 'Status', '$Amount', '$Fee'], p.invoices.map((i) => [

@@ -120,7 +120,9 @@ test('messages: agents message only their own customers', () => {
 test('messages: claim updates use the claim, never show reserves, and write the status in the language', () => {
   const { pc, users, acct, policy } = customerWithPolicy();
   const claim = pc.openClaim(policy.id, { lossDate: '2026-03-01', lossType: 'Theft' }, users.agent);
+  pc.moveClaim(claim.id, { to: 'Under Review' }, users.uw);
   pc.setClaimReserve(claim.id, 5000, users.uw);
+  pc.moveClaim(claim.id, { to: 'Approved' }, users.uw);
   pc.payClaim(claim.id, { amount: 300 }, users.uw);
   const { sent, transports } = fakeTransports();
   const m = new Messaging(pc, { transports });
@@ -128,7 +130,7 @@ test('messages: claim updates use the claim, never show reserves, and write the 
   assert.match(sent.email[0].text, new RegExp(claim.claimNumber));
   assert.match(sent.email[0].text, /\$300\.00/);
   assert.doesNotMatch(sent.email[0].text, /5000/);
-  assert.match(sent.email[0].text, /खुला है/, 'the status is written in Hindi');
+  assert.match(sent.email[0].text, /स्वीकृत/, 'the status is written in Hindi');
 });
 
 test('messages: a template that needs a policy or a claim is refused without one', () => {

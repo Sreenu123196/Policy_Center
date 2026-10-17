@@ -54,9 +54,9 @@ test('tool definitions are well formed and every tool runs', () => {
     search: { query: 'Insured' }, get_account: { account: 'A0000001' }, get_policy: { policy: policyNumber },
     get_job: { job: job.jobNumber }, get_rating_worksheet: { record: policyNumber, coverage: 'Collision' },
     list_work_queue: {}, portfolio_summary: { product: 'PersonalAuto' }, list_policies: { sort: 'premium_desc', limit: 5 },
-    get_product_rules: { topic: 'Homeowners' }, sales_report: { from: '2020-01-01', to: '2030-12-31' }, list_claims: {}, get_claim: { claim: claim.claimNumber },
+    get_product_rules: { topic: 'Homeowners' }, sales_report: { from: '2020-01-01', to: '2030-12-31' }, list_claims: {}, get_claim: { claim: claim.claimNumber }, claims_report: {}, billing_report: {},
   };
-  for (const t of TOOLS) assert.ok(runTool(pc, users.uw, t.name, inputs[t.name]), t.name);
+  for (const t of TOOLS) assert.ok(runTool(pc, users.uwm, t.name, inputs[t.name]), t.name);
   const ws = runTool(pc, users.uw, 'get_rating_worksheet', inputs.get_rating_worksheet);
   assert.ok(ws.costs.length > 0 && ws.costs.every((c) => c.item.includes('Collision')));
 });
@@ -301,24 +301,29 @@ test('claims: open, reserve, pay and close, with rules enforced', () => {
   assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2026-03-02', lossType: 'Collision' }, users.agent), /future/);
   assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2025-01-01', lossType: 'Collision' }, users.agent), /No term/);
   assert.throws(() => pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Aliens' }, users.agent), /Loss type/);
+  pc.moveClaim(claim.id, { to: 'Under Review' }, users.uw);
   pc.setClaimReserve(claim.id, 2000, users.uw);
   assert.throws(() => pc.setClaimReserve(claim.id, 100, users.agent), /authority/);
+  assert.throws(() => pc.payClaim(claim.id, { amount: 800 }, users.uw), /Approved/, 'no payment before approval');
+  pc.moveClaim(claim.id, { to: 'Approved' }, users.uw);
   pc.payClaim(claim.id, { amount: 800, note: 'Repair estimate' }, users.uw);
   assert.throws(() => pc.setClaimReserve(claim.id, 500, users.uw), /below/);
   assert.throws(() => pc.payClaim(claim.id, { amount: 1500 }, users.uw), /exceed the reserve/);
-  const closed = pc.closeClaim(claim.id, { reason: 'Settled' }, users.uw);
-  assert.equal(closed.status, 'Closed');
+  const closed = pc.moveClaim(claim.id, { to: 'Settled', reason: 'Settled' }, users.uw);
+  assert.equal(closed.status, 'Settled');
   assert.equal(closed.paid, 800);
-  assert.throws(() => pc.payClaim(claim.id, { amount: 10 }, users.uw), /Closed/);
+  assert.throws(() => pc.payClaim(claim.id, { amount: 10 }, users.uw), /Settled/);
 });
 
 test('claims: agents see status and paid amounts but never reserves', () => {
   const { pc, users, job } = bookWithPolicy();
   const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Collision' }, users.agent);
+  pc.moveClaim(claim.id, { to: 'Under Review' }, users.uw);
   pc.setClaimReserve(claim.id, 2000, users.uw);
+  pc.moveClaim(claim.id, { to: 'Approved' }, users.uw);
   pc.payClaim(claim.id, { amount: 500 }, users.uw);
   const asAgent = pc.claimDetail(claim.claimNumber, users.agent);
-  assert.equal(asAgent.status, 'Open');
+  assert.equal(asAgent.status, 'Approved');
   assert.equal(asAgent.paid, 500);
   assert.equal(asAgent.reserve, undefined);
   assert.equal(asAgent.outstanding, undefined);
@@ -326,13 +331,14 @@ test('claims: agents see status and paid amounts but never reserves', () => {
   assert.equal(asUw.reserve, 2000);
   assert.equal(asUw.outstanding, 1500);
   assert.equal(pc.listClaims(users.agent, {})[0].reserve, undefined);
-  assert.equal(pc.listClaims(users.uw, { status: 'Open' }).length, 1);
-  assert.equal(pc.listClaims(users.uw, { status: 'Closed' }).length, 0);
+  assert.equal(pc.listClaims(users.uw, { status: 'Approved' }).length, 1);
+  assert.equal(pc.listClaims(users.uw, { status: 'Settled' }).length, 0);
 });
 
 test('claims: the assistant lists and reads claims through the same rules', () => {
   const { pc, users, job } = bookWithPolicy();
   const claim = pc.openClaim(job.policyId, { lossDate: '2026-03-01', lossType: 'Theft' }, users.uw);
+  pc.moveClaim(claim.id, { to: 'Under Review' }, users.uw);
   pc.setClaimReserve(claim.id, 900, users.uw);
   const agentList = runTool(pc, users.agent, 'list_claims', {});
   assert.equal(agentList.count, 1);

@@ -7,7 +7,7 @@ const AnthropicSDK = require('@anthropic-ai/sdk');
 const { PRODUCTS, STATES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { CANCEL_REASONS, AppError } = require('./policyCenter');
-const { canSeeRatingFactors, canSeeUnderwritingNotes } = require('./permissions');
+const { canSeeRatingFactors, canSeeUnderwritingNotes, canSeePortfolioReport, canSeeBillingReport, canSeeClaimsReport } = require('./permissions');
 
 const Anthropic = AnthropicSDK.default || AnthropicSDK;
 const MODEL = process.env.CHAT_MODEL || 'claude-haiku-5-5';
@@ -109,12 +109,12 @@ const TOOLS = [
   },
   {
     name: 'list_claims',
-    description: 'List claims on policies the signed-in user can see, optionally for one policy number or one status (Open or Closed). Returns claim number, policy, insured, loss date, loss type, status, and amounts paid.',
+    description: 'List claims on policies the signed-in user can see, optionally for one policy number or one stage (Submitted, Under Review, Documents Pending, Approved, Rejected or Settled). Returns claim number, policy, insured, loss date, loss type, status, and amounts paid.',
     input_schema: {
       type: 'object',
       properties: {
         policy: { type: 'string', description: 'Policy number, e.g. PA-0000001' },
-        status: { type: 'string', enum: ['Open', 'Closed'] },
+        status: { type: 'string', enum: ['Submitted', 'Under Review', 'Documents Pending', 'Approved', 'Rejected', 'Settled'] },
       },
       additionalProperties: false,
     },
@@ -123,6 +123,20 @@ const TOOLS = [
     name: 'get_claim',
     description: 'Get one claim by claim number (CL-0000001) or id: policy, loss details, status, payments, and reserve when the user may see it.',
     input_schema: { type: 'object', properties: { claim: { type: 'string' } }, required: ['claim'], additionalProperties: false },
+  },
+  {
+    name: 'claims_report',
+    description: 'Claims report for underwriters and UW managers: number of claims, totals paid and reserved, and counts by stage, loss type and product.',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+  },
+  {
+    name: 'billing_report',
+    description: 'Billing report for UW managers only: invoices by status (Billed, Planned, Credit) and product for an optional due-date range, with totals and fees.',
+    input_schema: {
+      type: 'object',
+      properties: { from: { type: 'string', description: 'Earliest due date, yyyy-mm-dd' }, to: { type: 'string', description: 'Latest due date, yyyy-mm-dd' } },
+      additionalProperties: false,
+    },
   },
   {
     name: 'sales_report',
@@ -203,6 +217,8 @@ function toolLabel(name, input = {}) {
     case 'get_rating_worksheet': return `Reading the rating worksheet for ${input.record}`;
     case 'list_work_queue': return 'Checking the work queue';
     case 'sales_report': return `Reading sales from ${input.from} to ${input.to}`;
+    case 'claims_report': return 'Reading the claims report';
+    case 'billing_report': return 'Reading the billing report';
     case 'list_claims': return input.policy ? `Listing claims on ${input.policy}` : 'Listing claims';
     case 'get_claim': return `Looking up claim ${input.claim}`;
     case 'portfolio_summary': return 'Summarizing the book of business';
@@ -272,7 +288,7 @@ function runTool(pc, user, name, input) {
         cancellation: p.cancellation ? { effective: p.cancellation.effectiveDate, reason: p.cancellation.reasonName, method: p.cancellation.method, returnPremium: -p.cancellation.refund } : null,
         writtenPremium: p.writtenPremium,
         transactions: p.transactions.map((t) => ({ job: t.jobNumber, type: t.jobType, effective: t.effectiveDate, amount: t.amount, description: t.description })),
-        billing: { invoices: p.invoices.length, billed: p.invoices.filter((i) => i.status === 'Billed').length, planned: p.invoices.filter((i) => i.status === 'Planned').length, nextDue: (p.invoices.find((i) => i.status === 'Planned') || {}).dueDate || null },
+        billing: p.billingHidden ? 'Billing is visible to UW managers only.' : { invoices: p.invoices.length, billed: p.invoices.filter((i) => i.status === 'Billed').length, planned: p.invoices.filter((i) => i.status === 'Planned').length, nextDue: (p.invoices.find((i) => i.status === 'Planned') || {}).dueDate || null },
         documents: p.documents.map((d) => d.name),
         terms: p.terms.map((t) => ({ term: t.termNumber, effective: t.effectiveDate, expiration: t.expirationDate, versions: t.versions.map((v) => `${v.jobType} ${v.jobNumber} eff ${v.editEffectiveDate}`) })),
         openJob: p.openJob ? `${p.openJob.type} ${p.openJob.jobNumber} (${p.openJob.status})` : null,
@@ -332,8 +348,13 @@ function runTool(pc, user, name, input) {
     }
     case 'sales_report':
       return pc.salesReport(user, { from: str(input.from), to: str(input.to), product: input.product });
+    case 'claims_report':
+      return pc.claimsReport(user);
+    case 'billing_report':
+      return pc.billingReport(user, { from: str(input.from) || undefined, to: str(input.to) || undefined });
     case 'portfolio_summary':
     case 'list_policies': {
+      if (name === 'portfolio_summary' && !canSeePortfolioReport(user)) throw new AppError(403, 'The portfolio report is for underwriters and UW managers');
       let list = pc.listPolicies('', user).map((p) => ({ ...p, state: (pc.db.accounts.find((a) => a.id === p.accountId) || { address: {} }).address.state }));
       if (input.product) list = list.filter((p) => p.product === input.product);
       if (input.state) list = list.filter((p) => p.state === input.state);

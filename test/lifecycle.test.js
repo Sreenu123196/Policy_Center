@@ -13,7 +13,7 @@ test('submission: quote, bind and issue creates policy, billing, documents and e
   run(() => pc.bind(job.id, users.agent));
   assert.equal(job.status, 'Bound');
 
-  const policy = pc.policyDetail(job.policyId, users.agent);
+  const policy = pc.policyDetail(job.policyId, users.uwm);
   assert.match(policy.policyNumber, /^PA-\d{7}$/);
   assert.equal(policy.status, 'In Force');
   assert.equal(policy.expirationDate, '2026-09-01');
@@ -103,7 +103,7 @@ test('policy change: pro-rated premium, new version, out-of-sequence rejected', 
   assert.equal(change.quote.fees, 0);
   run(() => pc.bind(change.id, users.agent));
 
-  const policy = pc.policyDetail(sub.policyId, users.agent);
+  const policy = pc.policyDetail(sub.policyId, users.uwm);
   assert.equal(policy.versions.length, 2);
   assert.equal(policy.current.period.line.vehicles.length, 2);
   assert.throws(() => run(() => pc.startPolicyChange(sub.policyId, { effectiveDate: '2026-05-01' }, users.agent)), /Out-of-sequence/);
@@ -125,13 +125,13 @@ test('cancellation (short rate) and reinstatement reverse each other', () => {
   assert.equal(cancel.cancellation.method, 'Short rate');
   assert.equal(cancel.quote.changeAmount, expected);
   run(() => pc.bind(cancel.id, users.agent));
-  assert.equal(pc.policyDetail(sub.policyId, users.agent).status, 'Cancelled');
+  assert.equal(pc.policyDetail(sub.policyId, users.uwm).status, 'Cancelled');
   assert.throws(() => run(() => pc.startPolicyChange(sub.policyId, { effectiveDate: '2026-07-10' }, users.agent)), /cancelled/);
 
   const reinstate = run(() => pc.startReinstatement(sub.policyId, users.agent));
   assert.equal(reinstate.quote.changeAmount, -expected);
   run(() => pc.bind(reinstate.id, users.agent));
-  const policy = pc.policyDetail(sub.policyId, users.agent);
+  const policy = pc.policyDetail(sub.policyId, users.uwm);
   assert.equal(policy.status, 'In Force');
   assert.equal(policy.writtenPremium, sub.quote.total);
 });
@@ -154,7 +154,7 @@ test('renewal: window enforced, new term uses the new rate book, batch picks up 
   assert.equal(renewal.quote.rateBook.version, '2027.1');
   assert.ok(renewal.quote.premium > home.quote.premium, 'rate increase applies at renewal');
   run(() => pc.bind(renewal.id, users.agent));
-  const policy = pc.policyDetail(home.policyId, users.agent);
+  const policy = pc.policyDetail(home.policyId, users.uwm);
   assert.equal(policy.terms.length, 2);
   assert.throws(() => run(() => pc.runRenewalBatch({}, users.agent)), (e) => e.status === 403);
 });

@@ -8,7 +8,7 @@ const { rate, replacementCostEstimate, round2 } = require('./rating');
 const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
-const { salesScope, canSeeClaimReserves } = require('./permissions');
+const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 
 const FOLLOW_UP_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
 const FOLLOW_UP_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
@@ -16,6 +16,28 @@ const LAPSING_WINDOW_DAYS = 60; // a policy whose term ends within this many day
 const LAPSED_WINDOW_DAYS = 90;  // a policy whose term ended this many days ago, not renewed, is lapsed
 
 const CLAIM_TYPES = ['Collision', 'Comprehensive', 'Liability', 'Medical', 'Property', 'Theft', 'Water', 'Wind or hail', 'Other'];
+
+// Claim stages and what each stage may move to.
+const CLAIM_TRANSITIONS = {
+  Submitted: ['Under Review', 'Rejected'],
+  'Under Review': ['Documents Pending', 'Approved', 'Rejected'],
+  'Documents Pending': ['Under Review'],
+  Approved: ['Settled'],
+  Rejected: [],
+  Settled: [],
+};
+
+// Ticket response deadlines in hours, and ticket stages.
+const TICKET_HOURS = { Urgent: 4, High: 24, Normal: 48, Low: 120 };
+const TICKET_CATEGORIES = ['Claim', 'Billing', 'Policy change', 'Other'];
+const TICKET_TRANSITIONS = {
+  Open: [],
+  Assigned: ['In Progress'],
+  'In Progress': ['Resolved'],
+  Resolved: ['Closed', 'In Progress'],
+  Closed: [],
+};
+const PREMIUM_THRESHOLD = 3000; // total current term premium (with tax) that makes a customer a premium customer
 
 class AppError extends Error {
   constructor(status, message, details) {
@@ -52,6 +74,7 @@ const RENEWAL_WINDOW_DAYS = 120;
 
 class PolicyCenter {
   constructor(store, { today } = {}) {
+    this.clockMs = null;
     this.store = store;
     this.today = today || D.todayISO;
   }
@@ -60,8 +83,13 @@ class PolicyCenter {
     return this.store.data;
   }
 
+  // Real time, unless a test has fixed it with clockMs.
+  nowMs() {
+    return this.clockMs ?? Date.now();
+  }
+
   now() {
-    return new Date().toISOString();
+    return new Date(this.nowMs()).toISOString();
   }
 
   // ------------------------------------------------------------------ users & security
@@ -926,6 +954,7 @@ class PolicyCenter {
   // ------------------------------------------------------------------ read models
 
   policyDetail(id, user) {
+    const billing = canSeeBilling(user);
     const policy = this.policy(id, user);
     const account = this.account(policy.accountId);
     const today = this.today();
@@ -947,9 +976,10 @@ class PolicyCenter {
       current: this.currentVersion(policy),
       versions: policy.versions,
       terms,
-      transactions: policy.transactions,
-      writtenPremium: round2(policy.transactions.reduce((s, t) => s + t.amount, 0)),
-      invoices,
+      billingHidden: !billing,
+      transactions: billing ? policy.transactions : [],
+      writtenPremium: billing ? round2(policy.transactions.reduce((s, t) => s + t.amount, 0)) : null,
+      invoices: billing ? invoices : [],
       documents: this.db.documents.filter((d) => d.policyId === policy.id),
       events: this.db.events.filter((e) => e.payload.policyNumber === policy.policyNumber).reverse(),
       jobs: this.db.jobs.filter((j) => j.policyId === policy.id).map((j) => this.jobSummary(j)).reverse(),
@@ -1009,8 +1039,9 @@ class PolicyCenter {
   }
 
   // ------------------------------------------------------------------ claims
-  // A claim is a loss reported on a policy. Reserve = the expected remaining cost (internal);
-  // paid = money already paid out. Outstanding = reserve minus paid, never below zero.
+  // Claim stages: Submitted > Under Review > Documents Pending > Approved / Rejected > Settled.
+  // Reserves can be set once a claim is under review; money is paid only after approval.
+  // Reserve = the expected remaining cost (internal). Paid = money already paid out.
 
   claim(id, user) {
     const c = this.db.claims.find((x) => x.id === id || x.claimNumber === id);
@@ -1027,13 +1058,14 @@ class PolicyCenter {
       insured: this.accountName(this.db.accounts.find((a) => a.id === c.accountId)),
       lossDate: c.lossDate, lossType: c.lossType, description: c.description, status: c.status,
       reportedOn: c.reportedOn, paid, payments: c.payments, closedOn: c.closedOn || null, closeReason: c.closeReason || null,
+      history: c.history || [],
+      documents: (c.documents || []).map(({ path, ...d }) => d),
       ...(user && !canSeeClaimReserves(user) ? {} : { reserve: c.reserve, outstanding: round2(Math.max(0, c.reserve - paid)) }),
     };
   }
 
   claimDetail(id, user) {
-    const c = this.claim(id, user);
-    return this.claimView(c, user);
+    return this.claimView(this.claim(id, user), user);
   }
 
   listClaims(user, { policy, status } = {}) {
@@ -1057,8 +1089,6 @@ class PolicyCenter {
     if (!inTerm) throw new AppError(422, `No term of ${policy.policyNumber} covers ${lossDate}`);
     const lossType = str(input.lossType);
     if (!CLAIM_TYPES.includes(lossType)) throw new AppError(422, `Loss type must be one of ${CLAIM_TYPES.join(', ')}`);
-    const reserve = input.reserve === undefined || input.reserve === '' ? 0 : Number(input.reserve);
-    if (!Number.isFinite(reserve) || reserve < 0) throw new AppError(422, 'Reserve must be zero or more');
     const claim = {
       id: this.store.id('clm'),
       claimNumber: this.store.number('CL-', 7),
@@ -1068,10 +1098,12 @@ class PolicyCenter {
       lossDate,
       lossType,
       description: str(input.description),
-      status: 'Open',
+      status: 'Submitted',
       reportedOn: this.today(),
-      reserve: round2(reserve),
+      reserve: 0,
       payments: [],
+      documents: [],
+      history: [{ at: this.now(), by: user.id, from: null, to: 'Submitted', reason: 'Claim submitted' }],
       createdBy: user.id,
     };
     this.db.claims.push(claim);
@@ -1079,14 +1111,36 @@ class PolicyCenter {
     return claim;
   }
 
-  assertOpenClaim(claim) {
-    if (claim.status !== 'Open') throw new AppError(409, `Claim ${claim.claimNumber} is ${claim.status}`);
+  // Moves a claim to the next stage. Staff only, following the allowed stage order.
+  moveClaim(id, { to, reason }, user) {
+    this.requireAuthority(user, 1, 'move claims between stages');
+    const claim = this.claim(id, user);
+    const allowed = CLAIM_TRANSITIONS[claim.status] || [];
+    if (!allowed.includes(to)) throw new AppError(409, `A ${claim.status} claim cannot move to ${to}. Allowed: ${allowed.join(', ') || 'none (final stage)'}`);
+    if (to === 'Settled') {
+      const paid = round2(claim.payments.reduce((s, p) => s + p.amount, 0));
+      claim.reserve = paid;
+      claim.closedOn = this.today();
+      claim.closeReason = str(reason) || 'Settled';
+    }
+    if (to === 'Rejected') {
+      claim.closedOn = this.today();
+      claim.closeReason = str(reason) || 'Rejected';
+    }
+    claim.history.push({ at: this.now(), by: user.id, from: claim.status, to, reason: str(reason) });
+    claim.status = to;
+    this.publish('ClaimStageChanged', { claimNumber: claim.claimNumber, stage: to });
+    return this.claimView(claim, user);
+  }
+
+  assertClaimAt(claim, stages, action) {
+    if (!stages.includes(claim.status)) throw new AppError(409, `Claim ${claim.claimNumber} is ${claim.status}; ${action} needs it to be ${stages.join(' or ')}`);
   }
 
   setClaimReserve(id, amount, user) {
     this.requireAuthority(user, 1, 'set claim reserves');
     const claim = this.claim(id, user);
-    this.assertOpenClaim(claim);
+    this.assertClaimAt(claim, ['Under Review', 'Documents Pending', 'Approved'], 'setting a reserve');
     const value = Number(amount);
     const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
     if (!Number.isFinite(value) || value < paid) throw new AppError(422, `Reserve cannot be below the ${round2(paid)} already paid`);
@@ -1097,7 +1151,7 @@ class PolicyCenter {
   payClaim(id, { amount, note }, user) {
     this.requireAuthority(user, 1, 'pay claims');
     const claim = this.claim(id, user);
-    this.assertOpenClaim(claim);
+    this.assertClaimAt(claim, ['Approved'], 'a payment');
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) throw new AppError(422, 'Payment must be more than zero');
     const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
@@ -1107,16 +1161,142 @@ class PolicyCenter {
     return this.claimView(claim, user);
   }
 
-  closeClaim(id, { reason }, user) {
-    this.requireAuthority(user, 1, 'close claims');
-    const claim = this.claim(id, user);
-    this.assertOpenClaim(claim);
-    claim.status = 'Closed';
-    claim.closedOn = this.today();
-    claim.closeReason = str(reason) || 'Settled';
-    claim.reserve = round2(claim.payments.reduce((s, p) => s + p.amount, 0));
-    this.publish('ClaimClosed', { claimNumber: claim.claimNumber, reason: claim.closeReason });
-    return this.claimView(claim, user);
+  // ------------------------------------------------------------------ tickets
+  // Customer and staff issues. Each ticket has a priority with a response deadline (SLA):
+  //   Urgent 4 hours, High 1 day, Normal 2 days, Low 5 days (calendar hours from creation).
+  // Customers who hold a premium policy (total current term premium of PREMIUM_THRESHOLD or more) go first
+  // in the queue, then by priority, then by the earliest deadline.
+
+  premiumCustomer(accountId) {
+    const today = this.today();
+    const total = this.db.policies
+      .filter((p) => p.accountId === accountId && !p.cancellation)
+      .reduce((sum, p) => {
+        const term = this.termContaining(p, today);
+        return term ? sum + term.latest.quote.premium + term.latest.quote.taxes : sum;
+      }, 0);
+    return round2(total) >= PREMIUM_THRESHOLD;
+  }
+
+  createTicket(input, user) {
+    const account = this.account(str(input.accountId), user);
+    const priority = input.priority || 'Normal';
+    if (!TICKET_HOURS[priority]) throw new AppError(422, `Priority must be one of ${Object.keys(TICKET_HOURS).join(', ')}`);
+    const subject = str(input.subject);
+    if (subject.length < 3) throw new AppError(422, 'Give the ticket a short subject');
+    const category = input.category || 'Other';
+    if (!TICKET_CATEGORIES.includes(category)) throw new AppError(422, `Category must be one of ${TICKET_CATEGORIES.join(', ')}`);
+    const policy = input.policyId ? this.policy(input.policyId, user) : null;
+    const claim = input.claimId ? this.claim(input.claimId, user) : null;
+    const createdMs = this.nowMs();
+    const ticket = {
+      id: this.store.id('tkt'),
+      ticketNumber: this.store.number('TKT-', 7),
+      accountId: account.id,
+      policyId: policy ? policy.id : null,
+      claimId: claim ? claim.id : null,
+      category, subject, description: str(input.description), priority,
+      status: 'Open', assignedTo: null,
+      source: input.source || 'staff',
+      createdBy: user.id, createdByName: user.name, createdAt: new Date(createdMs).toISOString(),
+      slaDueAt: new Date(createdMs + TICKET_HOURS[priority] * 3600 * 1000).toISOString(),
+      firstResponseAt: null, resolvedAt: null, closedAt: null,
+      notes: [],
+      history: [{ at: new Date(createdMs).toISOString(), by: user.id, action: 'Created', detail: `${priority} priority, ${category}` }],
+    };
+    this.db.tickets.push(ticket);
+    this.publish('TicketOpened', { ticketNumber: ticket.ticketNumber, priority, category });
+    return ticket;
+  }
+
+  ticket(id, user) {
+    const t = this.db.tickets.find((x) => x.id === id || x.ticketNumber === id);
+    if (!t) throw new AppError(404, 'Ticket not found');
+    const account = this.db.accounts.find((a) => a.id === t.accountId);
+    if (user && (!account || !this.canSee(user, account))) throw new AppError(404, 'Ticket not found');
+    return t;
+  }
+
+  // SLA state: Met or Missed once resolved or closed; otherwise Responded, On time, or Breached.
+  slaOf(t) {
+    const due = Date.parse(t.slaDueAt);
+    const hoursLeft = Math.round(((due - this.nowMs()) / 3600000) * 10) / 10;
+    if (t.resolvedAt || t.closedAt) return { state: Date.parse(t.resolvedAt || t.closedAt) <= due ? 'Met' : 'Missed', hoursLeft: null };
+    if (t.firstResponseAt) return { state: 'Responded', hoursLeft: null };
+    return { state: hoursLeft < 0 ? 'Breached' : 'On time', hoursLeft };
+  }
+
+  ticketView(t, user) {
+    const account = this.db.accounts.find((a) => a.id === t.accountId);
+    const { notes, ...rest } = t;
+    return {
+      ...rest,
+      customer: account ? this.accountName(account) : '',
+      accountNumber: account ? account.accountNumber : null,
+      premiumCustomer: this.premiumCustomer(t.accountId),
+      assignedToName: t.assignedTo ? (USERS.find((u) => u.id === t.assignedTo) || { name: t.assignedTo }).name : null,
+      sla: this.slaOf(t),
+      notes: notes.map((n) => ({ ...n })),
+    };
+  }
+
+  listTickets(user, { status } = {}) {
+    return this.db.tickets
+      .filter((t) => {
+        const account = this.db.accounts.find((a) => a.id === t.accountId);
+        return account && this.canSee(user, account);
+      })
+      .filter((t) => !status || (status === 'open' ? !['Resolved', 'Closed'].includes(t.status) : t.status === status))
+      .map((t) => this.ticketView(t, user))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  }
+
+  // The staff queue: open tickets, premium customers first, then priority, then the earliest deadline.
+  ticketQueue(user) {
+    return this.listTickets(user, { status: 'open' })
+      .sort((a, b) => (Number(b.premiumCustomer) - Number(a.premiumCustomer))
+        || (TICKET_HOURS[a.priority] - TICKET_HOURS[b.priority])
+        || a.slaDueAt.localeCompare(b.slaDueAt));
+  }
+
+  assignTicket(id, assigneeId, user) {
+    this.requireAuthority(user, 1, 'assign tickets');
+    const t = this.ticket(id, user);
+    if (!['Open', 'Assigned'].includes(t.status)) throw new AppError(409, `A ${t.status} ticket cannot be assigned`);
+    const assignee = USERS.find((u) => u.id === assigneeId && u.authority >= 1);
+    if (!assignee) throw new AppError(422, 'Assign to an underwriter, insurance executive or manager');
+    t.assignedTo = assignee.id;
+    t.status = 'Assigned';
+    t.history.push({ at: this.now(), by: user.id, action: 'Assigned', detail: assignee.name });
+    return this.ticketView(t, user);
+  }
+
+  // Ticket stages: Open > Assigned > In Progress > Resolved > Closed (a resolved ticket can be reopened).
+  moveTicket(id, { to }, user) {
+    this.requireAuthority(user, 1, 'change ticket status');
+    const t = this.ticket(id, user);
+    const allowed = TICKET_TRANSITIONS[t.status] || [];
+    if (!allowed.includes(to)) throw new AppError(409, `A ${t.status} ticket cannot move to ${to}. Allowed: ${allowed.join(', ') || 'none'}`);
+    const at = this.now();
+    if (to === 'In Progress' && !t.firstResponseAt) t.firstResponseAt = at;
+    if (to === 'Resolved') t.resolvedAt = at;
+    if (to === 'Closed') t.closedAt = at;
+    if (to === 'In Progress') t.resolvedAt = null;
+    t.history.push({ at, by: user.id, action: 'Status', detail: `${t.status} to ${to}` });
+    t.status = to;
+    return this.ticketView(t, user);
+  }
+
+  addTicketNote(id, { text, internal }, user) {
+    const t = this.ticket(id, user);
+    const body = str(text);
+    if (!body) throw new AppError(422, 'Write a note before saving');
+    const staff = salesScope(user) === 'all';
+    const at = this.now();
+    if (staff && !t.firstResponseAt) t.firstResponseAt = at;
+    t.notes.push({ at, by: user.id, byName: user.name, text: body, internal: Boolean(internal && staff) });
+    t.history.push({ at, by: user.id, action: 'Note', detail: staff ? 'staff note' : 'customer note' });
+    return this.ticketView(t, user);
   }
 
   // ------------------------------------------------------------------ sales analytics
@@ -1147,6 +1327,7 @@ class PolicyCenter {
   }
 
   salesAnalytics(user, { period = 'month', product } = {}) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     if (!['day', 'month', 'year'].includes(period)) throw new AppError(422, 'Period must be day, month or year');
     const keyOf = (date) => (period === 'day' ? date : period === 'month' ? date.slice(0, 7) : date.slice(0, 4));
     const buckets = new Map();
@@ -1173,6 +1354,7 @@ class PolicyCenter {
   // Lapsing: the current term ends within LAPSING_WINDOW_DAYS and nothing has renewed yet.
   // Lapsed: the term ended within the last LAPSED_WINDOW_DAYS and nothing has renewed.
   lapsePolicies(user) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     const today = this.today();
     const out = [];
     for (const p of this.db.policies) {
@@ -1203,6 +1385,7 @@ class PolicyCenter {
   }
 
   logFollowUp(policyId, input, user) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     const policy = this.policy(policyId, user);
     const seller = this.salespersonOf(policy);
     if (salesScope(user) !== 'all' && seller.id !== user.id) throw new AppError(403, 'Only the salesperson who sold this policy can log follow-ups for it');
@@ -1222,6 +1405,7 @@ class PolicyCenter {
   }
 
   followUpHistory(policyId, user) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     const policy = this.policy(policyId, user);
     return this.db.followUps
       .filter((f) => f.policyId === policy.id)
@@ -1230,6 +1414,7 @@ class PolicyCenter {
 
   // Every follow-up the user may see, newest first, with the customer's name.
   followUpsVisible(user) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     return this.db.followUps
       .map((f) => {
         const p = this.db.policies.find((x) => x.id === f.policyId);
@@ -1241,9 +1426,65 @@ class PolicyCenter {
       .map(({ f, account }) => ({ ...f, insured: this.accountName(account) }));
   }
 
+  // Claims report (underwriters and UW managers): claims by stage, loss type and product, with totals.
+  claimsReport(user) {
+    if (!canSeeClaimsReport(user)) throw new AppError(403, 'The claims report is for underwriters and UW managers');
+    const claims = this.db.claims.map((c) => this.claimView(c, user));
+    const tally = (keyOf) => {
+      const out = {};
+      for (const c of claims) {
+        const k = keyOf(c);
+        out[k] = out[k] || { claims: 0, paid: 0, reserve: 0 };
+        out[k].claims++;
+        out[k].paid = round2(out[k].paid + c.paid);
+        out[k].reserve = round2(out[k].reserve + (c.reserve || 0));
+      }
+      return out;
+    };
+    return {
+      claims: claims.length,
+      totalPaid: round2(claims.reduce((s, c) => s + c.paid, 0)),
+      totalReserve: round2(claims.reduce((s, c) => s + (c.reserve || 0), 0)),
+      byStage: tally((c) => c.status),
+      byLossType: tally((c) => c.lossType),
+      byProduct: tally((c) => c.product),
+    };
+  }
+
+  // Billing report (UW managers only): invoices by status and product for a due-date range.
+  billingReport(user, { from, to } = {}) {
+    if (!canSeeBillingReport(user)) throw new AppError(403, 'The billing report is for UW managers');
+    if (from && !D.isDate(from)) throw new AppError(422, 'From date must be yyyy-mm-dd');
+    if (to && !D.isDate(to)) throw new AppError(422, 'To date must be yyyy-mm-dd');
+    const today = this.today();
+    const statusOf = (i) => (i.amount < 0 ? 'Credit' : i.dueDate <= today ? 'Billed' : 'Planned');
+    const invoices = this.db.invoices.filter((i) => (!from || i.dueDate >= from) && (!to || i.dueDate <= to));
+    const add = (bucket, key, i) => {
+      bucket[key] = bucket[key] || { invoices: 0, amount: 0, fees: 0 };
+      bucket[key].invoices++;
+      bucket[key].amount = round2(bucket[key].amount + i.amount);
+      bucket[key].fees = round2(bucket[key].fees + (i.fee || 0));
+    };
+    const byStatus = {};
+    const byProduct = {};
+    for (const i of invoices) {
+      add(byStatus, statusOf(i), i);
+      const policy = this.db.policies.find((p) => p.id === i.policyId);
+      add(byProduct, policy ? policy.product : 'Unknown', i);
+    }
+    return {
+      from: from || 'all dates', to: to || 'all dates',
+      invoices: invoices.length,
+      totalAmount: round2(invoices.reduce((s, i) => s + i.amount, 0)),
+      totalFees: round2(invoices.reduce((s, i) => s + (i.fee || 0), 0)),
+      byStatus, byProduct,
+    };
+  }
+
   // Sales report: new business written (policies whose first job was a Submission) with an effective
   // date in [from, to]. Agents get their own producer code only; underwriting staff get every producer.
   salesReport(user, { from, to, product } = {}) {
+    if (!canSeeSales(user)) throw new AppError(403, 'Sales reports are for agents and UW managers');
     if (!D.isDate(from) || !D.isDate(to)) throw new AppError(422, 'Sales dates must be yyyy-mm-dd');
     if (from > to) throw new AppError(422, 'The start date is after the end date');
     const scope = salesScope(user);

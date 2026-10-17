@@ -1,26 +1,52 @@
 'use strict';
-// What each role may see through the assistant.
+// What each role may see. One place to change access for the whole app: the service, the API and the
+// assistant all ask these functions.
 //
-//   Agent                 Own producer code only: their accounts, policies, jobs and premiums.
-//                         No rating factors and no underwriting notes (internal to underwriting).
-//   Insurance Executive   All accounts and policies; underwriting issues and rating factors.
-//   Underwriter           Same as Insurance Executive.
-//   UW Manager            Same as Underwriter, plus sales figures for every producer.
+//                         Agent        Underwriter   Insurance Executive   UW Manager
+//   Accounts and policies own only     all           all                   all
+//   Claim status, paid    own only     all           all                   all
+//   Claim reserves        no           yes           no                    yes
+//   Billing (invoices,    no           no            no                    yes
+//     transactions)
+//   Rating factors, UW    no           yes           no                    yes
+//     notes
+//   Sales analytics and   own only     no            no                    all
+//     lapsing lists
+//   Portfolio, claims and no           yes           no                    yes
+//     billing reports                              (claims and billing:  (all)
+//                                                   no; portfolio: no)
 //
-// Producer-code filtering itself lives in policyCenter.js (canSee); these helpers decide the
-// internal details that are shown on top of the records a user can already see.
+// Producer-code filtering for agents lives in policyCenter.js (canSee).
 
-const isAgent = (user) => user.role === 'Agent';
+const levelOf = (user) => {
+  if (user.role === 'Agent') return 'agent';
+  if (user.role === 'UW Manager') return 'manager';
+  if (user.role === 'Insurance Executive') return 'executive';
+  return 'underwriter';
+};
 
-const canSeeRatingFactors = (user) => !isAgent(user);
-const canSeeUnderwritingNotes = (user) => !isAgent(user);
+const isAgent = (user) => levelOf(user) === 'agent';
+const isManager = (user) => levelOf(user) === 'manager';
 
-// "all" for managers and underwriting staff, "own" for agents (their producer code only).
+const canSeeRatingFactors = (user) => ['underwriter', 'manager'].includes(levelOf(user));
+const canSeeUnderwritingNotes = (user) => ['underwriter', 'manager'].includes(levelOf(user));
+const canSeeClaimReserves = (user) => ['underwriter', 'manager'].includes(levelOf(user));
+const canSeeBilling = (user) => levelOf(user) === 'manager';
+
+// Sales figures: agents see their own; managers see every producer; nobody else.
+const canSeeSales = (user) => ['agent', 'manager'].includes(levelOf(user));
 const salesScope = (user) => (isAgent(user) ? 'own' : 'all');
 
-const roleLabel = (user) => (isAgent(user) ? 'Agent' : user.role);
+// Portfolio and claims reports: underwriters and managers. Billing reports: managers only.
+const canSeePortfolioReport = (user) => ['underwriter', 'manager'].includes(levelOf(user));
+const canSeeClaimsReport = (user) => ['underwriter', 'manager'].includes(levelOf(user));
+const canSeeBillingReport = (user) => levelOf(user) === 'manager';
 
-// Claim reserves are the insurer's estimate of what a claim will cost: internal, so agents don't see them.
-const canSeeClaimReserves = (user) => !isAgent(user);
+const roleLabel = (user) => ({ agent: 'Agent', underwriter: user.role, executive: 'Insurance Executive', manager: 'UW Manager' })[levelOf(user)];
 
-module.exports = { isAgent, canSeeRatingFactors, canSeeUnderwritingNotes, salesScope, roleLabel, canSeeClaimReserves };
+module.exports = {
+  levelOf, isAgent, isManager,
+  canSeeRatingFactors, canSeeUnderwritingNotes, canSeeClaimReserves, canSeeBilling,
+  canSeeSales, salesScope, canSeePortfolioReport, canSeeClaimsReport, canSeeBillingReport,
+  roleLabel,
+};

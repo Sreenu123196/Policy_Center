@@ -78,8 +78,12 @@ function normalizePhone(raw) {
 }
 
 const CLAIM_STATUS_WORDS = {
-  Open: { en: 'Open, being handled', hi: 'खुला है, कार्रवाई जारी है', te: 'తెరిచి ఉంది, పరిశీలనలో ఉంది' },
-  Closed: { en: 'Closed', hi: 'बंद', te: 'మూసివేయబడింది' },
+  Submitted: { en: 'Submitted', hi: 'जमा किया गया', te: 'సమర్పించబడింది' },
+  'Under Review': { en: 'Under review', hi: 'समीक्षा में', te: 'సమీక్షలో ఉంది' },
+  'Documents Pending': { en: 'Documents needed', hi: 'दस्तावेज़ बाकी हैं', te: 'పత్రాలు అవసరం' },
+  Approved: { en: 'Approved', hi: 'स्वीकृत', te: 'ఆమోదించబడింది' },
+  Rejected: { en: 'Rejected', hi: 'अस्वीकृत', te: 'తిరస్కరించబడింది' },
+  Settled: { en: 'Settled', hi: 'निपटाया गया', te: 'పరిష్కరించబడింది' },
 };
 
 const money = (n) => (n === undefined || n === null ? '' : '$' + Number(n).toFixed(2));

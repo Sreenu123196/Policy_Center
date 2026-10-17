@@ -90,6 +90,21 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging } = {}) {
   route('GET', '/sales/followups', ({ user }) => pc.followUpsVisible(user));
   route('GET', '/sales/policies/:id/followups', ({ user, params }) => pc.followUpHistory(params.id, user));
   route('POST', '/sales/policies/:id/followups', ({ user, params, body }) => pc.logFollowUp(params.id, body, user));
+  // Management reports. Access is set per role in src/permissions.js.
+  route('GET', '/reports/claims', ({ user }) => pc.claimsReport(user));
+  route('GET', '/reports/billing', ({ user, query }) => pc.billingReport(user, { from: query.get('from') || undefined, to: query.get('to') || undefined }));
+
+  // Tickets: issues with priority and SLA timers. The queue puts premium customers first.
+  route('GET', '/tickets', ({ user, query }) => pc.listTickets(user, { status: query.get('status') || undefined }));
+  route('GET', '/tickets/queue', ({ user }) => pc.ticketQueue(user));
+  route('POST', '/tickets', ({ user, body }) => pc.ticketView(pc.createTicket(body, user), user));
+  route('GET', '/tickets/:id', ({ user, params }) => pc.ticketView(pc.ticket(params.id, user), user));
+  route('POST', '/tickets/:id/assign', ({ user, params, body }) => pc.assignTicket(params.id, body.assigneeId, user));
+  route('POST', '/tickets/:id/status', ({ user, params, body }) => pc.moveTicket(params.id, { to: body.to }, user));
+  route('POST', '/tickets/:id/notes', ({ user, params, body }) => pc.addTicketNote(params.id, body, user));
+  // Claim stages: Submitted > Under Review > Documents Pending > Approved / Rejected > Settled.
+  route('POST', '/claims/:id/stage', ({ user, params, body }) => pc.moveClaim(params.id, { to: body.to, reason: body.reason }, user));
+
   // Customer messages (email and WhatsApp). Sending needs confirm: true in the body.
   route('GET', '/messages/status', () => (messaging ? messaging.status() : { channels: {}, templates: [] }));
   route('POST', '/messages/preview', ({ user, body }) => messaging.preview(body, user), { readOnly: true });

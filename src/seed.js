@@ -146,18 +146,28 @@ function seed(pc) {
   const uw = user('uwm');
   asOf(day(-55), () => {
     const claim = pc.openClaim(policyOf(rivera, 'PersonalAuto').id, { lossDate: day(-60), lossType: 'Collision', description: 'Rear-ended at a red light; rear bumper and tail light damaged' }, user('agent'));
+    pc.moveClaim(claim.id, { to: 'Under Review' }, uw);
     pc.setClaimReserve(claim.id, 3200, uw);
+    pc.moveClaim(claim.id, { to: 'Approved' }, uw);
     pc.payClaim(claim.id, { amount: 1100, note: 'Body shop estimate, first part' }, uw);
   });
   asOf(day(-30), () => {
     const claim = pc.openClaim(policyOf(kim, 'PersonalAuto').id, { lossDate: day(-95), lossType: 'Wind or hail', description: 'Hail damage to the hood and roof' }, user('agent'));
+    pc.moveClaim(claim.id, { to: 'Under Review' }, uw);
     pc.setClaimReserve(claim.id, 1200, uw);
+    pc.moveClaim(claim.id, { to: 'Approved' }, uw);
     pc.payClaim(claim.id, { amount: 1200, note: 'Paid in full' }, uw);
-    pc.closeClaim(claim.id, { reason: 'Settled in full' }, uw);
+    pc.moveClaim(claim.id, { to: 'Settled', reason: 'Settled in full' }, uw);
   });
   // 8. Follow-up: Daniel Kim's auto policy is lapsing (the term ends soon); his salesperson called and left a voicemail.
   asOf(day(-4), () => {
     pc.logFollowUp(policyOf(kim, 'PersonalAuto').id, { channel: 'Phone', result: 'No answer', notes: 'Left a voicemail about renewal options' }, user('agent'));
+  });
+  // 9. Tickets: one urgent claim question from a premium-level customer, and one routine billing question.
+  asOf(day(-1), () => {
+    const agent = user('agent');
+    pc.createTicket({ accountId: rivera.id, policyId: policyOf(rivera, 'PersonalAuto').id, category: 'Claim', priority: 'Urgent', subject: 'Rental car needed while the repair is done', description: 'The repair is booked for Monday; the customer needs a rental from Saturday.' }, agent);
+    pc.createTicket({ accountId: kim.id, category: 'Billing', priority: 'Low', subject: 'Question about the monthly installment date', description: 'Asks whether the installment date can move by a few days.' }, agent);
   });
 }
 

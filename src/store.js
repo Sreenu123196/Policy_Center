@@ -5,13 +5,24 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], documents: [], events: [], claims: [], followUps: [], messages: [] });
+const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], documents: [], events: [], claims: [], followUps: [], messages: [], tickets: [] });
+
+// Claims saved before the stage workflow used "Open" and "Closed". Map them to the new stages.
+function migrateClaims(claims) {
+  for (const c of claims) {
+    if (!c.history) c.history = [];
+    if (!c.documents) c.documents = [];
+    if (c.status === 'Open') c.status = c.payments && c.payments.length ? 'Approved' : 'Under Review';
+    if (c.status === 'Closed') c.status = 'Settled';
+  }
+}
 
 class Store {
   constructor(file) {
     this.file = file || null;
     this.data = empty();
     if (this.file && fs.existsSync(this.file)) this.data = { ...empty(), ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
+    migrateClaims(this.data.claims);
   }
 
   next(name) {
