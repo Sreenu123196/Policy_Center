@@ -8,6 +8,9 @@ export const PERMISSIONS = [
   'policy.bind',
   'uw.approve', // approve underwriting issues
   'billing.view',
+  'billing.pay', // take payments
+  'claim.report', // take a first notice of loss
+  'claim.handle', // work a claim: exposures, reserves
   'claim.pay',
   'audit.view',
   'admin.manage_users',

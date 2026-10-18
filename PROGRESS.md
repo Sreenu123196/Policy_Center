@@ -37,7 +37,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | F2 | Payments, allocation, suspense, credits, missed payments and the cancellation request | Done (369 tests pass) |
 | G1 | First notice of loss and the policy as of the loss date | Done (389 tests pass) |
 | G2 | Exposures, reserves, payments, recoveries and the financial view | Done (417 tests pass) |
-| H1 to H2 | REST API with OpenAPI, React screens | Next: H1 |
+| H1 | REST API with an OpenAPI description for the main flows | Done (435 tests pass) |
+| H2 | Simple React screens for the quote wizard and the policy file | Next: H2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -46,6 +47,19 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from H1
+- Sign-in: the API trusts the `X-User` header, which in production is set by an identity provider or gateway after OpenID Connect sign-in with MFA (document sections 13 and 17). Without such a gateway, anyone who can reach the API could claim to be any user. Tokens, sessions and MFA are not built.
+- There is no server runner yet. `createApp(db, config)` builds the API and the tests drive it with `app.inject`; a `start` script (a build step that turns the TypeScript into JavaScript, loads a persistent database, runs migrations and listens on a port) is needed for the React screens and arrives with H2. PGlite is in memory today, so a real run also needs a database path.
+- The API covers the main flows only: contacts and accounts, a submission through quote, bind and issue, the policy as of a date, cancellation, billing view, payments, and claims through exposure, reserve and payment. Missing: policy change, reinstatement and renewal endpoints, underwriting referral and decisions, rebase and merge conflicts, credits and refunds, delinquency run, recoveries, FNOL attachments upload, document download, audit log reading, user and role administration, and configuration administration.
+- Rate limiting, request size limits, CORS, TLS, structured request logging with a request id, and audit of failed sign-ins are not built.
+- The OpenAPI description lists request bodies and parameters; the response bodies are described only as objects. Response schemas, examples and error examples are not yet written, and there is no generated client.
+- Idempotency keys are kept without an expiry. Two requests with the same key at the same moment could both run before the first answer is stored; a lock or a unique "in progress" row is the production answer.
+- ETag/If-Match is on the one edit endpoint (change a cover). Quote, bind and the other actions rely on job and branch status checks; they do not use ETags.
+- Lists are paged with `limit` and `offset` read into memory and cut. Cursors, sorting and more filters, and a database-level page, come when the data grows.
+- Read endpoints are scoped by producer code through the account, but the claims and billing endpoints for staff roles (`account.view_all`) show everything. Field-level security (hiding premium from a producer, for example) is not built.
+- Added the dependency `fastify` and the permissions `billing.pay`, `claim.report` and `claim.handle`.
+- Dates for "today" come from a clock that tests can set; the API uses the server's date.
 
 ## Deferred from G2
 - Part G is complete. Handling features of document section 15 are not built: segmentation (fast track or complex), assignment rules and work queues, activities, surveyor appointment where rules require it, the cashless garage network, fraud indicators beyond the two flags, litigation, and reopening a closed claim as a whole. A handler is a name on an exposure.

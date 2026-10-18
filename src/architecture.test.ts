@@ -48,3 +48,31 @@ describe('module boundaries', () => {
     });
   }
 });
+
+// The API is the edge of the system (document section 17). It is not a module: it may use every module, but only through
+// the public doors, and it never touches a table.
+describe('the API layer', () => {
+  const files = readdirSync(join(root, 'api'))
+    .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
+    .map((name) => join(root, 'api', name));
+
+  it('imports modules only through their index.js', () => {
+    const violations: string[] = [];
+    for (const file of files) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/from '\.\.\/(\w+)\/([^']+)'/g)) {
+        const [, target, path] = match;
+        if (target && path && (MODULES as readonly string[]).includes(target) && path !== 'index.js') violations.push(`${file}: imports ../${target}/${path}`);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+
+  it('never reads or writes a table', () => {
+    const violations: string[] = [];
+    for (const file of files) {
+      for (const match of readFileSync(file, 'utf8').matchAll(/\b(from|join|into|update|delete from)\s+(contacts|policy|billing|claims|platform)\.[a-z_]+/gi)) violations.push(`${file}: ${match[0]}`);
+    }
+    expect(violations).toEqual([]);
+  });
+});
+

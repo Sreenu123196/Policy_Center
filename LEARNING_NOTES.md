@@ -253,5 +253,16 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Recoveries** (subrogation, salvage, deductible) bring money back and can never be more than was paid.
 - **The financial view:** incurred = paid + outstanding reserves - recoveries, for each exposure, the whole claim and each cost type. Example: reserve 3,000,000 repair and 100,000 survey, pay 1,000,000, recover 200,000 salvage: incurred = 1,000,000 + 2,100,000 - 200,000 = 2,900,000.
 
+## H1. The REST API with an OpenAPI description (section 17)
+- The API is the **edge of the system**, not a module. It uses each module only through its public door and never touches a table (a test checks it). **Fastify** is the web framework: it receives the HTTP request and calls our functions.
+- **One list of routes, used twice.** Each route is described once (method, path, permission, request body, answer code). The API is built from that list *and* the **OpenAPI description** (`GET /openapi.json`) is written from it, so the description can never drift from what the API does. A test checks that every route has a summary, its path parameters, an Idempotency-Key on every POST, and the error answers.
+- **Who is asking.** An identity provider in front of the API signs the person in and sets `X-User`. The API checks the user is known and active (401), then that their roles give the **permission** the route needs (403). Reads are limited by **producer code security**: an account, job, claim or policy the user may not see is answered **404**, so its existence is not revealed.
+- **Idempotency keys.** Every POST needs an `Idempotency-Key`. The first successful answer is stored under the key; repeating the request returns the same answer (marked `Idempotency-Replayed`) and does the work once. The same key with a different request is refused (422). A failed request is not stored, so the client can correct it and try again with the same key.
+- **Lost updates: ETag and If-Match.** Reading a working copy returns an **ETag**, a fingerprint of all its rows. Changing it requires `If-Match` with that ETag: missing gives 428, a stale one 412. Two people editing the same quote cannot overwrite each other without noticing.
+- **One shape for mistakes.** 400 for a request that is not shaped right (with each problem), 401, 403, 404, 412, 428, and **422 with every business problem** the module found. A server fault is a plain 500 with no details.
+- **Lists are paged** (`limit`, `offset`) and filtered; the answer says the total.
+- **Sensitive data stays out.** The claim payment answer shows only the masked account (`XXXXXXXXXX6789`).
+- The whole customer journey was run through the API in a test: contact, account, submission, vehicle and covers, quote (an agent), bind and issue (an underwriter; an agent is refused), policy as of a date, a claim with exposure, reserve and payment, then billing events, invoice and a payment.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

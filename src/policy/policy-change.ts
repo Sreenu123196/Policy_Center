@@ -137,7 +137,8 @@ export async function applyEdit(tx: Q, branch: Branch, kind: ObjectKind, input: 
   const target = TARGETS[kind];
   const label = kind;
   const job = await getJob(tx, branch.jobId);
-  const date = input.effectiveDate ?? job?.effectiveDate ?? undefined;
+  // With no date given, an edit applies from the date of the job (a change) or from the start of the period (a submission).
+  const date = input.effectiveDate ?? job?.effectiveDate ?? branch.periodStart;
 
   const errors: string[] = [];
   if (date === undefined) errors.push('An effective date is needed');

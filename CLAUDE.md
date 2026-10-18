@@ -206,6 +206,11 @@ Claim money (document section 15)
 - Exposure status moves only through `moveExposure` (the diagram is tested), and the claim status is derived from its exposures by `refreshClaimStatus`; never update either directly.
 - Never store or log a full bank account number or UPI address: only the masked instrument.
 
+API (document section 17)
+- Add an endpoint by adding a `defineRoute` to `src/api/routes.ts`; never register a Fastify route by hand, or it will be missing from the OpenAPI description. Every route states its permission (or is public). Every POST takes an `Idempotency-Key`; changes to something that others may edit take `If-Match`.
+- The API calls module functions through `../<module>/index.js` only, passes the user name as `actor`, and never contains business rules: if a rule is needed, it goes into the module. Permission checks live here, in the route; domain functions do not check permissions (except financial authority limits, which depend on the amount).
+- Dates for "today" come from `context.today()`, never `new Date()` inside a handler, so tests can control them.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.
