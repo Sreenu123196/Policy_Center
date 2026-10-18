@@ -43,7 +43,7 @@ export async function bindJob(
 ): Promise<{ job: Job; branch: Branch; quote: Quote | null }> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
-  if (!['submission', 'policy_change', 'reinstatement', 'cancellation'].includes(job.type)) throw new ValidationError([`A ${job.type} job cannot be bound yet`]);
+  if (!['submission', 'policy_change', 'reinstatement', 'cancellation', 'renewal'].includes(job.type)) throw new ValidationError([`A ${job.type} job cannot be bound yet`]);
   if (job.status !== 'quoted') throw new ValidationError([`Only a quoted job can be bound (this one is ${job.status})`]);
   const chosen = await getBranch(db, input.branchId);
   if (chosen === null || chosen.jobId !== jobId) throw new ValidationError(['The branch must be an option of this job']);
@@ -69,7 +69,8 @@ export async function bindJob(
   }
   // What the new version is compared with: the quote of the version it was based on. After a cancellation the base is
   // the part of the premium the insurer kept.
-  let base: { premiumPaise: number; taxPaise: number; totalPaise: number } | null = chosen.basedOnId === null ? null : await getLatestQuote(db, chosen.basedOnId);
+  // A renewal starts a new term, so its transaction is the whole premium of the term, not a difference.
+  let base: { premiumPaise: number; taxPaise: number; totalPaise: number } | null = chosen.basedOnId === null || job.type === 'renewal' ? null : await getLatestQuote(db, chosen.basedOnId);
   const reinstatement = job.type === 'reinstatement' ? await getAdjustment(db, jobId) : null;
   if (job.type === 'reinstatement' && chosen.basedOnId !== null) {
     const cancelled = await getAdjustmentOfBranch(db, chosen.basedOnId);
@@ -102,10 +103,11 @@ export async function bindJob(
     await moveJob(tx, jobId, 'bound', actor);
     // Two jobs can be open on one policy. When one binds, the others are preempted: they must be rebased onto the new version.
     const rivals = await tx.query<{ id: string }>("select id from policy.job where policy_id = $1 and id <> $2 and type = 'policy_change' and status in ('draft', 'quoted')", [chosen.policyId, jobId]);
-    for (const rival of rivals.rows) await moveJob(tx, rival.id, 'preempted', actor, `Version ${version} was bound by job ${job.jobNumber}`);
+    // A renewal is a different term, so it does not clash with changes to the term that is ending.
+    if (job.type !== 'renewal') for (const rival of rivals.rows) await moveJob(tx, rival.id, 'preempted', actor, `Version ${version} was bound by job ${job.jobNumber}`);
     const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
     const transaction = {
-      kind: job.type === 'reinstatement' ? 'reinstatement' : base === null ? 'new_business' : 'change',
+      kind: job.type === 'reinstatement' ? 'reinstatement' : job.type === 'renewal' ? 'renewal' : base === null ? 'new_business' : 'change',
       effectiveDate: job.effectiveDate ?? chosen.periodStart,
       premiumPaise: quote.premiumPaise - (base?.premiumPaise ?? 0),
       taxPaise: quote.taxPaise - (base?.taxPaise ?? 0),
@@ -117,12 +119,13 @@ export async function bindJob(
       [chosen.policyId, chosen.id, chosen.basedOnId, version, transaction.kind, transaction.effectiveDate, transaction.premiumPaise, transaction.taxPaise, transaction.totalPaise, actor],
     );
     await recordEvent(tx, {
-      type: job.type === 'reinstatement' ? 'PolicyReinstated' : 'PolicyBound',
+      type: job.type === 'reinstatement' ? 'PolicyReinstated' : job.type === 'renewal' ? 'PolicyRenewed' : 'PolicyBound',
       aggregateType: 'policy',
       aggregateId: chosen.policyId,
       payload: {
         policyNumber,
         version,
+        termNumber: chosen.termNumber,
         branchId: chosen.id,
         jobId,
         periodStart: chosen.periodStart,
@@ -290,8 +293,8 @@ export async function issueJob(
   const today = options.today ?? todayText();
   if (deps.underwriting) await checkUnderwriting(db, deps.underwriting, branch.id, 'issuance', actor, { today });
 
-  const isChange = job.type !== 'submission';
-  const kind = job.type === 'policy_change' ? 'endorsement_schedule' : job.type === 'reinstatement' ? 'reinstatement_schedule' : 'policy_schedule';
+  const isChange = job.type === 'policy_change' || job.type === 'reinstatement';
+  const kind = job.type === 'policy_change' ? 'endorsement_schedule' : job.type === 'reinstatement' ? 'reinstatement_schedule' : job.type === 'renewal' ? 'renewal_schedule' : 'policy_schedule';
   const data = await buildScheduleData(db, deps, branch, job.jobNumber, quote, today);
   if (isChange) {
     const t = await transactionOf(db, branch.id);

@@ -201,5 +201,17 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Worked example (the golden policy): cancel from 1 January (78 days in force). Short rate keeps 40%, so 944,760 of 1,574,600 premium is refunded, with 170,057 tax. Pro rata would refund 1,238,110. Reinstating without a gap charges back 944,760.
 - **Testing lesson:** my gap test expected 255 covered days after the gap, but 1 February to 15 October is 256. The code was right and my arithmetic was wrong, so I fixed the test after checking by hand.
 
+## E4. Renewal (section 8)
+- A **renewal** creates the next **term** of the same policy (`term_number + 1`), not a new policy. Its first version is version 1 of term 2.
+- **When it may start.** The product says how many days before expiry (60 here). Too early is refused, and so is a term that has already ended.
+- **What the new term contains.** The cover as it stands on the **last day of the old term**, so every change made during the term is carried over. The vehicle keeps its fixed id. With no claim recorded, the vehicle gains a claim-free year, so the no-claim bonus grows (35% instead of 25% in the example).
+- **Re-rated for the new term.** The product version and rate book are the ones in force on the **new start date**, so a policy sold under version 2026.04 renews under 2026.10, and old choices are checked against the new rules (the insured value of Rs 40,000 is below the new minimum of Rs 50,000 and must be raised before the renewal can be quoted).
+- **Offer, then accept or not take.** The renewal is quoted like any other job. A **renewal notice** document shows the expiring and the new premium and how long the offer lasts. Binding accepts it; if the customer does not reply the job ends as **not taken**, and the branch is withdrawn so a new renewal can start.
+- **Transaction.** A renewal is a **new term**, so its transaction is the whole premium of the term (kind `renewal`), not a difference from the old term. Billing hears `PolicyRenewed`.
+- **A different term does not clash.** Binding a renewal does not preempt open changes to the ending term, and a change dated inside the old term is still made against the old term.
+- **Pre-renewal direction.** The insurer sets `renew` (the default), `review` (holds the renewal) or `non_renew`, always with a reason. Every direction is kept as history.
+- **Non-renewal** needs **approval by a different person** (separation of duties) and a **notice document sent in time** (45 days before expiry here). A policy marked for non-renewal cannot be renewed. Each step is audited.
+- Worked example: term 1 premium 1,574,600; term 2 premium 1,414,600 (own damage 1,040,000 after the 35% bonus, third party 341,600, owner-driver cover 33,000), tax 254,628.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

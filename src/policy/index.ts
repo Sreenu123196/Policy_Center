@@ -35,3 +35,7 @@ export type { CancellationRules, CancellationRulesCatalogue, RefundMethod } from
 export { computeRefund } from './refund.js';
 export { getAdjustment, getCoverStatus, startCancellation, startReinstatement } from './cancellation.js';
 export type { CancellationDependencies, CoverAdjustment } from './cancellation.js';
+export { loadRenewalRules } from './renewal-rules.js';
+export type { RenewalRules, RenewalRulesCatalogue } from './renewal-rules.js';
+export { approveNonRenewal, issueNonRenewalNotice, listRenewalDirections, produceRenewalOffer, setRenewalDirection, startRenewal } from './renewal.js';
+export type { RenewalDependencies, RenewalDirection, RenewalDirectionKind } from './renewal.js';

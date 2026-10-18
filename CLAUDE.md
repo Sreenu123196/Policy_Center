@@ -181,6 +181,11 @@ Cancellation and reinstatement (document section 8)
 - A cancellation never goes through quoting: `startCancellation` stores the refund (`policy.cover_adjustment`, never changed) and `bindJob` dispatches to `bindCancellation`. A reinstatement is quoted with `quoteBranch` and bound with `bindJob`; its transaction is the new premium less what the insurer kept at cancellation.
 - A cancelled version has `cancelled_on` and no quote. Code that needs "the premium of a version" must use `getLatestQuote` only for versions that are not cancellations.
 
+Renewal (document section 8)
+- Renewal rules are files `config/renewal/<product lower case>-<product version>.json` (`lead_days`, `non_renewal_notice_days`), loaded with `loadRenewalRules`. A renewal is a new term of the same policy (`startRenewal`), a different `term_number`, never a new policy.
+- "The newest version of a policy" means the newest term, then the newest version in that term. A change is made to the term that contains its effective date. Version numbers restart at 1 in each term.
+- Non-renewal needs approval by a different person and a notice in time. Never skip that by editing `policy.renewal_direction` directly.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

@@ -12,26 +12,24 @@ import { getBranch, getJob, openBranch } from './policy-repository.js';
 // Starts a mid-term change on a policy: a policy_change job and a draft branch copied from the latest bound version.
 // The copy keeps every fixed id, so "the same vehicle" is the same object in both versions.
 export async function startPolicyChange(db: PGlite, input: { policyId: string; effectiveDate: string }, actor: string): Promise<{ job: Job; branch: Branch }> {
-  const errors: string[] = [];
   const policyFound = isUuid(input.policyId) && (await db.query('select 1 from policy.policy where id = $1', [input.policyId])).rows.length > 0;
   if (!policyFound) throw new ValidationError(['The policy does not exist']);
 
+  if (!isRealDate(input.effectiveDate)) throw new ValidationError(['The effective date is not a real date (write it as yyyy-mm-dd)']);
+  // The change is made to the term that contains the effective date (a renewed policy has more than one term).
   const base = (
     await db.query<{ id: string; period_start: string; period_end: string }>(
       `select id, to_char(period_start, 'YYYY-MM-DD') as period_start, to_char(period_end, 'YYYY-MM-DD') as period_end
-         from policy.policy_period where policy_id = $1 and status = 'bound' order by term_number desc, version desc limit 1`,
-      [input.policyId],
+         from policy.policy_period where policy_id = $1 and status = 'bound' and period_start <= $2::date and $2::date < period_end order by version desc limit 1`,
+      [input.policyId, input.effectiveDate],
     )
   ).rows[0];
-  if (!base) throw new ValidationError(['The policy has no bound version to change']);
-  const cancelled = (await db.query<{ cancelled_on: string | null }>("select cancelled_on from policy.policy_period where id = $1", [base.id])).rows[0]?.cancelled_on;
-  if (cancelled) throw new ValidationError(['The policy is cancelled; reinstate it first']);
-
-  if (!isRealDate(input.effectiveDate)) errors.push('The effective date is not a real date (write it as yyyy-mm-dd)');
-  else if (input.effectiveDate < base.period_start || input.effectiveDate >= base.period_end) {
-    errors.push(`The effective date must be inside the policy period (${base.period_start} to ${base.period_end})`);
+  if (!base) {
+    const any = await db.query("select 1 from policy.policy_period where policy_id = $1 and status = 'bound'", [input.policyId]);
+    throw new ValidationError([any.rows.length === 0 ? 'The policy has no bound version to change' : 'The effective date must be inside the policy period of a bound version']);
   }
-  if (errors.length > 0) throw new ValidationError(errors);
+  const cancelled = (await db.query<{ cancelled_on: string | null }>('select cancelled_on from policy.policy_period where id = $1', [base.id])).rows[0]?.cancelled_on;
+  if (cancelled) throw new ValidationError(['The policy is cancelled; reinstate it first']);
 
   const ids = await db.transaction(async (tx) => {
     const job = (

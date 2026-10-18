@@ -108,7 +108,7 @@ export async function getCoverStatus(db: PGlite, policyId: string): Promise<{ st
 }
 
 // The newest bound version of a policy, with what the next job needs to know about it.
-async function latestBound(db: Pick<PGlite, 'query'>, policyId: string) {
+export async function latestBound(db: Pick<PGlite, 'query'>, policyId: string) {
   const row = (
     await db.query<{ id: string }>("select id from policy.policy_period where policy_id = $1 and status = 'bound' order by term_number desc, version desc limit 1", [policyId])
   ).rows[0];

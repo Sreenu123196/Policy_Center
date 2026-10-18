@@ -32,7 +32,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | E1 | Policy change in sequence: slices, prorating, transactions | Done (239 tests pass) |
 | E2 | Out-of-sequence changes and preemption, with a scenario matrix | Done (253 tests pass) |
 | E3 | Cancellation (flat, pro rata, short rate) and reinstatement | Done (283 tests pass) |
-| E4 | Renewal | Next: E4 |
+| E4 | Renewal: window, direction, offer, non-renewal | Done (302 tests pass) |
+| F1 to F2 | Billing (charges, plans, invoices, payments) | Next: F1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -41,6 +42,17 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from E4
+- Part E is complete. A claims check for the no-claim bonus: renewal adds one claim-free year to the vehicle on the assumption that no claim was made. Claims (Part G) must reduce or reset it, and the renewal should read the claims record.
+- The insured value is carried into the new term unchanged. Reducing it for vehicle depreciation, or asking the customer to confirm it, is a business decision not made here.
+- "Renewals move to the newest product version under rules per product": every renewal moves to the version in force on the new start date. Per-product rules to stay on an old version are not built.
+- The renewal job is started by a person (or later by a scheduler). The batch that finds policies inside the renewal window and starts renewals automatically, and the pre-renewal workflow with timers, are not built (document section 12).
+- The renewal offer is a PDF in English; sending it by email or WhatsApp and recording acceptance by the customer (an e-signature or payment) are not built. Acceptance is the bind.
+- The non-renewal approval is separation of duties only (a different person). Which role may approve it is left to the API edge (H1) or an authority profile later.
+- A policy that was non-renewed or whose renewal was "not taken" simply stays at its last term and expires; there is no "expired" state or lapse handling.
+- Term length stays one year (`addYears`). The `1Y_OD_3Y_TP` terms of the product are not built.
+- Renewal uses the newest bound version of the ending term, not a fresh look at the account (address, driver changes).
 
 ## Deferred from E3
 - Fees: the cancellation fee and the reinstatement fee (document section 8: "may need underwriting and a fee") are not charged. A fee would be its own cost item next to premium and tax in the transaction.
