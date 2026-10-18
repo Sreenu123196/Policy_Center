@@ -22,3 +22,7 @@ export { loadUnderwritingRules } from './uw-rules.js';
 export type { CheckPoint, UwRules, UwRulesCatalogue } from './uw-rules.js';
 export { checkUnderwriting, decideIssue, evaluateRules, listIssues, listReferrals, requestApproval } from './underwriting.js';
 export type { DecisionInput, DecisionKind, IssueStatus, Referral, UnderwritingDependencies, UwDecision, UwIssue } from './underwriting.js';
+export { bindSubmission, getDocument, issueSubmission, listDocuments } from './bind.js';
+export type { BindDependencies, PolicyDocument, StoredDocument } from './bind.js';
+export { buildScheduleLines, formatDate, formatRupees, renderSchedulePdf } from './schedule.js';
+export type { ScheduleData } from './schedule.js';

@@ -177,6 +177,12 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
   return toQuote(row);
 }
 
+// The newest quote of a branch, or null.
+export async function getLatestQuote(db: PGlite, branchId: string): Promise<Quote | null> {
+  const row = (await db.query<QuoteRow>(`select ${QUOTE_COLUMNS} from policy.quote where branch_id = $1 order by seq desc limit 1`, [branchId])).rows[0];
+  return row ? toQuote(row) : null;
+}
+
 // The options of a job side by side. A branch shows its newest quote only while it is quoted; once edited, the old
 // price is history and the option shows no price until it is quoted again.
 export async function compareQuotes(db: PGlite, jobId: string): Promise<{ branch: Branch; quote: Quote | null }[]> {

@@ -28,7 +28,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D3 | Submission job from Draft to Quoted, with several quote options | Done (153 tests pass) |
 | D4 | Rating engine: rate books, routines, worksheet, golden tests | Done (174 tests pass) |
 | D5 | Underwriting rules, issue types, authority and referral | Done (196 tests pass) |
-| D6 | Bind and issue, policy schedule PDF | Next: D6 |
+| D6 | Bind and issue, policy schedule PDF, outbox | Done (216 tests pass) |
+| E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Next: E1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -37,6 +38,17 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D6
+- The roadmap's Part D is complete. A submission is bound and issued in two calls; a separate "bind-only, issue later" Issuance job type (document section 8) is not built, because the same submission job is issued.
+- Payment is not taken at bind. Billing (F1) will react to the `PolicyBound` event; an unpaid policy and its cancellation come in F2/E3.
+- The schedule is English only: standard PDF fonts have no Hindi or Telugu letters. Translated templates need embedded fonts and reviewed text. Other documents (proposal, motor certificate of insurance, renewal notice ...), form patterns with inference rules (`formCodes` is always empty) and e-signature are not built.
+- Documents are stored in the database as bytea. A file store with the database holding only metadata would suit large volumes.
+- The outbox has a table, `recordEvent`, `listUnpublishedEvents` and `markPublished`. There is no publisher process or consumer yet (F1), and no per-account ordering guarantee beyond the event id.
+- `PolicyBound` and `PolicyIssued` payloads hold small facts (policy number, version, amounts), no personal data.
+- Concurrency: two people binding at once, and another job binding first on the same policy (preemption): E2. Optimistic locking is not in yet.
+- Permission checks (`policy.bind`) belong to the API edge (H1).
+- Library added: `pdf-lib` (pure JavaScript, no native code) to draw the schedule.
 
 ## Deferred from D5
 - Editing and removing coverables and coverages (the underwriting tests change values with plain SQL to stand in for an edit): arrives with policy change, step E1. Re-checking the rules after every edit is therefore explicit (`evaluateRules`), not automatic yet.

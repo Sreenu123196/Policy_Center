@@ -160,5 +160,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - A blocked quote is refused, but its issues are saved first, so the underwriter can see them. The audit log records raising, referring, deciding, reopening and clearing.
 - **Design choice:** the point where a rule is checked and the point an issue blocks are separate, because a young driver can be noticed at quote time but only matter at bind.
 
+## D6. Bind, issue, the schedule and the outbox (sections 8, 11, 17)
+- **Bind** accepts the risk. The chosen quoted option becomes **version 1** of the policy term: `status = bound` with a version number, which the database allows only together (the CHECK rule from D2). From then on triggers refuse any change to it, even raw SQL. The next bound version of the same term gets the next number.
+- The job walks **quoted, binding, bound** inside one transaction, so it can never be left half way. The other options are withdrawn.
+- Bind has gates: only a quoted job; the option must belong to the job; the **quote must still be valid** (the last valid day still counts); and **underwriting issues that block the bind** must be approved first (`checkUnderwriting` with the point `bind`). A refused bind changes nothing.
+- **Issue** moves bound to issued and produces the **policy schedule**. Issuance is a separate underwriting point, so a block there stops it.
+- **The schedule is built in two steps**: first plain text lines (tested exactly), then drawn into a PDF with `pdf-lib`. Money is shown in rupees with Indian grouping (Rs 12,34,567.89), dates as DD-MM-YYYY; the database still keeps paise and yyyy-mm-dd.
+- A **stored document** has its content, a **SHA-256 checksum**, and metadata (policy number, job, version, form codes, conditions). It is never changed; a trigger refuses it. A correction would be a new document.
+- **The outbox**: the event `PolicyBound` or `PolicyIssued` is written in the same transaction as the change. If the change rolls back, the event never existed. A publisher later reads unpublished events in order and consumers (billing) must handle a repeat. This is how modules talk without reading each other's tables.
+- Underwriting conditions that were approved with conditions are printed on the schedule.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

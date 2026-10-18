@@ -24,3 +24,5 @@ export type { Visibility } from './visibility.js';
 export { getTypelist, isActiveTypelistCode, loadTypelists } from './typelists.js';
 export type { Language, LoadResult, TypelistEntry } from './typelists.js';
 export { loadConfiguration } from './configuration.js';
+export { listUnpublishedEvents, markPublished, recordEvent } from './outbox.js';
+export type { NewEvent, OutboxEvent } from './outbox.js';

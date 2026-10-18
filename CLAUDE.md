@@ -161,6 +161,11 @@ Underwriting (document section 10)
 - Issues come only from `evaluateRules`. Steps that must wait for underwriting (quote now; bind and issuance in D6) call `checkUnderwriting` with their point. Decisions (`policy.uw_decision`) are never changed or deleted; a person decides with `decideIssue`, which checks their authority.
 - Facts about a risk come from `buildRisk` (src/policy/risk.ts), shared by quoting, rating and underwriting.
 
+Binding, issuing, documents and events (document sections 8, 11, 17)
+- Only `bindSubmission` sets a branch to bound. It checks the quote validity and the `bind` underwriting point. `issueSubmission` checks the `issuance` point and stores the policy schedule.
+- Documents (`policy.document`) are stored with a SHA-256 and metadata and are never changed or deleted. Money on documents is shown with `formatRupees`, dates with `formatDate` (DD-MM-YYYY).
+- Modules announce changes with `recordEvent(tx, ...)` from Platform, in the same transaction as the change. Payloads hold small facts only. Consumers must cope with seeing an event twice.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.
