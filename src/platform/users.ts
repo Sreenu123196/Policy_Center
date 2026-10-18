@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { recordAudit } from './audit.js';
 import { isUuid } from './ids.js';
 import { getProducerCode } from './producers.js';
@@ -27,7 +27,7 @@ interface UserRow {
 
 const USERNAME_FORMAT = /^[a-z][a-z0-9.]{2,29}$/;
 
-export async function createUser(db: PGlite, input: { username: string; displayName: string; kind?: UserKind }, actor: string): Promise<User> {
+export async function createUser(db: Database, input: { username: string; displayName: string; kind?: UserKind }, actor: string): Promise<User> {
   const errors: string[] = [];
   const displayName = input.displayName.trim();
   const kind = input.kind ?? 'person';
@@ -54,18 +54,18 @@ export async function createUser(db: PGlite, input: { username: string; displayN
   return saved;
 }
 
-export async function getUser(db: PGlite, id: string): Promise<User | null> {
+export async function getUser(db: Database, id: string): Promise<User | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<UserRow>('select id, username, display_name, kind, status from platform.app_user where id = $1', [id]);
   return loadUser(db, result.rows[0]);
 }
 
-export async function getUserByUsername(db: PGlite, username: string): Promise<User | null> {
+export async function getUserByUsername(db: Database, username: string): Promise<User | null> {
   const result = await db.query<UserRow>('select id, username, display_name, kind, status from platform.app_user where username = $1', [username]);
   return loadUser(db, result.rows[0]);
 }
 
-async function loadUser(db: PGlite, row: UserRow | undefined): Promise<User | null> {
+async function loadUser(db: Database, row: UserRow | undefined): Promise<User | null> {
   if (!row) return null;
   const roles = await db.query<{ role_code: string }>('select role_code from platform.user_role where user_id = $1 order by role_code', [row.id]);
   const codes = await db.query<{ producer_code: string }>(
@@ -84,7 +84,7 @@ async function loadUser(db: PGlite, row: UserRow | undefined): Promise<User | nu
 }
 
 // A deactivated user keeps their history but holds no permissions any more.
-export async function deactivateUser(db: PGlite, userId: string, actor: string): Promise<User> {
+export async function deactivateUser(db: Database, userId: string, actor: string): Promise<User> {
   if ((await getUser(db, userId)) === null) throw new ValidationError(['The user does not exist']);
   await db.transaction(async (tx) => {
     await tx.query("update platform.app_user set status = 'inactive' where id = $1", [userId]);
@@ -95,7 +95,7 @@ export async function deactivateUser(db: PGlite, userId: string, actor: string):
   return saved;
 }
 
-export async function assignRole(db: PGlite, userId: string, roleCode: string, actor: string): Promise<User> {
+export async function assignRole(db: Database, userId: string, roleCode: string, actor: string): Promise<User> {
   const user = await getUser(db, userId);
   if (user === null) throw new ValidationError(['The user does not exist']);
   if ((await getRole(db, roleCode)) === null) throw new ValidationError([`Role ${roleCode} does not exist`]);
@@ -111,7 +111,7 @@ export async function assignRole(db: PGlite, userId: string, roleCode: string, a
 }
 
 // Links a user to a producer code. The codes a user holds decide which accounts they may see.
-export async function assignProducerCode(db: PGlite, userId: string, producerCode: string, actor: string): Promise<User> {
+export async function assignProducerCode(db: Database, userId: string, producerCode: string, actor: string): Promise<User> {
   const user = await getUser(db, userId);
   if (user === null) throw new ValidationError(['The user does not exist']);
   if ((await getProducerCode(db, producerCode)) === null) throw new ValidationError([`Producer code ${producerCode} does not exist`]);

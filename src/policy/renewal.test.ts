@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { addDays, createProducerCode, createProducerOrganisation, listAuditEntries, listUnpublishedEvents, ValidationError } from '../platform/index.js';
@@ -34,7 +34,7 @@ const NEW_END = '2028-10-15';
 const WINDOW_OPENS = addDays(END, -60); // the product starts renewals 60 days before expiry
 const IN_WINDOW = addDays(END, -30);
 
-let db: PGlite;
+let db: Database;
 let person: Account;
 
 beforeAll(async () => {

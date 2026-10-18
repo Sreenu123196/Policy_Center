@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { addDays, isActiveTypelistCode, isRealDate, isUuid, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import type { CancellationRulesCatalogue, RefundMethod } from './cancellation-rules.js';
 import { moveJob } from './job-sync.js';
@@ -82,19 +82,19 @@ const toAdjustment = (r: AdjustmentRow): CoverAdjustment => ({
   termDays: r.term_days,
 });
 
-export async function getAdjustment(db: Pick<PGlite, 'query'>, jobId: string): Promise<CoverAdjustment | null> {
+export async function getAdjustment(db: Pick<Database, 'query'>, jobId: string): Promise<CoverAdjustment | null> {
   if (!isUuid(jobId)) return null;
   const row = (await db.query<AdjustmentRow>(`select ${ADJUSTMENT_COLUMNS} from policy.cover_adjustment where job_id = $1`, [jobId])).rows[0];
   return row ? toAdjustment(row) : null;
 }
 
-export async function getAdjustmentOfBranch(db: Pick<PGlite, 'query'>, branchId: string): Promise<CoverAdjustment | null> {
+export async function getAdjustmentOfBranch(db: Pick<Database, 'query'>, branchId: string): Promise<CoverAdjustment | null> {
   const row = (await db.query<AdjustmentRow>(`select ${ADJUSTMENT_COLUMNS} from policy.cover_adjustment where branch_id = $1`, [branchId])).rows[0];
   return row ? toAdjustment(row) : null;
 }
 
 // Is the policy in force or cancelled, going by its newest bound version?
-export async function getCoverStatus(db: PGlite, policyId: string): Promise<{ status: 'in_force' | 'cancelled' | 'none'; version: number | null; cancelledOn: string | null }> {
+export async function getCoverStatus(db: Database, policyId: string): Promise<{ status: 'in_force' | 'cancelled' | 'none'; version: number | null; cancelledOn: string | null }> {
   const row = isUuid(policyId)
     ? (
         await db.query<{ version: number; cancelled_on: string | null }>(
@@ -108,14 +108,14 @@ export async function getCoverStatus(db: PGlite, policyId: string): Promise<{ st
 }
 
 // The newest bound version of a policy, with what the next job needs to know about it.
-export async function latestBound(db: Pick<PGlite, 'query'>, policyId: string) {
+export async function latestBound(db: Pick<Database, 'query'>, policyId: string) {
   const row = (
     await db.query<{ id: string }>("select id from policy.policy_period where policy_id = $1 and status = 'bound' order by term_number desc, version desc limit 1", [policyId])
   ).rows[0];
   return row ? getBranch(db, row.id) : null;
 }
 
-const productOf = async (db: PGlite, policyId: string): Promise<string | undefined> =>
+const productOf = async (db: Database, policyId: string): Promise<string | undefined> =>
   (await db.query<{ product_code: string }>('select product_code from policy.policy where id = $1', [policyId])).rows[0]?.product_code;
 
 // ---------------------------------------------------------------- cancellation
@@ -123,7 +123,7 @@ const productOf = async (db: PGlite, policyId: string): Promise<string | undefin
 // Starts a cancellation. The refund is worked out at once and kept with the job, the new version's cover ends on the
 // effective date, and the job is "quoted" (the refund is the quote) until it is bound.
 export async function startCancellation(
-  db: PGlite,
+  db: Database,
   deps: CancellationDependencies,
   input: { policyId: string; effectiveDate: string; reasonCode: string; method?: RefundMethod },
   actor: string,
@@ -226,7 +226,7 @@ export async function startCancellation(
 
 // Binds a cancellation: the new version is saved, the refund becomes a negative premium transaction, and a
 // PolicyCancelled event goes to billing. Other open change jobs on the policy are preempted.
-export async function bindCancellation(db: PGlite, job: Job, chosen: Branch, actor: string): Promise<void> {
+export async function bindCancellation(db: Database, job: Job, chosen: Branch, actor: string): Promise<void> {
   const adjustment = await getAdjustmentOfBranch(db, chosen.id);
   if (adjustment === null || adjustment.kind !== 'cancellation') throw new ValidationError(['The job has no cancellation to bind']);
   const latest = await latestBound(db, chosen.policyId);
@@ -263,7 +263,7 @@ export async function bindCancellation(db: PGlite, job: Job, chosen: Branch, act
 
 // Issues the cancellation: the job is issued and a cancellation notice is stored.
 export async function issueCancellation(
-  db: PGlite,
+  db: Database,
   job: Job,
   actor: string,
   options: { today?: string } = {},
@@ -318,7 +318,7 @@ export async function issueCancellation(
 // then quoted like any other (so underwriting and rating apply) and bound; its transaction is the new premium less
 // the part of the premium the insurer kept at cancellation.
 export async function startReinstatement(
-  db: PGlite,
+  db: Database,
   deps: CancellationDependencies,
   input: { policyId: string; withGap: boolean; reinstatementDate?: string },
   actor: string,

@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { createProducerCode, createProducerOrganisation, listAuditEntries, listEventsAfter, recordEvent, ValidationError } from '../platform/index.js';
@@ -46,7 +46,7 @@ const renewDeps = { catalogue, renewal: loadRenewalRules(`${configFolder}renewal
 const PRODUCT = 'MOTOR_PRIVATE_CAR';
 const START = '2026-10-15';
 
-let db: PGlite;
+let db: Database;
 let person: Account;
 
 beforeAll(async () => {

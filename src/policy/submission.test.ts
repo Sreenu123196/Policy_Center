@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { createProducerCode, createProducerOrganisation, listAuditEntries, ValidationError } from '../platform/index.js';
@@ -26,7 +26,7 @@ const testQuoter: Quoter = (request) => {
 };
 const deps = { catalogue, quoter: testQuoter };
 
-let db: PGlite;
+let db: Database;
 let person: Account; // the named insured is a person: owner-driver cover applies
 let company: Account; // the named insured is a company: it does not
 

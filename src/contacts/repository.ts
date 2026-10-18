@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { tidy, validateNewContact, type Contact, type ContactKind, type NewContact } from './contact.js';
 import { maskAadhaar, maskPan, normalisePhone } from './identifiers.js';
@@ -46,7 +46,7 @@ const toContact = (row: ContactRow): Contact => ({
 
 // Saves a person or company. Throws ValidationError, listing every problem, if the input is not acceptable.
 // `actor` is the person or agent making the change; it is recorded on the row and in the audit log.
-export async function createContact(db: PGlite, input: NewContact, actor: string): Promise<Contact> {
+export async function createContact(db: Database, input: NewContact, actor: string): Promise<Contact> {
   const contact = tidy(input);
   const errors = validateNewContact(contact);
   if (errors.length > 0) throw new ValidationError(errors);
@@ -90,7 +90,7 @@ export async function createContact(db: PGlite, input: NewContact, actor: string
 }
 
 // Finds a contact by id, or returns null if there is none.
-export async function getContact(db: PGlite, id: string): Promise<Contact | null> {
+export async function getContact(db: Database, id: string): Promise<Contact | null> {
   if (!isUuid(id)) return null; // a malformed id cannot match anything
   const result = await db.query<ContactRow>(`${SELECT_CONTACT} where id = $1`, [id]);
   const row = result.rows[0];

@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './platform/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   applyCredit,
@@ -49,7 +49,7 @@ import { bindDeps, billingConfig, cancelDeps, catalogue, createCustomer, quoteDe
 const configFolder = fileURLToPath(new URL('../config/', import.meta.url));
 const claimsDeps = { config: loadClaimsConfig(`${configFolder}claims/`) };
 
-let db: PGlite;
+let db: Database;
 
 beforeAll(async () => {
   db = await createTestDatabase();

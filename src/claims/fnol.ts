@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { daysBetween, isActiveTypelistCode, isRealDate, isUuid, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import { findPolicyNumbersByRegistration, getPolicyAsOf } from '../policy/index.js';
 import type { PolicyAsOf } from '../policy/index.js';
@@ -87,7 +87,7 @@ interface ClaimRow {
 const CLAIM_COLUMNS = `id, claim_number, policy_number, policy_id, account_id, to_char(loss_date, 'YYYY-MM-DD') as loss_date, loss_time,
   to_char(reported_on, 'YYYY-MM-DD') as reported_on, cause, place, description, channel, reporter_name, reporter_phone, status, verification, late_report, created_by, created_at`;
 
-async function toClaim(db: Pick<PGlite, 'query'>, row: ClaimRow): Promise<Claim> {
+async function toClaim(db: Pick<Database, 'query'>, row: ClaimRow): Promise<Claim> {
   const incidents = await db.query<{ kind: IncidentKind; description: string }>('select kind, description from claims.incident where claim_id = $1 order by seq', [row.id]);
   const attachments = await db.query<{ reference: string; caption: string | null }>('select reference, caption from claims.attachment where claim_id = $1 order by seq', [row.id]);
   return {
@@ -115,14 +115,14 @@ async function toClaim(db: Pick<PGlite, 'query'>, row: ClaimRow): Promise<Claim>
 }
 
 // A claim by its id or its number (CL-0000001).
-export async function getClaim(db: Pick<PGlite, 'query'>, idOrNumber: string): Promise<Claim | null> {
+export async function getClaim(db: Pick<Database, 'query'>, idOrNumber: string): Promise<Claim | null> {
   const column = isUuid(idOrNumber) ? 'id' : /^CL-\d{7}$/.test(idOrNumber) ? 'claim_number' : null;
   if (column === null) return null;
   const row = (await db.query<ClaimRow>(`select ${CLAIM_COLUMNS} from claims.claim where ${column} = $1`, [idOrNumber])).rows[0];
   return row ? toClaim(db, row) : null;
 }
 
-export async function listClaims(db: Pick<PGlite, 'query'>, filter: { policyNumber?: string }): Promise<Claim[]> {
+export async function listClaims(db: Pick<Database, 'query'>, filter: { policyNumber?: string }): Promise<Claim[]> {
   const rows =
     filter.policyNumber === undefined
       ? await db.query<ClaimRow>(`select ${CLAIM_COLUMNS} from claims.claim order by claim_number`)
@@ -133,7 +133,7 @@ export async function listClaims(db: Pick<PGlite, 'query'>, filter: { policyNumb
 // Takes a first notice of loss. A report that can be understood is always recorded, even when the policy was not in
 // force on the loss date: the claim then says so ("not verified") and a handler decides. A report that cannot be
 // understood (no such policy, an impossible date) is refused and nothing is saved.
-export async function reportLoss(db: PGlite, deps: ClaimsDependencies, input: LossReport, actor: string, options: { today?: string } = {}): Promise<Claim> {
+export async function reportLoss(db: Database, deps: ClaimsDependencies, input: LossReport, actor: string, options: { today?: string } = {}): Promise<Claim> {
   const today = options.today ?? new Date().toISOString().slice(0, 10);
   const errors: string[] = [];
 

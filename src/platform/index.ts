@@ -2,7 +2,8 @@
 // activities and events, shared by all other modules. This file is the module's public door.
 export { MODULES } from './modules.js';
 export type { ModuleName } from './modules.js';
-export { createDatabase } from './database.js';
+export { connectPostgres, createDatabase, openDatabase } from './database.js';
+export type { Database, QueryResult, Transaction } from './database.js';
 export { runMigrations } from './migrate.js';
 export { ValidationError } from './validation-error.js';
 export { PermissionError } from './permission-error.js';

@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { getUserByUsername, isRealDate, isUuid, PermissionError, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import { EXPOSURE_COLUMNS, getExposure, refreshClaimStatus, toExposure, type Exposure } from './exposures.js';
 import { getClaim, type Claim, type ClaimsDependencies } from './fnol.js';
@@ -7,7 +7,7 @@ import { getClaim, type Claim, type ClaimsDependencies } from './fnol.js';
 // to be paid on a line (a cost type and a category) of an exposure. A payment reduces it. Incurred is
 // paid + outstanding reserves - recoveries. What a person may reserve and pay depends on their claim financial authority.
 
-type Q = Pick<PGlite, 'query'>;
+type Q = Pick<Database, 'query'>;
 
 export const COST_TYPES = ['claim_cost', 'expense'] as const;
 export type CostType = (typeof COST_TYPES)[number];
@@ -21,7 +21,7 @@ const isMoney = (value: number): boolean => Number.isInteger(value) && value >= 
 // ---------------------------------------------------------------- authority
 
 async function limitsOf(db: Q, deps: ClaimsDependencies, claim: Claim, username: string): Promise<{ reserve: number; payment: number } | null> {
-  const user = await getUserByUsername(db as PGlite, username);
+  const user = await getUserByUsername(db as Database, username);
   if (user === null) return null;
   const profiles = deps.config.forDate(claim.reportedOn).authority_profiles.filter((p) => p.users.includes(username) || p.roles.some((role) => user.roles.includes(role)));
   if (profiles.length === 0) return null;
@@ -83,7 +83,7 @@ export interface ReserveLine {
 // Sets the outstanding reserve of a line. A person with too little authority cannot raise the exposure's reserves
 // above their limit; the change is refused and leaves no trace.
 export async function setReserve(
-  db: PGlite,
+  db: Database,
   deps: ClaimsDependencies,
   exposureId: string,
   input: { costType: CostType; category: string; outstandingPaise: number; reason: string },
@@ -272,7 +272,7 @@ async function checkRoom(db: Q, exposure: Exposure, costType: CostType, category
 
 // Pays a claimant, garage or hospital from a reserve line. A payment inside the requester's authority is issued at once;
 // a bigger one waits for a second person with enough authority. The same reference is the same payment.
-export async function makePayment(db: PGlite, deps: ClaimsDependencies, exposureId: string, input: PaymentInput, actor: string): Promise<ClaimPayment> {
+export async function makePayment(db: Database, deps: ClaimsDependencies, exposureId: string, input: PaymentInput, actor: string): Promise<ClaimPayment> {
   const loaded = await load(db, exposureId);
   const { exposure, claim } = loaded;
 
@@ -327,7 +327,7 @@ export async function makePayment(db: PGlite, deps: ClaimsDependencies, exposure
 
 // A second person approves a payment that was above the requester's authority: a different person, with a payment limit
 // that covers the amount, and a reason. Then the payment is issued.
-export async function approvePayment(db: PGlite, deps: ClaimsDependencies, paymentId: string, approver: string, reason: string): Promise<ClaimPayment> {
+export async function approvePayment(db: Database, deps: ClaimsDependencies, paymentId: string, approver: string, reason: string): Promise<ClaimPayment> {
   const row = isUuid(paymentId) ? (await db.query<PaymentRow>(`select ${PAYMENT_COLUMNS} from claims.claim_payment where id = $1`, [paymentId])).rows[0] : undefined;
   if (!row) throw new ValidationError(['The payment does not exist']);
   if (row.status !== 'pending_approval') throw new ValidationError(['This payment is not waiting for approval']);
@@ -381,7 +381,7 @@ const RECOVERY_COLUMNS = "id, exposure_id, kind, amount_paise::float8 as amount_
 // Money coming back: from another insurer (subrogation), from selling the wreck (salvage) or from the insured (deductible).
 // It reduces what the claim has cost, and can never be more than was paid on the exposure.
 export async function recordRecovery(
-  db: PGlite,
+  db: Database,
   exposureId: string,
   input: { kind: Recovery['kind']; amountPaise: number; source: string; reference: string; receivedOn: string },
   actor: string,

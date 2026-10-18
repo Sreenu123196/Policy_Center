@@ -1,9 +1,9 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getTypelist, listAuditEntries, recordAudit } from '../platform/index.js';
 import { createTestDatabase, loadTestConfiguration, resetDatabase } from './database.js';
 
-let db: PGlite;
+let db: Database;
 
 beforeAll(async () => {
   db = await createTestDatabase();

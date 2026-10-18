@@ -16,7 +16,7 @@ This review compares what was built with the Insurance Suite implementation docu
 
 | Section | Coverage | What exists | Main gaps |
 |---|---|---|---|
-| 3 Technology stack | 70% | TypeScript on Node, PostgreSQL (PGlite stands in for Docker), Fastify, React, Vitest, plain SQL migrations | Real PostgreSQL in Docker, hosting in India, CI/CD, secrets vault |
+| 3 Technology stack | 75% | TypeScript on Node, PostgreSQL (tests pass on a real server and on PGlite), Fastify, React, Vitest, plain SQL migrations; Dockerfile, compose file and CI written (not yet run) | Running the container, deployment, hosting in India, secrets vault |
 | 4 Core concepts | 95% | Account, policy, job, branch, version, fixed ids, money in paise, audit log | None of note |
 | 5 Policy data model | 90% | Policy, term, versions, coverables, coverages, costs and transactions | Drivers and locations as full objects, questions and answers |
 | 6 Effective dating | 90% | Slices, no-overlap rule in the database, as-of queries, out-of-sequence merge with conflicts, preemption and rebase, scenario matrix | Optimistic locking at bind (a single database and one transaction cover it today) |
@@ -75,7 +75,7 @@ The scenario test (step I1) found a bug that no unit test caught: after a cancel
 Ordered by what makes the biggest difference to being usable, not by size.
 
 **Tier 1: make it safe to run (about 4 to 6 weeks for a small team)**
-1. Run on real PostgreSQL in Docker, with CI that runs `npm run check` and a deployment to a test environment.
+1. Run on real PostgreSQL in Docker, with CI that runs `npm run check` and a deployment to a test environment. **Update: the code and the whole test suite now run on real PostgreSQL; the Dockerfile, compose file and CI workflow are written but not yet run (no Docker or Git remote on this machine); deployment waits for a chosen host.**
 2. Real sign-in: put the API behind an identity provider (OpenID Connect with MFA); replace `X-User` with a verified token; add a permissions matrix test for every endpoint.
 3. An event publisher with retries and a dead-letter table; locks for idempotency keys and optimistic locking at bind.
 4. Connect claims history to renewal and to the no-claim bonus; replace the simplified cancellation netting with a small ledger.

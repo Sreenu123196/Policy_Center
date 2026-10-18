@@ -285,5 +285,13 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **List the weaknesses yourself.** Trusted sign-in, simplified refund netting, thin concurrency handling, illustrative numbers and unreviewed translations are written down, so nobody mistakes the learning version for a product.
 - **Plan the next work by value.** First make it safe to run (real database, real sign-in, event publisher), then make it usable (screens, languages, queues), then broaden the business, then prove it at scale.
 
+## Tier 1, item 1. Two databases behind one interface
+- **Why an interface.** The code never names a driver. It uses a small `Database` (query, exec, transaction, close). PGlite and a real PostgreSQL server both fit it, so switching is a setting (`DATABASE_URL`), not a rewrite. This is the old rule "keep all connection code in one file" paying off.
+- **Run the tests on the real thing.** PGlite is real PostgreSQL compiled for Node, but a real server has several connections, an encoding chosen when the database is created, and a limit on connections. Running all 480 tests on a real server found three such differences, none of which PGlite showed.
+- **Code that depends on the connection must say so.** Setting a value for "this connection" (here, skipping triggers while resetting test data) only works if the next command uses the same connection. Put them in one transaction.
+- **UTF8.** Hindi and Telugu names need a UTF8 database. The server's default on Windows was not UTF8.
+- **Do not create and drop dozens of databases at once.** Each create and drop makes the server write a checkpoint, and doing it in parallel stalled the run. Drop them together at the end.
+- **Say what was not run.** The Dockerfile, compose file and CI workflow were written carefully but never executed here. A file that has not been run is a draft.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

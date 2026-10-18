@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { isRealDate, isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { reopenIfQuoted } from './job-sync.js';
 import type { Branch, Job } from './policy.js';
@@ -11,7 +11,7 @@ import { getBranch, getJob, openBranch } from './policy-repository.js';
 
 // Starts a mid-term change on a policy: a policy_change job and a draft branch copied from the latest bound version.
 // The copy keeps every fixed id, so "the same vehicle" is the same object in both versions.
-export async function startPolicyChange(db: PGlite, input: { policyId: string; effectiveDate: string }, actor: string): Promise<{ job: Job; branch: Branch }> {
+export async function startPolicyChange(db: Database, input: { policyId: string; effectiveDate: string }, actor: string): Promise<{ job: Job; branch: Branch }> {
   const policyFound = isUuid(input.policyId) && (await db.query('select 1 from policy.policy where id = $1', [input.policyId])).rows.length > 0;
   if (!policyFound) throw new ValidationError(['The policy does not exist']);
 
@@ -90,7 +90,7 @@ const TARGETS = {
 } as const;
 
 export type ObjectKind = keyof typeof TARGETS;
-export type Q = Pick<PGlite, 'query'>;
+export type Q = Pick<Database, 'query'>;
 
 export interface EditInput {
   fixedId: string;
@@ -208,21 +208,21 @@ export async function applyEdit(tx: Q, branch: Branch, kind: ObjectKind, input: 
   });
 }
 
-async function editFromDate(db: PGlite, kind: ObjectKind, branchId: string, input: EditInput, actor: string): Promise<void> {
+async function editFromDate(db: Database, kind: ObjectKind, branchId: string, input: EditInput, actor: string): Promise<void> {
   const branch = await openBranch(db, branchId);
   await db.transaction((tx) => applyEdit(tx, branch, kind, input, actor));
 }
 
 // Changes terms of a coverage (for example the insured value) from a date to the end of the period.
-export const changeCoverage = (db: PGlite, branchId: string, input: { coverageFixedId: string; effectiveDate?: string; terms: Record<string, number | string> }, actor: string): Promise<void> =>
+export const changeCoverage = (db: Database, branchId: string, input: { coverageFixedId: string; effectiveDate?: string; terms: Record<string, number | string> }, actor: string): Promise<void> =>
   editFromDate(db, 'coverage', branchId, { fixedId: input.coverageFixedId, effectiveDate: input.effectiveDate, patch: input.terms }, actor);
 
 // Changes attributes of a coverable (for example a vehicle's registration number) from a date to the end of the period.
-export const changeCoverable = (db: PGlite, branchId: string, input: { coverableFixedId: string; effectiveDate?: string; attributes: Record<string, unknown> }, actor: string): Promise<void> =>
+export const changeCoverable = (db: Database, branchId: string, input: { coverableFixedId: string; effectiveDate?: string; attributes: Record<string, unknown> }, actor: string): Promise<void> =>
   editFromDate(db, 'coverable', branchId, { fixedId: input.coverableFixedId, effectiveDate: input.effectiveDate, patch: input.attributes }, actor);
 
 // Ends a coverage from a date: the days before it stay covered. To add a cover from a date, use addCoverage with effFrom.
-export const removeCoverage = (db: PGlite, branchId: string, input: { coverageFixedId: string; effectiveDate?: string }, actor: string): Promise<void> =>
+export const removeCoverage = (db: Database, branchId: string, input: { coverageFixedId: string; effectiveDate?: string }, actor: string): Promise<void> =>
   editFromDate(db, 'coverage', branchId, { fixedId: input.coverageFixedId, effectiveDate: input.effectiveDate, patch: null }, actor);
 
 // ---------------------------------------------------------------- transactions
@@ -242,7 +242,7 @@ export interface PremiumTransaction {
 }
 
 // What each bound version changed in premium, oldest first. Billing is built from these (step F1).
-export async function listTransactions(db: PGlite, policyId: string): Promise<PremiumTransaction[]> {
+export async function listTransactions(db: Database, policyId: string): Promise<PremiumTransaction[]> {
   if (!isUuid(policyId)) return [];
   const result = await db.query<{
     id: string;

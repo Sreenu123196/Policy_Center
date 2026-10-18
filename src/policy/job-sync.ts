@@ -1,6 +1,6 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 
-type Tx = Pick<PGlite, 'query'>;
+type Tx = Pick<Database, 'query'>;
 import { recordAudit, ValidationError } from '../platform/index.js';
 import { allowedNextStatuses } from './job-status.js';
 import type { Branch, JobStatus, JobType } from './policy.js';

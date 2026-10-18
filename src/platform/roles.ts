@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { recordAudit } from './audit.js';
 import { isPermission, type Permission } from './permissions.js';
 import { ValidationError } from './validation-error.js';
@@ -13,7 +13,7 @@ const ROLE_CODE_FORMAT = /^[a-z][a-z0-9_]{2,29}$/;
 
 // A role is a named bundle of permissions, for example "underwriter". Roles are data: an administrator
 // can create one or change what it grants without a code release.
-export async function createRole(db: PGlite, input: { code: string; name: string; permissions: readonly Permission[] }, actor: string): Promise<Role> {
+export async function createRole(db: Database, input: { code: string; name: string; permissions: readonly Permission[] }, actor: string): Promise<Role> {
   const errors: string[] = [];
   const name = input.name.trim();
 
@@ -45,7 +45,7 @@ export async function createRole(db: PGlite, input: { code: string; name: string
 }
 
 // Returns null if the role does not exist.
-export async function getRole(db: PGlite, code: string): Promise<Role | null> {
+export async function getRole(db: Database, code: string): Promise<Role | null> {
   const role = await db.query<{ code: string; name: string }>('select code, name from platform.role where code = $1', [code]);
   const row = role.rows[0];
   if (!row) return null;

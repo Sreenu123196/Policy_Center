@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { getContact } from '../contacts/index.js';
 import { isRealDate } from '../platform/index.js';
 import type { BranchAsOf } from './policy.js';
@@ -13,7 +13,7 @@ export function ageOn(dateOfBirth: string, date: string): number {
 // What we know about a risk on the start date of a branch, for availability rules, rating and underwriting rules.
 // Facts come from the branch and from the account's named insured. Anything that cannot be worked out is reported
 // in "errors", and its fact is left out, so a rule on a missing fact is simply false.
-export async function buildRisk(db: PGlite, accountId: string, asOf: BranchAsOf): Promise<{ facts: Facts; selection: Selection; errors: string[] }> {
+export async function buildRisk(db: Database, accountId: string, asOf: BranchAsOf): Promise<{ facts: Facts; selection: Selection; errors: string[] }> {
   const errors: string[] = [];
   const facts: Facts = {};
   const start = asOf.branch.periodStart;

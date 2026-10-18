@@ -1,11 +1,11 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { createHash } from 'node:crypto';
 import { isUuid } from '../platform/index.js';
 
 // Small questions the API edge asks Policy: whose account does this belong to (so producer code security can be
 // applied), and has this working copy changed (so a lost update can be detected).
 
-type Q = Pick<PGlite, 'query'>;
+type Q = Pick<Database, 'query'>;
 
 async function accountId(db: Q, sql: string, id: string): Promise<string | null> {
   if (!isUuid(id)) return null;

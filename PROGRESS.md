@@ -63,6 +63,14 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 - Added the dependency `fastify` and the permissions `billing.pay`, `claim.report` and `claim.handle`.
 - Dates for "today" come from a clock that tests can set; the API uses the server's date.
 
+## Tier 1, item 1: real PostgreSQL, Docker and CI (REVIEW.md, section 6)
+- **Done.** The code uses a small `Database` interface (`src/platform/database.ts`) with two implementations: PGlite (the default for tests and a quick local run) and a real PostgreSQL server through `pg`. The whole suite (480 tests in 45 files) passes on **both**. `TEST_DATABASE=postgres npm test` runs it on a PostgreSQL server started just for the run (the `embedded-postgres` package, no Docker needed); `TEST_DATABASE_URL` uses a server you have. The server reads `DATABASE_URL`.
+- **Written but not run here:** `Dockerfile`, `docker-compose.yml`, `.dockerignore` and `.github/workflows/ci.yml` (three jobs: check on PGlite, the tests on a PostgreSQL service, and the image build). Docker is not installed on this machine and there is no Git remote, so none of these has been executed. Install Docker, then `docker compose up --build`, to prove them.
+- **Not done:** deployment to a test environment (needs a chosen host), a secrets vault, backups, TLS.
+- **Found by running on real PostgreSQL:** the database must be created with UTF8 encoding (a Windows server defaulted to WIN1252 and refused the Hindi names); a server has several connections, so test setup that depends on one connection (resetting the tables) now runs inside one transaction; many test databases created and dropped at once stalled the server, so test databases are dropped together at the end of the run.
+- PGlite stays as a development convenience. Tests on PGlite are faster (about 2.5 minutes), on PostgreSQL slower (about 4 minutes).
+- Added `README.md` with the commands, and `.env.example` now lists the server settings.
+
 ## Result of I2
 The roadmap is complete (29 of 29 steps). `REVIEW.md` compares the build with the document section by section (about 55% of the whole document, by my estimate), lists the design rules that held, the known weaknesses and risks, and an ordered plan of what to extend next. Nothing is pending in the roadmap.
 

@@ -1,10 +1,10 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { recordEvent } from '../platform/index.js';
 
 // Allocation (document section 14): money goes to the oldest amount due first. A line of an invoice is paid by one or
 // more allocations, each from a payment or a credit. When every line of an invoice is paid, the invoice is paid.
 
-export type Q = Pick<PGlite, 'query'>;
+export type Q = Pick<Database, 'query'>;
 
 export type Source = { paymentId: string; creditId?: undefined } | { creditId: string; paymentId?: undefined };
 

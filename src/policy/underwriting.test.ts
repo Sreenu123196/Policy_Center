@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import {
@@ -37,7 +37,7 @@ const testQuoter: Quoter = () => ({ premiumPaise: 1000000, taxPaise: 180000, rat
 const deps = { catalogue, quoter: testQuoter, underwriting: { rules } };
 const uw = { rules };
 
-let db: PGlite;
+let db: Database;
 let person: Account;
 
 beforeAll(async () => {

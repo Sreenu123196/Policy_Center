@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { listEventsAfter, ValidationError } from '../platform/index.js';
 import { bindJob, getCoverStatus, getJob, quoteBranch, startCancellation } from '../policy/index.js';
@@ -9,7 +9,7 @@ import { generateInvoices, processPolicyEvents, setPaymentPlan } from './billing
 import { listDelinquencySteps, receivePayment, runDelinquency } from './payments.js';
 import { bindDeps, billingConfig, cancelDeps, createCustomer, issueGoldenPolicy, quoteDeps } from './test-support.js';
 
-let db: PGlite;
+let db: Database;
 let customer: Account;
 
 beforeAll(async () => {

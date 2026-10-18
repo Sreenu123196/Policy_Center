@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createDatabase } from './database.js';
 import { runMigrations } from './migrate.js';
@@ -11,7 +11,7 @@ import { MODULES } from './modules.js';
 // The project's real migration files: db/migrations/
 const realMigrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
 
-let db: PGlite;
+let db: Database;
 let dir: string;
 
 beforeEach(async () => {

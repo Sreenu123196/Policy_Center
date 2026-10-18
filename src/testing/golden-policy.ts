@@ -1,7 +1,7 @@
 // Support for tests only: sets up a customer with a golden policy, so each test starts from the same place.
 // It uses the other modules only through their public doors, like the real application.
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { createContact } from '../contacts/index.js';
 import { addDays, createProducerCode, createProducerOrganisation } from '../platform/index.js';
 import {
@@ -31,7 +31,7 @@ export const renewDeps = { catalogue, renewal: loadRenewalRules(`${configFolder}
 export const START = '2026-10-15';
 
 // A producer, a person and an account. Returns the account.
-export async function createCustomer(db: PGlite, name = 'Asha Rao'): Promise<Account> {
+export async function createCustomer(db: Database, name = 'Asha Rao'): Promise<Account> {
   const acme = await createProducerOrganisation(db, { name: 'Acme Insurance Agency' }, 'admin');
   await createProducerCode(db, { code: 'PC-100', organisationId: acme.id }, 'admin');
   const address = { line1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pinCode: '500081' };
@@ -40,7 +40,7 @@ export async function createCustomer(db: PGlite, name = 'Asha Rao'): Promise<Acc
 }
 
 // The golden policy (premium 1,574,600 + GST 283,428 = 1,858,028 paise), bound and issued, for an account.
-export async function issueGoldenPolicy(db: PGlite, account: Account, options: { ownDamage?: boolean; start?: string; idv?: number } = {}) {
+export async function issueGoldenPolicy(db: Database, account: Account, options: { ownDamage?: boolean; start?: string; idv?: number } = {}) {
   const start = options.start ?? START;
   const started = await startSubmission(db, catalogue, { accountId: account.id, productCode: 'MOTOR_PRIVATE_CAR', periodStart: start }, 'agent.one');
   const car = await addCoverable(

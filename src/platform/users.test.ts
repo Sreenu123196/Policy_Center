@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { hasPermission, requirePermission, visibilityFor } from './authorization.js';
 import { createTestDatabase, resetDatabase } from '../testing/database.js';
@@ -8,7 +8,7 @@ import { createRole, getRole } from './roles.js';
 import { assignProducerCode, assignRole, createUser, deactivateUser, getUserByUsername } from './users.js';
 import { ValidationError } from './validation-error.js';
 
-let db: PGlite;
+let db: Database;
 
 beforeAll(async () => {
   db = await createTestDatabase();

@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { isRealDate, ValidationError } from '../platform/index.js';
 import { getBranchAsOf } from './policy-repository.js';
 import { formatDate } from './schedule.js';
@@ -29,7 +29,7 @@ export interface PolicyAsOf {
 
 const textOrNull = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
-export async function getPolicyAsOf(db: PGlite, policyNumber: string, date: string): Promise<PolicyAsOf | null> {
+export async function getPolicyAsOf(db: Database, policyNumber: string, date: string): Promise<PolicyAsOf | null> {
   if (!isRealDate(date)) throw new ValidationError(['The date is not a real date (write it as yyyy-mm-dd)']);
   const policy = (
     await db.query<{ id: string; policy_number: string; account_id: string; product_code: string }>(
@@ -98,7 +98,7 @@ const normalise = (registration: string): string => registration.replace(/\s+/g,
 
 // The policies that were in force on a date for a vehicle with this registration number (a customer on the phone may
 // know the car's number but not the policy's). Spaces and capitals do not matter.
-export async function findPolicyNumbersByRegistration(db: PGlite, registrationNumber: string, date: string): Promise<string[]> {
+export async function findPolicyNumbersByRegistration(db: Database, registrationNumber: string, date: string): Promise<string[]> {
   const wanted = normalise(registrationNumber);
   if (wanted === '' || !isRealDate(date)) return [];
   const candidates = await db.query<{ policy_number: string }>(

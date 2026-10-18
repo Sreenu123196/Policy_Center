@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { z } from 'zod';
 import { addDays, listEventsAfter, recordAudit, ValidationError } from '../platform/index.js';
 import { getAdjustmentOfBranch, latestBound, startCancellation, startReinstatement, type CancellationDependencies } from './cancellation.js';
@@ -21,7 +21,7 @@ export interface BillingRequestResult {
   reason?: string;
 }
 
-async function handlePolicy(db: PGlite, deps: CancellationDependencies, type: string, policyNumber: string, actor: string, today: string): Promise<BillingRequestResult> {
+async function handlePolicy(db: Database, deps: CancellationDependencies, type: string, policyNumber: string, actor: string, today: string): Promise<BillingRequestResult> {
   const policy = (await db.query<{ id: string }>('select id from policy.policy where policy_number = $1', [policyNumber])).rows[0];
   if (!policy) return { policyNumber, outcome: 'skipped', reason: 'The policy does not exist' };
   const latest = await latestBound(db, policy.id);
@@ -66,7 +66,7 @@ async function handlePolicy(db: PGlite, deps: CancellationDependencies, type: st
 }
 
 // Reads Billing's requests that Policy has not handled yet, in order. The offset moves only when the batch is done.
-export async function processBillingEvents(db: PGlite, deps: CancellationDependencies, actor: string, options: { today?: string; limit?: number } = {}): Promise<BillingRequestResult[]> {
+export async function processBillingEvents(db: Database, deps: CancellationDependencies, actor: string, options: { today?: string; limit?: number } = {}): Promise<BillingRequestResult[]> {
   const today = options.today ?? new Date().toISOString().slice(0, 10);
   const offset = (await db.query<{ last_event_id: number }>('select last_event_id::float8 as last_event_id from policy.consumer_offset where consumer = $1', [CONSUMER])).rows[0]?.last_event_id ?? 0;
   const events = await listEventsAfter(db, offset, options.limit ?? 200);

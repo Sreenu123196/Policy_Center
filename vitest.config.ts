@@ -7,6 +7,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   plugins: [react()],
   test: {
+    globalSetup: ['./vitest.global-setup.ts'],
     include: ['src/**/*.test.ts', 'web/src/**/*.test.{ts,tsx}'],
     hookTimeout: 60_000,
     testTimeout: 30_000,

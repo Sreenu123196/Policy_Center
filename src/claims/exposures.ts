@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { getUserByUsername, isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { getClaim, type Claim, type ClaimsDependencies } from './fnol.js';
 
@@ -80,13 +80,13 @@ export const toExposure = (r: ExposureRow): Exposure => ({
   createdBy: r.created_by,
 });
 
-export async function getExposure(db: Pick<PGlite, 'query'>, id: string): Promise<Exposure | null> {
+export async function getExposure(db: Pick<Database, 'query'>, id: string): Promise<Exposure | null> {
   if (!isUuid(id)) return null;
   const row = (await db.query<ExposureRow>(`select ${EXPOSURE_COLUMNS} from claims.exposure where id = $1`, [id])).rows[0];
   return row ? toExposure(row) : null;
 }
 
-export async function listExposures(db: Pick<PGlite, 'query'>, claimIdOrNumber: string): Promise<Exposure[]> {
+export async function listExposures(db: Pick<Database, 'query'>, claimIdOrNumber: string): Promise<Exposure[]> {
   const claim = await getClaim(db, claimIdOrNumber);
   if (claim === null) return [];
   const result = await db.query<ExposureRow>(`select ${EXPOSURE_COLUMNS} from claims.exposure where claim_id = $1 order by number`, [claim.id]);
@@ -94,7 +94,7 @@ export async function listExposures(db: Pick<PGlite, 'query'>, claimIdOrNumber: 
 }
 
 // Brings the claim's status in line with its exposures.
-export async function refreshClaimStatus(tx: Pick<PGlite, 'query'>, claimId: string, actor: string): Promise<void> {
+export async function refreshClaimStatus(tx: Pick<Database, 'query'>, claimId: string, actor: string): Promise<void> {
   const statuses = (await tx.query<{ status: ExposureStatus }>('select status from claims.exposure where claim_id = $1', [claimId])).rows.map((r) => r.status);
   const next = deriveClaimStatus(statuses);
   const current = (await tx.query<{ status: Claim['status'] }>('select status from claims.claim where id = $1', [claimId])).rows[0]?.status;
@@ -112,7 +112,7 @@ export interface NewExposure {
 
 // Adds an exposure to a claim. The cover must have been on the policy on the loss date, and the claim verified; a
 // handler who knows better can add it with a reason, which goes into the audit log.
-export async function addExposure(db: PGlite, _deps: ClaimsDependencies, claimIdOrNumber: string, input: NewExposure, actor: string): Promise<Exposure> {
+export async function addExposure(db: Database, _deps: ClaimsDependencies, claimIdOrNumber: string, input: NewExposure, actor: string): Promise<Exposure> {
   const claim = await getClaim(db, claimIdOrNumber);
   if (claim === null) throw new ValidationError(['The claim does not exist']);
 
@@ -157,7 +157,7 @@ export async function addExposure(db: PGlite, _deps: ClaimsDependencies, claimId
 }
 
 // Moves an exposure along its life cycle. Rejecting needs a reason; every move is audited and the claim follows.
-export async function moveExposure(db: PGlite, exposureId: string, to: ExposureStatus, actor: string, reason?: string): Promise<Exposure> {
+export async function moveExposure(db: Database, exposureId: string, to: ExposureStatus, actor: string, reason?: string): Promise<Exposure> {
   const exposure = await getExposure(db, exposureId);
   if (exposure === null) throw new ValidationError(['The exposure does not exist']);
   if (!allowedExposureMoves(exposure.status).includes(to)) throw new ValidationError([`An exposure cannot move from ${exposure.status} to ${to}`]);
@@ -180,7 +180,7 @@ export async function moveExposure(db: PGlite, exposureId: string, to: ExposureS
   return saved;
 }
 
-export async function assignHandler(db: PGlite, exposureId: string, handler: string, actor: string): Promise<Exposure> {
+export async function assignHandler(db: Database, exposureId: string, handler: string, actor: string): Promise<Exposure> {
   const exposure = await getExposure(db, exposureId);
   if (exposure === null) throw new ValidationError(['The exposure does not exist']);
   const user = await getUserByUsername(db, handler);

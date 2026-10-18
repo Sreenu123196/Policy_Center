@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { moveJob, reopenIfQuoted } from './job-sync.js';
 import type { Branch, Job } from './policy.js';
@@ -67,7 +67,7 @@ export async function listConflicts(db: Q, branchId: string): Promise<MergeConfl
 // "Show each conflict to confirm or override": keep_later accepts the later change, override applies the new value
 // from the later change's date to the end of the period. A reason is always required.
 export async function resolveConflict(
-  db: PGlite,
+  db: Database,
   conflictId: string,
   input: { resolution: 'keep_later' | 'override'; reason: string },
   actor: string,
@@ -188,7 +188,7 @@ async function extractEdits(q: Q, branch: Branch): Promise<{ edits: Edit[]; adde
 // is replaced by a new copy of the newest version, and its own edits are applied again with the same merge rules as
 // an out-of-sequence change (conflicts are recorded for a person to decide). The old copy is withdrawn. Everything
 // happens in one transaction: if an edit no longer fits, nothing changes.
-export async function rebaseJob(db: PGlite, jobId: string, actor: string): Promise<{ job: Job; branch: Branch }> {
+export async function rebaseJob(db: Database, jobId: string, actor: string): Promise<{ job: Job; branch: Branch }> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
   if (job.type !== 'policy_change' || job.status !== 'preempted') throw new ValidationError([`Only a preempted job can be rebased (this one is ${job.status})`]);

@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { listAuditEntries, listEventsAfter, ValidationError } from '../platform/index.js';
 import { bindJob, startCancellation } from '../policy/index.js';
@@ -16,7 +16,7 @@ const configFolder = fileURLToPath(new URL('../../config/', import.meta.url));
 const config = loadClaimsConfig(`${configFolder}claims/`);
 const deps = { config };
 
-let db: PGlite;
+let db: Database;
 let customer: Account;
 
 beforeAll(async () => {

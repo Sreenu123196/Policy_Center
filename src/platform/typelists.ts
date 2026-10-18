@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { recordAudit } from './audit.js';
 import { typelistFileSchema, type TypelistFile } from './typelist-schema.js';
 import { ValidationError } from './validation-error.js';
@@ -71,7 +71,7 @@ function readTypelistFiles(directory: string): { files: ParsedFile[]; errors: st
 }
 
 // Second pass, still changing nothing: should this file be applied, or skipped because it is already loaded?
-async function decide(db: PGlite, parsed: ParsedFile): Promise<'apply' | 'skip'> {
+async function decide(db: Database, parsed: ParsedFile): Promise<'apply' | 'skip'> {
   const { file, checksum, content } = parsed;
 
   const history = await db.query<{ version: string; checksum: string }>(
@@ -101,7 +101,7 @@ async function decide(db: PGlite, parsed: ParsedFile): Promise<'apply' | 'skip'>
 }
 
 // Applies one file: the entries, the version record and the audit entry are saved together or not at all.
-async function apply(db: PGlite, parsed: ParsedFile, actor: string): Promise<void> {
+async function apply(db: Database, parsed: ParsedFile, actor: string): Promise<void> {
   const { checksum, content } = parsed;
   await db.transaction(async (tx) => {
     await tx.query('insert into platform.typelist (name) values ($1) on conflict do nothing', [content.typelist]);
@@ -131,7 +131,7 @@ async function apply(db: PGlite, parsed: ParsedFile, actor: string): Promise<voi
 }
 
 // Loads every typelist file in a folder. All files are checked first; if any has a problem, nothing is loaded.
-export async function loadTypelists(db: PGlite, directory: string, actor: string): Promise<LoadResult[]> {
+export async function loadTypelists(db: Database, directory: string, actor: string): Promise<LoadResult[]> {
   const { files, errors } = readTypelistFiles(directory);
 
   const seen = new Map<string, string>();
@@ -164,7 +164,7 @@ export async function loadTypelists(db: PGlite, directory: string, actor: string
 // The entries of a typelist in sort order, with names in the chosen language (English by default).
 // Retired codes are left out unless asked for. Returns null if there is no such typelist.
 export async function getTypelist(
-  db: PGlite,
+  db: Database,
   name: string,
   options: { language?: Language; includeRetired?: boolean } = {},
 ): Promise<TypelistEntry[] | null> {
@@ -183,7 +183,7 @@ export async function getTypelist(
 }
 
 // May this code still be used for new records? True only if it exists and is not retired.
-export async function isActiveTypelistCode(db: PGlite, typelist: string, code: string): Promise<boolean> {
+export async function isActiveTypelistCode(db: Database, typelist: string, code: string): Promise<boolean> {
   const result = await db.query('select 1 from platform.typelist_entry where typelist = $1 and code = $2 and not retired', [typelist, code]);
   return result.rows.length > 0;
 }

@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { getContact } from '../contacts/index.js';
 import { canSeeProducerCode, getProducerCode, isActiveTypelistCode, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
 import { NAMED_INSURED, type Account, type AccountContact, type AccountContactRole, type NewAccount } from './account.js';
@@ -38,7 +38,7 @@ const toAccount = (row: AccountRow, contacts: AccountContact[]): Account => ({
 });
 
 // Loads the contacts of several accounts in one query and groups them by account.
-async function contactsByAccount(db: PGlite, accountIds: string[]): Promise<Map<string, AccountContact[]>> {
+async function contactsByAccount(db: Database, accountIds: string[]): Promise<Map<string, AccountContact[]>> {
   const grouped = new Map<string, AccountContact[]>();
   if (accountIds.length === 0) return grouped;
   const result = await db.query<AccountContactRow>(SELECT_CONTACTS, [accountIds]);
@@ -52,7 +52,7 @@ async function contactsByAccount(db: PGlite, accountIds: string[]): Promise<Map<
 
 // Opens an account for an existing contact. The producer code and the contact belong to other modules,
 // so they are checked through those modules' public APIs rather than by reading their tables.
-export async function createAccount(db: PGlite, input: NewAccount, actor: string): Promise<Account> {
+export async function createAccount(db: Database, input: NewAccount, actor: string): Promise<Account> {
   const errors: string[] = [];
 
   const producer = await getProducerCode(db, input.producerCode);
@@ -86,7 +86,7 @@ export async function createAccount(db: PGlite, input: NewAccount, actor: string
 }
 
 // Adds a driver, financier or billing contact. An account has exactly one named insured, fixed when it is opened.
-export async function addAccountContact(db: PGlite, accountId: string, contact: AccountContact, actor: string): Promise<Account> {
+export async function addAccountContact(db: Database, accountId: string, contact: AccountContact, actor: string): Promise<Account> {
   const errors: string[] = [];
 
   const exists = isUuid(accountId) ? await db.query('select 1 from policy.account where id = $1', [accountId]) : { rows: [] };
@@ -127,7 +127,7 @@ export async function addAccountContact(db: PGlite, accountId: string, contact: 
 
 // Producer code security (document section 13): an account the viewer may not see is reported as "not found",
 // so its existence is not revealed.
-export async function getAccount(db: PGlite, id: string, visibility: Visibility): Promise<Account | null> {
+export async function getAccount(db: Database, id: string, visibility: Visibility): Promise<Account | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<AccountRow>(`${SELECT_ACCOUNT} where id = $1`, [id]);
   const row = result.rows[0];
@@ -137,7 +137,7 @@ export async function getAccount(db: PGlite, id: string, visibility: Visibility)
 }
 
 // The accounts the viewer may see, in account-number order. The filter is part of the query itself.
-export async function listAccounts(db: PGlite, visibility: Visibility): Promise<Account[]> {
+export async function listAccounts(db: Database, visibility: Visibility): Promise<Account[]> {
   const result =
     visibility === 'all'
       ? await db.query<AccountRow>(`${SELECT_ACCOUNT} order by account_number`)

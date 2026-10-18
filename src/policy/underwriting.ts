@@ -1,4 +1,4 @@
-import type { PGlite, Transaction } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { addDays, getUserByUsername, isRealDate, isUuid, PermissionError, recordAudit, ValidationError } from '../platform/index.js';
 import { evaluateExpression, parseExpression } from './expression.js';
 import { getBranch, getBranchAsOf } from './policy-repository.js';
@@ -48,7 +48,7 @@ export interface Referral {
   createdAt: string;
 }
 
-type Queryable = Pick<PGlite, 'query'> | Pick<Transaction, 'query'>;
+type Queryable = Pick<Database, 'query'> | Pick<Database, 'query'>;
 
 const todayText = (): string => new Date().toISOString().slice(0, 10);
 
@@ -122,7 +122,7 @@ async function getIssue(db: Queryable, issueId: string): Promise<UwIssue | null>
 }
 
 // The underwriter queue: referrals nobody has decided yet, oldest first.
-export async function listReferrals(db: PGlite): Promise<Referral[]> {
+export async function listReferrals(db: Database): Promise<Referral[]> {
   const result = await db.query<{ id: string; issue_id: string; requested_by: string; note: string | null; status: 'open' | 'closed'; context: Record<string, unknown>; created_at: Date }>(
     "select id, issue_id, requested_by, note, status, context, created_at from policy.uw_referral where status = 'open' order by seq",
   );
@@ -138,7 +138,7 @@ const getPath = (facts: Record<string, unknown>, path: string): unknown =>
 // new issues are raised, an approval that still covers the new value stays, one that does not reopens the issue,
 // and an issue whose rule no longer fires is cleared. Returns all the issues of the branch.
 export async function evaluateRules(
-  db: PGlite,
+  db: Database,
   deps: UnderwritingDependencies,
   branchId: string,
   point: CheckPoint,
@@ -217,7 +217,7 @@ const BLOCK_LEVEL: Record<UwIssue['blocks'], number> = { quote: 0, bind: 1, issu
 // Runs the rules, then refuses if an issue that blocks this point is not approved. The issues are saved either way,
 // so an underwriter can see them and act. Used before quoting; binding (D6) will use it for 'bind' and 'issuance'.
 export async function checkUnderwriting(
-  db: PGlite,
+  db: Database,
   deps: UnderwritingDependencies,
   branchId: string,
   point: CheckPoint,
@@ -237,7 +237,7 @@ export async function checkUnderwriting(
 // ---------------------------------------------------------------- referral and decisions
 
 // "Request approval": anyone may ask. The issue becomes referred and a task with the full context goes to the underwriter queue.
-export async function requestApproval(db: PGlite, issueId: string, actor: string, note?: string): Promise<UwIssue> {
+export async function requestApproval(db: Database, issueId: string, actor: string, note?: string): Promise<UwIssue> {
   const issue = await getIssue(db, issueId);
   if (issue === null) throw new ValidationError(['The issue does not exist']);
   if (issue.status === 'referred') throw new ValidationError(['This issue is already referred to an underwriter']);
@@ -271,7 +271,7 @@ export interface DecisionInput {
 }
 
 // Who may approve what: the grants of every authority profile the person holds, by role or by name.
-async function grantsFor(db: PGlite, rules: UwRules, username: string, issueType: string) {
+async function grantsFor(db: Database, rules: UwRules, username: string, issueType: string) {
   const user = await getUserByUsername(db, username);
   if (user === null) return [];
   return rules.authority_profiles
@@ -282,7 +282,7 @@ async function grantsFor(db: PGlite, rules: UwRules, username: string, issueType
 
 // Approve, reject, or approve with conditions. The person must hold an authority profile with a grant for this issue
 // type (and, to approve, a limit that reaches the approved ceiling). Every decision is kept with who decided and why.
-export async function decideIssue(db: PGlite, deps: UnderwritingDependencies, issueId: string, input: DecisionInput, actor: string, options: { today?: string } = {}): Promise<UwIssue> {
+export async function decideIssue(db: Database, deps: UnderwritingDependencies, issueId: string, input: DecisionInput, actor: string, options: { today?: string } = {}): Promise<UwIssue> {
   const issue = await getIssue(db, issueId);
   if (issue === null) throw new ValidationError(['The issue does not exist']);
   if (issue.status !== 'open' && issue.status !== 'referred') throw new ValidationError([`Only an open or referred issue can be decided (this one is ${issue.status})`]);

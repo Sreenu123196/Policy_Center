@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, loadTestConfiguration, resetDatabase } from '../testing/database.js';
 import { bindDeps, cancelDeps, createCustomer, issueGoldenPolicy, quoteDeps, renewDeps } from '../testing/golden-policy.js';
@@ -10,7 +10,7 @@ import { changeCoverage, startPolicyChange } from './policy-change.js';
 import { startRenewal } from './renewal.js';
 import { quoteBranch } from './submission.js';
 
-let db: PGlite;
+let db: Database;
 let customer: Account;
 
 beforeAll(async () => {

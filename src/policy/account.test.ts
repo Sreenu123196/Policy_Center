@@ -2,7 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact, type Contact, type NewContact } from '../contacts/index.js';
 import {
@@ -21,7 +21,7 @@ import {
 import { createTestDatabase, loadTestConfiguration, resetDatabase } from '../testing/database.js';
 import { addAccountContact, createAccount, getAccount, listAccounts } from './account-repository.js';
 
-let db: PGlite;
+let db: Database;
 let asha: Contact;
 let raoMotors: Contact;
 let ravi: Contact;

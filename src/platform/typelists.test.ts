@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, resetDatabase } from '../testing/database.js';
 import { listAuditEntries } from './audit.js';
@@ -12,7 +12,7 @@ import { ValidationError } from './validation-error.js';
 // The project's own typelist files: config/typelists/
 const realTypelists = fileURLToPath(new URL('../../config/typelists/', import.meta.url));
 
-let db: PGlite;
+let db: Database;
 let dir: string; // a throwaway folder for the files each test writes
 
 beforeAll(async () => {

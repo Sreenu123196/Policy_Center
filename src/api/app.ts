@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { findIdempotentResponse, getUserByUsername, PermissionError, requirePermission, saveIdempotentResponse, ValidationError, visibilityFor } from '../platform/index.js';
@@ -24,7 +24,7 @@ function badRequest(error: ZodError): ApiError & { issues: unknown[] } {
   return api;
 }
 
-export async function createApp(db: PGlite, config: ApiConfig, options: AppOptions = {}): Promise<FastifyInstance> {
+export async function createApp(db: Database, config: ApiConfig, options: AppOptions = {}): Promise<FastifyInstance> {
   const app = Fastify({ logger: options.logger ?? false });
   const today = options.today ?? ((): string => new Date().toISOString().slice(0, 10));
   const routes = allRoutes;

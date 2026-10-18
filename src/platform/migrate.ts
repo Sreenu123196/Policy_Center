@@ -1,11 +1,11 @@
 import { createHash } from 'node:crypto';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 
 // Applies the numbered SQL files in a folder, in name order, each exactly once.
 // Returns the names of the files applied by this call.
-export async function runMigrations(db: PGlite, directory: string): Promise<string[]> {
+export async function runMigrations(db: Database, directory: string): Promise<string[]> {
   // The tracking table lives in the platform schema. It is created here so the first migration can run.
   await db.exec(`
     CREATE SCHEMA IF NOT EXISTS platform;

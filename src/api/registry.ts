@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import type { IncomingHttpHeaders } from 'node:http';
 import type { z } from 'zod';
 import type { Permission, Visibility } from '../platform/index.js';
@@ -21,7 +21,7 @@ export class ApiError extends Error {
 export const notFound = (what: string): ApiError => new ApiError(404, 'not_found', `${what} was not found`);
 
 export interface RouteContext<B, Q> {
-  db: PGlite;
+  db: Database;
   config: ApiConfig;
   today: () => string; // the date of "today"; tests set it
   user: { id: string; username: string };

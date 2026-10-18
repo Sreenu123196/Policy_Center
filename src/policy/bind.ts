@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { getContact } from '../contacts/index.js';
 import { isUuid, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import { bindCancellation, getAdjustment, getAdjustmentOfBranch, issueCancellation } from './cancellation.js';
@@ -19,7 +19,7 @@ export interface BindDependencies {
 }
 
 // The premium transaction of a bound version, as small numbers for the endorsement schedule.
-async function transactionOf(db: PGlite, branchId: string): Promise<{ premium: number; total: number } | undefined> {
+async function transactionOf(db: Database, branchId: string): Promise<{ premium: number; total: number } | undefined> {
   const result = await db.query<{ premium: number; total: number }>('select premium_paise::float8 as premium, total_paise::float8 as total from policy.premium_transaction where branch_id = $1', [branchId]);
   return result.rows[0];
 }
@@ -34,7 +34,7 @@ const todayText = (): string => new Date().toISOString().slice(0, 10);
 // the version it was based on) is saved, and a PolicyBound event is written for billing. Works for a submission
 // (version 1) and for a policy change (the next version).
 export async function bindJob(
-  db: PGlite,
+  db: Database,
   deps: BindDependencies,
   jobId: string,
   input: { branchId: string },
@@ -196,7 +196,7 @@ const toDocument = (row: DocumentRow): PolicyDocument => ({
   createdAt: row.created_at.toISOString(),
 });
 
-export async function getDocument(db: PGlite, id: string): Promise<StoredDocument | null> {
+export async function getDocument(db: Database, id: string): Promise<StoredDocument | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<DocumentRow & { content: Uint8Array }>(`select ${DOCUMENT_COLUMNS}, content from policy.document where id = $1`, [id]);
   const row = result.rows[0];
@@ -204,14 +204,14 @@ export async function getDocument(db: PGlite, id: string): Promise<StoredDocumen
 }
 
 // The documents of a policy, oldest first, without their content.
-export async function listDocuments(db: PGlite, policyId: string): Promise<PolicyDocument[]> {
+export async function listDocuments(db: Database, policyId: string): Promise<PolicyDocument[]> {
   if (!isUuid(policyId)) return [];
   const result = await db.query<DocumentRow>(`select ${DOCUMENT_COLUMNS} from policy.document where policy_id = $1 order by seq`, [policyId]);
   return result.rows.map(toDocument);
 }
 
 // Collects what the schedule shows: the policy, the insured, the vehicle, the premium by cover, and underwriting conditions.
-async function buildScheduleData(db: PGlite, deps: BindDependencies, branch: Branch, jobNumber: string, quote: Quote, issuedOn: string): Promise<ScheduleData> {
+async function buildScheduleData(db: Database, deps: BindDependencies, branch: Branch, jobNumber: string, quote: Quote, issuedOn: string): Promise<ScheduleData> {
   const policy = (
     await db.query<{ policy_number: string; product_code: string; account_id: string }>('select policy_number, product_code, account_id from policy.policy where id = $1', [branch.policyId])
   ).rows[0];
@@ -272,7 +272,7 @@ async function buildScheduleData(db: PGlite, deps: BindDependencies, branch: Bra
 
 // Issuing makes the bound policy official: the job becomes issued and the policy schedule is produced and stored.
 export async function issueJob(
-  db: PGlite,
+  db: Database,
   deps: BindDependencies,
   jobId: string,
   actor: string,

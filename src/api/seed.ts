@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { assignProducerCode, assignRole, createProducerCode, createProducerOrganisation, createRole, createUser, getProducerCode, getRole, getUserByUsername, type Permission } from '../platform/index.js';
 
 // Demo people for a local run: one user for each kind of work, so the screens can be tried without an identity provider.
@@ -20,7 +20,7 @@ export const DEMO_USERS: { username: string; displayName: string; role: string; 
   { username: 'root.admin', displayName: 'Root (administrator)', role: 'api_admin' },
 ];
 
-export async function seedDemo(db: PGlite): Promise<void> {
+export async function seedDemo(db: Database): Promise<void> {
   if ((await getProducerCode(db, 'PC-100')) === null) {
     const organisation = await createProducerOrganisation(db, { name: 'Demo Insurance Agency' }, 'seed');
     await createProducerCode(db, { code: 'PC-100', organisationId: organisation.id }, 'seed');

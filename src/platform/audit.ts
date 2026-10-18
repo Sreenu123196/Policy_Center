@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 
 // Anything that can run a query: the database itself, or a transaction in progress.
 // Audit entries are written with the same transaction as the change, so the two are saved together or not at all.
@@ -46,7 +46,7 @@ export async function recordAudit(db: Queryable, entry: NewAuditEntry): Promise<
 }
 
 // Entries in the order they happened, optionally only those about one thing.
-export async function listAuditEntries(db: PGlite, filter: { entityType?: string; entityId?: string } = {}): Promise<AuditEntry[]> {
+export async function listAuditEntries(db: Database, filter: { entityType?: string; entityId?: string } = {}): Promise<AuditEntry[]> {
   const conditions: string[] = [];
   const params: string[] = [];
   if (filter.entityType !== undefined) {

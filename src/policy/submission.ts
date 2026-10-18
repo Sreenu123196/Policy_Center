@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { addDays, addYears, isRealDate, isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { moveJob, refreshJobStatus } from './job-sync.js';
 import type { Branch, Job, Policy } from './policy.js';
@@ -19,7 +19,7 @@ const QUOTE_VALID_DAYS = 30;
 // Starts a new-business submission (document section 8): the policy, a submission job and its first branch for one year.
 // Everything is checked first, so a refused request creates nothing.
 export async function startSubmission(
-  db: PGlite,
+  db: Database,
   catalogue: ProductCatalogue,
   input: { accountId: string; productCode: string; periodStart: string },
   actor: string,
@@ -45,7 +45,7 @@ export async function startSubmission(
 
 // Adds another option (branch) to a submission, so the customer can compare prices. With copyFrom, the new option
 // starts as a copy of that branch and keeps the fixed ids, so the same vehicle is still the same vehicle in both.
-export async function addQuoteOption(db: PGlite, jobId: string, input: { copyFrom?: string }, actor: string): Promise<Branch> {
+export async function addQuoteOption(db: Database, jobId: string, input: { copyFrom?: string }, actor: string): Promise<Branch> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
   if (job.status !== 'draft' && job.status !== 'quoted') throw new ValidationError([`Cannot add an option to a ${job.status} job`]);
@@ -135,7 +135,7 @@ const isMoney = (value: number): boolean => Number.isInteger(value) && value >= 
 // Prices a draft branch (document sections 8 and 9). The branch is checked against its product version first, and
 // every problem is reported together. On success the quote is stored and the branch becomes quoted; the job becomes
 // quoted when all its open options are.
-export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId: string, actor: string, options: { today?: string } = {}): Promise<Quote> {
+export async function quoteBranch(db: Database, deps: QuoteDependencies, branchId: string, actor: string, options: { today?: string } = {}): Promise<Quote> {
   const branch = await getBranch(db, branchId);
   if (branch === null) throw new ValidationError(['The branch does not exist']);
   if ((await getJob(db, branch.jobId))?.status === 'preempted') throw new ValidationError(['This job was preempted by a newer version; rebase it first']);
@@ -212,14 +212,14 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
 }
 
 // The newest quote of a branch, or null.
-export async function getLatestQuote(db: PGlite, branchId: string): Promise<Quote | null> {
+export async function getLatestQuote(db: Database, branchId: string): Promise<Quote | null> {
   const row = (await db.query<QuoteRow>(`select ${QUOTE_COLUMNS} from policy.quote where branch_id = $1 order by seq desc limit 1`, [branchId])).rows[0];
   return row ? toQuote(row) : null;
 }
 
 // The options of a job side by side. A branch shows its newest quote only while it is quoted; once edited, the old
 // price is history and the option shows no price until it is quoted again.
-export async function compareQuotes(db: PGlite, jobId: string): Promise<{ branch: Branch; quote: Quote | null }[]> {
+export async function compareQuotes(db: Database, jobId: string): Promise<{ branch: Branch; quote: Quote | null }[]> {
   const ids = await db.query<{ id: string }>('select id from policy.policy_period where job_id = $1 order by label', [jobId]);
   const options: { branch: Branch; quote: Quote | null }[] = [];
   for (const { id } of ids.rows) {
@@ -238,7 +238,7 @@ export async function compareQuotes(db: PGlite, jobId: string): Promise<{ branch
 // ---------------------------------------------------------------- ending a submission
 
 // Moves the job to an end state and withdraws its branches, in one transaction.
-async function endJob(db: PGlite, jobId: string, to: 'withdrawn' | 'declined' | 'not_taken', actor: string, reason?: string): Promise<Job> {
+async function endJob(db: Database, jobId: string, to: 'withdrawn' | 'declined' | 'not_taken', actor: string, reason?: string): Promise<Job> {
   await db.transaction(async (tx) => {
     await moveJob(tx, jobId, to, actor, reason);
     const open = await tx.query<{ id: string }>("select id from policy.policy_period where job_id = $1 and status in ('draft', 'quoted')", [jobId]);
@@ -253,13 +253,13 @@ async function endJob(db: PGlite, jobId: string, to: 'withdrawn' | 'declined' | 
 }
 
 // The customer or agent stops the submission.
-export const withdrawJob = (db: PGlite, jobId: string, actor: string, reason?: string): Promise<Job> => endJob(db, jobId, 'withdrawn', actor, reason);
+export const withdrawJob = (db: Database, jobId: string, actor: string, reason?: string): Promise<Job> => endJob(db, jobId, 'withdrawn', actor, reason);
 
 // The insurer refuses the risk. A reason is always required.
-export async function declineJob(db: PGlite, jobId: string, actor: string, reason: string): Promise<Job> {
+export async function declineJob(db: Database, jobId: string, actor: string, reason: string): Promise<Job> {
   if (reason.trim() === '') throw new ValidationError(['A reason is required to decline a submission']);
   return endJob(db, jobId, 'declined', actor, reason.trim());
 }
 
 // A quote the customer did not accept.
-export const markNotTaken = (db: PGlite, jobId: string, actor: string, reason?: string): Promise<Job> => endJob(db, jobId, 'not_taken', actor, reason);
+export const markNotTaken = (db: Database, jobId: string, actor: string, reason?: string): Promise<Job> => endJob(db, jobId, 'not_taken', actor, reason);

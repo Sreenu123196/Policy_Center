@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { createProducerCode, createProducerOrganisation, listAuditEntries, ValidationError } from '../platform/index.js';
@@ -12,7 +12,7 @@ import { addCoverable, addCoverage, createBranch, createPolicy, getBranch, getBr
 const catalogue = loadProductCatalogue(fileURLToPath(new URL('../../config/products/', import.meta.url)));
 const PRODUCT = 'MOTOR_PRIVATE_CAR';
 
-let db: PGlite;
+let db: Database;
 let account: Account;
 
 beforeAll(async () => {

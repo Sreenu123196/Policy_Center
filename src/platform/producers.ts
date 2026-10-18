@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { recordAudit } from './audit.js';
 import { isUuid } from './ids.js';
 import { ValidationError } from './validation-error.js';
@@ -18,7 +18,7 @@ export interface ProducerCode {
 const CODE_FORMAT = /^[A-Z0-9-]{3,20}$/;
 
 // An organisation is an agency or brokerage. It can hold several producer codes.
-export async function createProducerOrganisation(db: PGlite, input: { name: string }, actor: string): Promise<ProducerOrganisation> {
+export async function createProducerOrganisation(db: Database, input: { name: string }, actor: string): Promise<ProducerOrganisation> {
   const name = input.name.trim();
   if (name === '') throw new ValidationError(['Organisation name is required']);
 
@@ -39,7 +39,7 @@ export async function createProducerOrganisation(db: PGlite, input: { name: stri
   return { id, name };
 }
 
-export async function createProducerCode(db: PGlite, input: { code: string; organisationId: string }, actor: string): Promise<ProducerCode> {
+export async function createProducerCode(db: Database, input: { code: string; organisationId: string }, actor: string): Promise<ProducerCode> {
   const { code, organisationId } = input;
   if (!CODE_FORMAT.test(code)) throw new ValidationError(['Producer code must be 3 to 20 capital letters, digits or hyphens']);
   if (await getProducerCode(db, code)) throw new ValidationError([`Producer code ${code} already exists`]);
@@ -59,7 +59,7 @@ export async function createProducerCode(db: PGlite, input: { code: string; orga
 }
 
 // Returns null if the code does not exist.
-export async function getProducerCode(db: PGlite, code: string): Promise<ProducerCode | null> {
+export async function getProducerCode(db: Database, code: string): Promise<ProducerCode | null> {
   const result = await db.query<{ code: string; organisation_name: string; status: 'active' | 'inactive' }>(
     `select c.code, o.name as organisation_name, c.status
        from platform.producer_code c
@@ -72,7 +72,7 @@ export async function getProducerCode(db: PGlite, code: string): Promise<Produce
 }
 
 // The record stays (old accounts still refer to it), but new accounts can no longer use the code.
-export async function deactivateProducerCode(db: PGlite, code: string, actor: string): Promise<ProducerCode> {
+export async function deactivateProducerCode(db: Database, code: string, actor: string): Promise<ProducerCode> {
   if ((await getProducerCode(db, code)) === null) throw new ValidationError([`Producer code ${code} does not exist`]);
 
   await db.transaction(async (tx) => {

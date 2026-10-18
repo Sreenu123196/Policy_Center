@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { addDays, addYears, isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import type { PolicyDocument } from './bind.js';
 import { latestBound } from './cancellation.js';
@@ -21,7 +21,7 @@ export interface RenewalDependencies {
 
 const todayText = (): string => new Date().toISOString().slice(0, 10);
 
-const productOf = async (db: PGlite, policyId: string): Promise<string | undefined> =>
+const productOf = async (db: Database, policyId: string): Promise<string | undefined> =>
   isUuid(policyId) ? (await db.query<{ product_code: string }>('select product_code from policy.policy where id = $1', [policyId])).rows[0]?.product_code : undefined;
 
 // ---------------------------------------------------------------- directions
@@ -67,20 +67,20 @@ const toDirection = (r: DirectionRow): RenewalDirection => ({
 });
 
 // Every direction ever given, oldest first.
-export async function listRenewalDirections(db: PGlite, policyId: string): Promise<RenewalDirection[]> {
+export async function listRenewalDirections(db: Database, policyId: string): Promise<RenewalDirection[]> {
   if (!isUuid(policyId)) return [];
   const result = await db.query<DirectionRow>(`select ${DIRECTION_COLUMNS} from policy.renewal_direction where policy_id = $1 order by seq`, [policyId]);
   return result.rows.map(toDirection);
 }
 
 // The direction in force for a term: the newest one. No direction means "renew".
-async function currentDirection(db: Pick<PGlite, 'query'>, policyId: string, termNumber: number): Promise<RenewalDirection | null> {
+async function currentDirection(db: Pick<Database, 'query'>, policyId: string, termNumber: number): Promise<RenewalDirection | null> {
   const row = (await db.query<DirectionRow>(`select ${DIRECTION_COLUMNS} from policy.renewal_direction where policy_id = $1 and term_number = $2 order by seq desc limit 1`, [policyId, termNumber])).rows[0];
   return row ? toDirection(row) : null;
 }
 
 // The pre-renewal direction (document section 8). A reason is always required. A non-renewal still needs approval.
-export async function setRenewalDirection(db: PGlite, input: { policyId: string; direction: RenewalDirectionKind; reason: string }, actor: string): Promise<RenewalDirection> {
+export async function setRenewalDirection(db: Database, input: { policyId: string; direction: RenewalDirectionKind; reason: string }, actor: string): Promise<RenewalDirection> {
   if ((await productOf(db, input.policyId)) === undefined) throw new ValidationError(['The policy does not exist']);
   const latest = await latestBound(db, input.policyId);
   if (latest === null) throw new ValidationError(['The policy has no bound version']);
@@ -107,7 +107,7 @@ export async function setRenewalDirection(db: PGlite, input: { policyId: string;
 }
 
 // Non-renewal needs approval (document section 8), and by a different person: separation of duties.
-export async function approveNonRenewal(db: PGlite, policyId: string, approver: string, reason: string): Promise<RenewalDirection> {
+export async function approveNonRenewal(db: Database, policyId: string, approver: string, reason: string): Promise<RenewalDirection> {
   const latest = isUuid(policyId) ? await latestBound(db, policyId) : null;
   const current = latest ? await currentDirection(db, policyId, latest.termNumber) : null;
   if (current === null || current.direction !== 'non_renew') throw new ValidationError(['There is no non-renewal waiting for approval']);
@@ -128,10 +128,10 @@ export async function approveNonRenewal(db: PGlite, policyId: string, approver: 
 
 // A stored PDF for the policy, as a document row. The job and branch are those of the newest bound version or the renewal.
 async function storeDocument(
-  db: PGlite,
+  db: Database,
   doc: { policyId: string; jobId: string; branchId: string; kind: string; content: Uint8Array; metadata: PolicyDocument['metadata'] },
   actor: string,
-  after?: (tx: Pick<PGlite, 'query'>, documentId: string) => Promise<void>,
+  after?: (tx: Pick<Database, 'query'>, documentId: string) => Promise<void>,
 ): Promise<PolicyDocument> {
   const sha256 = createHash('sha256').update(doc.content).digest('hex');
   const id = await db.transaction(async (tx) => {
@@ -156,7 +156,7 @@ async function storeDocument(
 }
 
 // Sends the non-renewal notice: only after approval, and in time (the product says how many days before expiry).
-export async function issueNonRenewalNotice(db: PGlite, deps: RenewalDependencies, policyId: string, actor: string, options: { today?: string } = {}): Promise<PolicyDocument> {
+export async function issueNonRenewalNotice(db: Database, deps: RenewalDependencies, policyId: string, actor: string, options: { today?: string } = {}): Promise<PolicyDocument> {
   const latest = isUuid(policyId) ? await latestBound(db, policyId) : null;
   const current = latest ? await currentDirection(db, policyId, latest.termNumber) : null;
   if (latest === null || current === null || current.direction !== 'non_renew') throw new ValidationError(['There is no non-renewal to issue a notice for']);
@@ -197,7 +197,7 @@ export async function issueNonRenewalNotice(db: PGlite, deps: RenewalDependencie
 // recorded, the vehicle gains one claim-free year (claims, Part G, will take that over). The product version is the
 // one in force on the new start date, so old choices are checked against it when the renewal is quoted.
 export async function startRenewal(
-  db: PGlite,
+  db: Database,
   deps: RenewalDependencies,
   input: { policyId: string },
   actor: string,
@@ -279,7 +279,7 @@ export async function startRenewal(
 
 // The renewal offer document (a renewal notice): the new premium beside the expiring one, and how long the offer lasts.
 // It changes nothing in the job: the offer is accepted by binding, or ends as "not taken".
-export async function produceRenewalOffer(db: PGlite, deps: RenewalDependencies, jobId: string, actor: string, options: { today?: string } = {}): Promise<PolicyDocument> {
+export async function produceRenewalOffer(db: Database, deps: RenewalDependencies, jobId: string, actor: string, options: { today?: string } = {}): Promise<PolicyDocument> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
   if (job.type !== 'renewal' || job.status !== 'quoted') throw new ValidationError([`Only a quoted renewal job can get an offer (this one is ${job.type}, ${job.status})`]);

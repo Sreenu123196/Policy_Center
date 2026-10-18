@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { createProducerCode, createProducerOrganisation, listAuditEntries, listUnpublishedEvents, ValidationError } from '../platform/index.js';
@@ -25,7 +25,7 @@ const END = '2027-10-15';
 const TODAY = '2026-10-16';
 const CHANGE_DAY = '2027-01-01'; // 78 days into the 365-day term
 
-let db: PGlite;
+let db: Database;
 let person: Account;
 
 beforeAll(async () => {

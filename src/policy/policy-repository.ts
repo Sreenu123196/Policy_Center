@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { PGlite, Transaction } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { canSeeProducerCode, isRealDate, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
 import {
   COVERABLE_KINDS,
@@ -102,7 +102,7 @@ const toBranch = (row: BranchRow): Branch => ({
 });
 
 // Producer code security (document section 13): a policy the viewer may not see is reported as "not found".
-export async function getPolicy(db: PGlite, id: string, visibility: Visibility): Promise<Policy | null> {
+export async function getPolicy(db: Database, id: string, visibility: Visibility): Promise<Policy | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<PolicyRow & { producer_code: string }>(
     `select p.id, p.policy_number, p.account_id, p.product_code, p.created_by, p.created_at, a.producer_code
@@ -114,25 +114,25 @@ export async function getPolicy(db: PGlite, id: string, visibility: Visibility):
   return row && canSeeProducerCode(visibility, row.producer_code) ? toPolicy(row) : null;
 }
 
-export async function getJob(db: Pick<PGlite, 'query'>, id: string): Promise<Job | null> {
+export async function getJob(db: Pick<Database, 'query'>, id: string): Promise<Job | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<JobRow>(`select ${JOB_COLUMNS} from policy.job where id = $1`, [id]);
   const row = result.rows[0];
   return row ? toJob(row) : null;
 }
 
-export async function getBranch(db: Pick<PGlite, 'query'>, id: string): Promise<Branch | null> {
+export async function getBranch(db: Pick<Database, 'query'>, id: string): Promise<Branch | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<BranchRow>(`select ${BRANCH_COLUMNS} from policy.policy_period where id = $1`, [id]);
   const row = result.rows[0];
   return row ? toBranch(row) : null;
 }
 
-const exists = async (db: PGlite, table: 'account' | 'policy' | 'job', id: string): Promise<boolean> =>
+const exists = async (db: Database, table: 'account' | 'policy' | 'job', id: string): Promise<boolean> =>
   isUuid(id) && (await db.query(`select 1 from policy.${table} where id = $1`, [id])).rows.length > 0;
 
 // The next free option name in a job: Option A, Option B ... (a job rarely has more than a few).
-export async function nextOptionLabel(db: Pick<Transaction, 'query'>, jobId: string): Promise<string> {
+export async function nextOptionLabel(db: Pick<Database, 'query'>, jobId: string): Promise<string> {
   const counted = await db.query<{ n: number }>('select count(*)::int as n from policy.policy_period where job_id = $1', [jobId]);
   return `Option ${String.fromCharCode(65 + (counted.rows[0]?.n ?? 0))}`;
 }
@@ -140,7 +140,7 @@ export async function nextOptionLabel(db: Pick<Transaction, 'query'>, jobId: str
 // ---------------------------------------------------------------- policy, job, branch
 
 // Creates the contract. The number is given once and never changes.
-export async function createPolicy(db: PGlite, catalogue: ProductCatalogue, input: { accountId: string; productCode: string }, actor: string): Promise<Policy> {
+export async function createPolicy(db: Database, catalogue: ProductCatalogue, input: { accountId: string; productCode: string }, actor: string): Promise<Policy> {
   const errors: string[] = [];
   if (!(await exists(db, 'account', input.accountId))) errors.push('The account does not exist');
   if (catalogue.latest(input.productCode) === null) errors.push(`Product ${input.productCode} is not in the product catalogue`);
@@ -164,7 +164,7 @@ export async function createPolicy(db: PGlite, catalogue: ProductCatalogue, inpu
 }
 
 // Starts a unit of work on a policy. It begins as a draft.
-export async function startJob(db: PGlite, input: { policyId: string; type: JobType }, actor: string): Promise<Job> {
+export async function startJob(db: Database, input: { policyId: string; type: JobType }, actor: string): Promise<Job> {
   const errors: string[] = [];
   if (!(await exists(db, 'policy', input.policyId))) errors.push('The policy does not exist');
   if (!JOB_TYPES.includes(input.type)) errors.push(`Job type must be one of ${JOB_TYPES.join(', ')}`);
@@ -190,7 +190,7 @@ export async function startJob(db: PGlite, input: { policyId: string; type: JobT
 // Creates a working copy of one term inside a job. New business uses the product version in force on the start date,
 // and the branch records which one it was.
 export async function createBranch(
-  db: PGlite,
+  db: Database,
   catalogue: ProductCatalogue,
   input: { jobId: string; periodStart: string; periodEnd: string; termNumber?: number },
   actor: string,
@@ -244,7 +244,7 @@ export async function createBranch(
 // ---------------------------------------------------------------- effective-dated rows
 
 // The branch must exist and still be open for editing. A bound version is never edited (document section 5).
-export async function openBranch(db: PGlite, branchId: string): Promise<Branch> {
+export async function openBranch(db: Database, branchId: string): Promise<Branch> {
   const branch = await getBranch(db, branchId);
   if (branch === null) throw new ValidationError(['The branch does not exist']);
   if (branch.status === 'bound') throw new ValidationError(['A bound policy version cannot be changed']);
@@ -282,7 +282,7 @@ export interface NewCoverable {
 }
 
 // Adds a thing insured (a vehicle, a driver ...) over a range of dates, or another slice of an existing one.
-export async function addCoverable(db: PGlite, branchId: string, input: NewCoverable, actor: string): Promise<CoverableSlice> {
+export async function addCoverable(db: Database, branchId: string, input: NewCoverable, actor: string): Promise<CoverableSlice> {
   const branch = await openBranch(db, branchId);
   const errors: string[] = [];
 
@@ -330,7 +330,7 @@ export interface NewCoverage {
 }
 
 // Adds a coverage on a coverable over a range of dates, or another slice of an existing coverage.
-export async function addCoverage(db: PGlite, branchId: string, input: NewCoverage, actor: string): Promise<CoverageSlice> {
+export async function addCoverage(db: Database, branchId: string, input: NewCoverage, actor: string): Promise<CoverageSlice> {
   const branch = await openBranch(db, branchId);
   const errors: string[] = [];
 
@@ -388,7 +388,7 @@ export async function addCoverage(db: PGlite, branchId: string, input: NewCovera
 
 // What the branch looked like on one date (document section 6): the slices that are true on that day.
 // A slice covers its first day and not its last, so the boundary day belongs to the later slice.
-export async function getBranchAsOf(db: PGlite, branchId: string, date: string): Promise<BranchAsOf | null> {
+export async function getBranchAsOf(db: Database, branchId: string, date: string): Promise<BranchAsOf | null> {
   if (!isRealDate(date)) throw new ValidationError(['The date is not a real date (write it as yyyy-mm-dd)']);
   const branch = await getBranch(db, branchId);
   if (branch === null) return null;

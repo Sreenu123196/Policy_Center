@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { addDays, daysBetween, isRealDate, isUuid, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import { allocate, type Q } from './allocation.js';
 import { getBillingAccount } from './billing.js';
@@ -101,7 +101,7 @@ async function announce(tx: Q, payment: Payment, accountId: string): Promise<voi
 }
 
 // Takes a payment for an account and allocates it, oldest invoice first. What is left stays as unapplied cash.
-export async function receivePayment(db: PGlite, input: NewPayment & { accountId: string }, actor: string): Promise<Payment> {
+export async function receivePayment(db: Database, input: NewPayment & { accountId: string }, actor: string): Promise<Payment> {
   const errors = checkPayment(input);
   const account = await getBillingAccount(db, input.accountId);
   if (account === null) errors.push('There is no billing account for that account; use receiveUnmatchedPayment to hold the money in suspense');
@@ -127,7 +127,7 @@ export async function receivePayment(db: PGlite, input: NewPayment & { accountId
 }
 
 // A payment that cannot be matched to an account yet (an unknown transfer) goes to suspense.
-export async function receiveUnmatchedPayment(db: PGlite, input: NewPayment, actor: string): Promise<Payment> {
+export async function receiveUnmatchedPayment(db: Database, input: NewPayment, actor: string): Promise<Payment> {
   const errors = checkPayment(input);
   if (errors.length > 0) throw new ValidationError(errors);
   const id = await db.transaction(async (tx) => {
@@ -147,7 +147,7 @@ export async function receiveUnmatchedPayment(db: PGlite, input: NewPayment, act
 }
 
 // Someone works out whose payment it is: it leaves suspense and is allocated like any other.
-export async function matchSuspense(db: PGlite, paymentId: string, accountId: string, actor: string): Promise<Payment> {
+export async function matchSuspense(db: Database, paymentId: string, accountId: string, actor: string): Promise<Payment> {
   const payment = await getPayment(db, paymentId);
   if (payment === null) throw new ValidationError(['The payment does not exist']);
   if (payment.billingAccountId !== null) throw new ValidationError(['This payment is not in suspense']);
@@ -194,7 +194,7 @@ async function closeIfSpent(tx: Q, credit: CreditRow, appliedNow: number, paidOu
 }
 
 // Uses a credit against what the customer owes, oldest invoice first. Whatever it cannot be used on stays as credit.
-export async function applyCredit(db: PGlite, creditId: string, actor: string): Promise<{ creditId: string; appliedPaise: number; remainingPaise: number }> {
+export async function applyCredit(db: Database, creditId: string, actor: string): Promise<{ creditId: string; appliedPaise: number; remainingPaise: number }> {
   const credit = await getCredit(db, creditId);
   if (credit === null) throw new ValidationError(['The credit does not exist']);
   const remaining = credit.total_paise - credit.applied - credit.paid_out;
@@ -221,7 +221,7 @@ export interface Payout {
 // Pays a credit out to the customer. Cash goes back only if it was received: at most what the customer paid for the
 // policy beyond what the insurer keeps, and not more than the credit has left. Otherwise the credit is applied instead.
 export async function refundCredit(
-  db: PGlite,
+  db: Database,
   creditId: string,
   input: { method: PaymentMethod; reference: string; paidOn: string; amountPaise?: number },
   actor: string,
@@ -299,7 +299,7 @@ export async function listDelinquencySteps(db: Q, invoiceId: string): Promise<{ 
 // The delinquency batch (document section 14): for every open invoice that is still unpaid after its due date plus the
 // plan's grace days, do the timed steps that have come due and not been done: a reminder, a final notice, and a
 // cancellation request that Policy picks up. A step is done once per invoice. Each step is announced as an event.
-export async function runDelinquency(db: PGlite, config: BillingConfigCatalogue, options: { today: string }, actor: string): Promise<DelinquencyAction[]> {
+export async function runDelinquency(db: Database, config: BillingConfigCatalogue, options: { today: string }, actor: string): Promise<DelinquencyAction[]> {
   if (!isRealDate(options.today)) throw new ValidationError(['The date is not a real date (write it as yyyy-mm-dd)']);
   const current = config.forDate(options.today);
   const plans = new Map(current.plans.map((p) => [p.code, p]));

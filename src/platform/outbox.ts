@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import type { Queryable } from './audit.js';
 import { ValidationError } from './validation-error.js';
 
@@ -40,7 +40,7 @@ interface EventRow {
 }
 
 // Events not published yet, oldest first.
-export async function listUnpublishedEvents(db: PGlite, limit = 100): Promise<OutboxEvent[]> {
+export async function listUnpublishedEvents(db: Database, limit = 100): Promise<OutboxEvent[]> {
   const result = await db.query<EventRow>(
     'select id::float8 as id, type, aggregate_type, aggregate_id, payload, created_at, published_at from platform.outbox where published_at is null order by id limit $1',
     [limit],
@@ -64,7 +64,7 @@ export async function markPublished(db: Queryable, ids: number[]): Promise<void>
 
 // Events after a given id, oldest first, whether or not they were published. A consumer (billing, for example) keeps
 // its own offset, the id of the last event it handled, so several consumers can read the same outbox.
-export async function listEventsAfter(db: Pick<PGlite, 'query'>, afterId: number, limit = 100): Promise<OutboxEvent[]> {
+export async function listEventsAfter(db: Pick<Database, 'query'>, afterId: number, limit = 100): Promise<OutboxEvent[]> {
   const result = await db.query<EventRow>(
     'select id::float8 as id, type, aggregate_type, aggregate_id, payload, created_at, published_at from platform.outbox where id > $1 order by id limit $2',
     [afterId, limit],

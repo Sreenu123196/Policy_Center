@@ -1,4 +1,4 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { z } from 'zod';
 import { addDays, isRealDate, isUuid, listEventsAfter, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import type { OutboxEvent } from '../platform/index.js';
@@ -10,7 +10,7 @@ import { splitCharge, type ScheduleItem } from './plan-split.js';
 // policy is bound, renewed, reinstated or cancelled, Policy says how much premium and tax changed, and Billing turns
 // that into charges, payment items by the payment plan, credits for refunds, and invoices. It never reads Policy's tables.
 
-type Q = Pick<PGlite, 'query'>;
+type Q = Pick<Database, 'query'>;
 
 const CONSUMER = 'billing';
 // The events that carry money. Every other event is passed over.
@@ -205,7 +205,7 @@ export async function getInvoice(db: Q, id: string): Promise<(Invoice & { lines:
 
 // Chooses the payment plan of an account, creating its billing account if it has none yet. Only possible before the
 // first charge: after that the plan has already been used to split money.
-export async function setPaymentPlan(db: PGlite, config: BillingConfigCatalogue, accountId: string, planCode: string, actor: string, options: { today?: string } = {}): Promise<BillingAccount> {
+export async function setPaymentPlan(db: Database, config: BillingConfigCatalogue, accountId: string, planCode: string, actor: string, options: { today?: string } = {}): Promise<BillingAccount> {
   if (!isUuid(accountId)) throw new ValidationError(['The account id is not valid']);
   const current = config.forDate(options.today ?? new Date().toISOString().slice(0, 10));
   if (!current.plans.some((p) => p.code === planCode)) throw new ValidationError([`Payment plan ${planCode} does not exist`]);
@@ -300,7 +300,7 @@ async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: Ou
 
 // Reads the events it has not handled yet, in order, and creates the charges. A batch is saved together with the new
 // offset or not at all: if one event is bad, nothing from the batch is kept and the offset does not move.
-export async function processPolicyEvents(db: PGlite, config: BillingConfigCatalogue, options: { limit?: number } = {}): Promise<{ eventsRead: number; chargesCreated: number }> {
+export async function processPolicyEvents(db: Database, config: BillingConfigCatalogue, options: { limit?: number } = {}): Promise<{ eventsRead: number; chargesCreated: number }> {
   const offset = (await db.query<{ last_event_id: number }>('select last_event_id::float8 as last_event_id from billing.consumer_offset where consumer = $1', [CONSUMER])).rows[0]?.last_event_id ?? 0;
   const events = await listEventsAfter(db, offset, options.limit ?? 100);
   const last = events.at(-1);
@@ -323,7 +323,7 @@ export async function processPolicyEvents(db: PGlite, config: BillingConfigCatal
 
 // The invoice batch: every payment item due within its plan's invoice lead days is put on an invoice. Items of one
 // billing account due on the same day go on one invoice. An item is never invoiced twice. Returns the invoices made.
-export async function generateInvoices(db: PGlite, config: BillingConfigCatalogue, options: { today: string }, actor: string): Promise<Invoice[]> {
+export async function generateInvoices(db: Database, config: BillingConfigCatalogue, options: { today: string }, actor: string): Promise<Invoice[]> {
   if (!isRealDate(options.today)) throw new ValidationError(['The invoice date is not a real date (write it as yyyy-mm-dd)']);
   const plans = new Map(config.forDate(options.today).plans.map((p) => [p.code, p]));
   const due = await db.query<{ id: string; billing_account_id: string; plan_code: string; due_date: string }>(

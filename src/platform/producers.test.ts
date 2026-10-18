@@ -1,11 +1,11 @@
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from './database.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, resetDatabase } from '../testing/database.js';
 import { createProducerCode, createProducerOrganisation, deactivateProducerCode, getProducerCode } from './producers.js';
 import { ValidationError } from './validation-error.js';
 import { canSeeProducerCode } from './visibility.js';
 
-let db: PGlite;
+let db: Database;
 
 beforeAll(async () => {
   db = await createTestDatabase();

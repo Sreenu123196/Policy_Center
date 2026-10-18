@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
 import { createProducerCode, createProducerOrganisation, listAuditEntries, ValidationError } from '../platform/index.js';
@@ -27,7 +27,7 @@ const JAN1 = '2027-01-01';
 const DEC1 = '2026-12-01';
 const MAR1 = '2027-03-01';
 
-let db: PGlite;
+let db: Database;
 let person: Account;
 
 beforeAll(async () => {

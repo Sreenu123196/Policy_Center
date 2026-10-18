@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import type { FastifyInstance } from 'fastify';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import {
@@ -21,7 +21,7 @@ import { loadApiConfig } from './config.js';
 const configFolder = fileURLToPath(new URL('../../config/', import.meta.url));
 const config = loadApiConfig(configFolder);
 
-let db: PGlite;
+let db: Database;
 let app: FastifyInstance;
 let today = '2026-10-16';
 

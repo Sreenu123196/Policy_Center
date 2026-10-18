@@ -1,5 +1,5 @@
 import { fileURLToPath } from 'node:url';
-import type { PGlite } from '@electric-sql/pglite';
+import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { assignRole, createRole, createUser, getUserByUsername, listAuditEntries, ValidationError } from '../platform/index.js';
 import type { Account } from '../policy/index.js';
@@ -13,7 +13,7 @@ const configFolder = fileURLToPath(new URL('../../config/', import.meta.url));
 const config = loadClaimsConfig(`${configFolder}claims/`);
 const deps = { config };
 
-let db: PGlite;
+let db: Database;
 let customer: Account;
 
 beforeAll(async () => {
