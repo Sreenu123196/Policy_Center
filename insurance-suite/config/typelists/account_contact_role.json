@@ -1,0 +1,11 @@
+{
+  "typelist": "account_contact_role",
+  "version": "2026.10.1",
+  "effective_from": "2026-10-01",
+  "entries": [
+    { "code": "named_insured", "sort": 10, "names": { "en": "Named insured", "hi": "नामित बीमाधारक", "te": "పేరు గల బీమాదారు" } },
+    { "code": "driver", "sort": 20, "names": { "en": "Driver", "hi": "चालक", "te": "డ్రైవర్" } },
+    { "code": "financier", "sort": 30, "names": { "en": "Financier", "hi": "वित्तपोषक", "te": "ఫైనాన్షియర్" } },
+    { "code": "billing_contact", "sort": 40, "names": { "en": "Billing contact", "hi": "बिलिंग संपर्क", "te": "బిల్లింగ్ సంప్రదింపు వ్యక్తి" } }
+  ]
+}

@@ -1,0 +1,33 @@
+// Platform module (document sections 12, 13 and 17): users, roles, audit log, typelists,
+// activities and events, shared by all other modules. This file is the module's public door.
+export { MODULES } from './modules.js';
+export type { ModuleName } from './modules.js';
+export { connectPostgres, createDatabase, openDatabase } from './database.js';
+export type { Database, QueryResult, Transaction } from './database.js';
+export { runMigrations } from './migrate.js';
+export { ValidationError } from './validation-error.js';
+export { PermissionError } from './permission-error.js';
+export { isUuid } from './ids.js';
+export { addDays, addYears, daysBetween, isRealDate } from './dates.js';
+export { PERMISSIONS, isPermission } from './permissions.js';
+export type { Permission } from './permissions.js';
+export { listAuditEntries, recordAudit } from './audit.js';
+export type { AuditEntry, NewAuditEntry, Queryable } from './audit.js';
+export { createProducerCode, createProducerOrganisation, deactivateProducerCode, getProducerCode } from './producers.js';
+export type { ProducerCode, ProducerOrganisation } from './producers.js';
+export { createRole, getRole } from './roles.js';
+export type { Role } from './roles.js';
+export { assignProducerCode, assignRole, createUser, deactivateUser, getUser, getUserByUsername } from './users.js';
+export type { User, UserKind } from './users.js';
+export { hasPermission, requirePermission, visibilityFor } from './authorization.js';
+export { canSeeProducerCode } from './visibility.js';
+export type { Visibility } from './visibility.js';
+export { getTypelist, isActiveTypelistCode, loadTypelists } from './typelists.js';
+export type { Language, LoadResult, TypelistEntry } from './typelists.js';
+export { loadConfiguration } from './configuration.js';
+export { listEventsAfter, listUnpublishedEvents, markPublished, recordEvent } from './outbox.js';
+export type { NewEvent, OutboxEvent } from './outbox.js';
+export { consumeEvents, listDeadEvents, PermanentEventError, redriveDeadEvent } from './event-consumer.js';
+export type { ConsumeOptions, ConsumeResult, DeadEvent } from './event-consumer.js';
+export { findIdempotentResponse, saveIdempotentResponse } from './idempotency.js';
+export type { StoredResponse } from './idempotency.js';
