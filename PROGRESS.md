@@ -19,7 +19,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | B2 | TypeScript, Vitest, linting, module folders | Done (`npm run check` passes) |
 | B3 | PostgreSQL and SQL migrations | Done, using PGlite instead of Docker (see Decisions) |
 | B4 | Technical rules in CLAUDE.md, notes files | Done (done before B3, which needs a decision) |
-| C1 to C4 | Contacts, accounts, users and audit, typelists | Next: C1 |
+| C1 | Contacts: people and companies, PIN code, masked identifiers | Done (27 tests pass) |
+| C2 to C4 | Accounts, users and audit, typelists | Next: C2 |
 | D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Not started |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
@@ -33,3 +34,10 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 ## Decisions
 - **PGlite instead of Docker (18 Oct 2026).** Docker is not installed, and installing it is a global change that needs the student's say-so. PGlite is real PostgreSQL (version 18.6) running inside Node as a normal npm package. It was tested with the effective-dating rules: it accepts adjacent slices, rejects overlapping ones, and answers "as of a date" queries. Migrations are plain SQL files, so they run unchanged on PostgreSQL in Docker later; only `src/platform/database.ts` would change. The student can ask to switch at any time.
 - No migration command-line script yet. Running TypeScript files directly conflicts with our `.js` import convention, so a script waits until the API step (H1), which needs a build.
+
+## Deferred from C1 (in document section 16, not in the roadmap step)
+- KYC status and evidence, consent per channel (call, SMS, email, WhatsApp) with dates.
+- Duplicate matching (name, date of birth, phone, identifiers) and a merge process.
+- Roles on accounts and claims (named insured, driver, financier, claimant...). These arrive with accounts (C2) and claims (Part G).
+- Checks that go beyond format: the Aadhaar check digit (Verhoeff), the GSTIN check character, and a real PIN code directory.
+- The `state` field is free text until typelists exist (C4). `ValidationError` lives in Contacts for now; it moves to Platform when a second module needs it.
