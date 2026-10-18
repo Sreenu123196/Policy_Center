@@ -2,6 +2,7 @@ import type { BranchAsOf } from './policy.js';
 import type { ProductCatalogue } from './product-catalogue.js';
 import type { ProductFile } from './product-model.js';
 import type { Facts, Selection } from './product-selection.js';
+import type { UnderwritingDependencies } from './underwriting.js';
 
 // What the rating needs to price a branch (document section 9). The real rating engine is built in step D4.
 export interface QuoteRequest {
@@ -32,6 +33,7 @@ export type Quoter = (request: QuoteRequest) => QuoteResult;
 export interface QuoteDependencies {
   catalogue: ProductCatalogue;
   quoter: Quoter;
+  underwriting?: UnderwritingDependencies; // when given, underwriting rules run before the quote
 }
 
 // A price given to a customer. Permanent: a new price is a new quote, the old one stays as history.

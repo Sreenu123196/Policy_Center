@@ -1,11 +1,12 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { getContact } from '../contacts/index.js';
 import { addDays, addYears, isRealDate, isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { moveJob, refreshJobStatus } from './job-sync.js';
 import type { Branch, Job, Policy } from './policy.js';
 import { createBranch, createPolicy, getBranch, getBranchAsOf, getJob, nextOptionLabel, startJob } from './policy-repository.js';
 import type { ProductCatalogue } from './product-catalogue.js';
-import { validateSelection, type Facts, type Selection } from './product-selection.js';
+import { validateSelection } from './product-selection.js';
+import { buildRisk } from './risk.js';
+import { checkUnderwriting } from './underwriting.js';
 import type { Quote, QuoteDependencies, QuoteResult, WorksheetLine } from './quote.js';
 
 // Quotes stay valid for 30 days (a business rule of this learning version).
@@ -145,30 +146,17 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
   if (asOf === null) throw new ValidationError(['The branch does not exist']);
 
   // Facts about the risk come from the branch and from the account's named insured.
-  const errors: string[] = [];
-  const vehicles = asOf.coverables.filter((c) => c.kind === 'Vehicle');
-  const vehicle = vehicles.length === 1 ? vehicles[0] : undefined;
-  if (vehicles.length !== 1) errors.push('A quote needs exactly one vehicle');
-  const facts: Facts = {};
-  if (vehicle !== undefined) {
-    const year = vehicle.attributes.year;
-    if (typeof year !== 'number' || !Number.isInteger(year)) errors.push('The vehicle needs a model year');
-    else facts.vehicle = { ageYears: Number(branch.periodStart.slice(0, 4)) - year };
-  }
-  const insured = (await db.query<{ contact_id: string }>("select contact_id from policy.account_contact where account_id = $1 and role = 'named_insured'", [policy.account_id])).rows[0];
-  const contact = insured ? await getContact(db, insured.contact_id) : null;
-  if (contact === null) errors.push('The account has no named insured');
-  else facts.ownerType = contact.kind === 'person' ? 'individual' : 'company';
-
-  const selection: Selection = {};
-  for (const coverage of asOf.coverages) selection[coverage.patternCode] = coverage.terms;
+  const { facts, selection, errors } = await buildRisk(db, policy.account_id, asOf);
   errors.push(...validateSelection(productVersion, facts, selection));
   if (errors.length > 0) throw new ValidationError(errors);
+
+  // Underwriting rules (document section 10): an issue that blocks the quote stops it until someone with authority approves.
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  if (deps.underwriting) await checkUnderwriting(db, deps.underwriting, branchId, 'quote', actor, { today });
 
   const result: QuoteResult = deps.quoter({ branch: asOf, productVersion, facts, selection });
   if (![result.premiumPaise, result.taxPaise].every(isMoney)) throw new ValidationError(['The rating returned an invalid price']);
 
-  const today = options.today ?? new Date().toISOString().slice(0, 10);
   const total = result.premiumPaise + result.taxPaise;
   const quoteId = await db.transaction(async (tx) => {
     const inserted = await tx.query<{ id: string }>(

@@ -18,3 +18,7 @@ export { addQuoteOption, compareQuotes, declineJob, markNotTaken, quoteBranch, s
 export { loadRateBooks } from './rate-book.js';
 export type { RateBook, RateBookCatalogue } from './rate-book.js';
 export { createQuoter } from './rating.js';
+export { loadUnderwritingRules } from './uw-rules.js';
+export type { CheckPoint, UwRules, UwRulesCatalogue } from './uw-rules.js';
+export { checkUnderwriting, decideIssue, evaluateRules, listIssues, listReferrals, requestApproval } from './underwriting.js';
+export type { DecisionInput, DecisionKind, IssueStatus, Referral, UnderwritingDependencies, UwDecision, UwIssue } from './underwriting.js';

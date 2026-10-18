@@ -156,6 +156,11 @@ Rating (document section 9)
 - Rate books are files `config/ratebooks/<product lower case>-<product version>.json`, loaded with `loadRateBooks`, one per product version. Never edit a rate book that priced policies; add a new version. Rates are in basis points, amounts in whole paise.
 - Routines are declarative steps only. Never add code that runs text from a rate book. Rating stays a pure function (`createQuoter`); every change of a rate needs its golden test updated on purpose.
 
+Underwriting (document section 10)
+- Rules and authority profiles are files `config/underwriting/<product lower case>-<product version>.json`, loaded with `loadUnderwritingRules`. Conditions use the safe expression language; never run text as code.
+- Issues come only from `evaluateRules`. Steps that must wait for underwriting (quote now; bind and issuance in D6) call `checkUnderwriting` with their point. Decisions (`policy.uw_decision`) are never changed or deleted; a person decides with `decideIssue`, which checks their authority.
+- Facts about a risk come from `buildRisk` (src/policy/risk.ts), shared by quoting, rating and underwriting.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

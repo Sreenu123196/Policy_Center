@@ -150,5 +150,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Missing facts are reported (no engine size) and a missing claim history means no discount; the engine never invents an input.
 - **Testing lesson:** my first failure was a one-letter table name in the test data, rejected by the schema (the same lesson as D1). Read the real message first.
 
+## D5. Underwriting: rules, issues, authority and referral (section 10)
+- A **rule** is a condition on the facts of the risk, written in the same safe expression language as the product model (`idv > 300000000`). When it is true it raises an **issue** of an **issue type**, carrying the **value** that caused it (an insured value in paise, a driver age in years).
+- An **issue type** says which step it **blocks**: the quote, the bind, the issuance, or nothing (information only). Rules are checked at fixed points (quote, bind, issuance). One rule gives at most one issue per branch; it is reopened, never repeated.
+- **Authority profiles** say who may approve which issue types, up to which value. A person holds a profile through a role or by name. Approving needs a grant whose limit reaches the **approval ceiling** (a junior may approve a Rs 35,00,000 insured value up to Rs 40,00,000, but not up to Rs 45,00,000). Rejecting needs only a grant for that issue type.
+- **Referral**: anyone can press "Request approval". The issue becomes `referred` and a task with the context (policy, job, issue type, value) goes into the underwriter queue.
+- **Decisions are history**: approve, reject or approve with conditions, always with a reason, and kept with who and when. A trigger refuses any change to them. An approval has a ceiling and a last valid day.
+- **Re-checking**: after an edit, the rules run again. An approval still counts if the new value is inside what was approved, otherwise the issue reopens. For insured value (`max`) "inside" means at or below the ceiling; for driver age (`min`) it means at or above the floor. An issue whose rule stops firing is cleared. An approval also runs out after its last day.
+- A blocked quote is refused, but its issues are saved first, so the underwriter can see them. The audit log records raising, referring, deciding, reopening and clearing.
+- **Design choice:** the point where a rule is checked and the point an issue blocks are separate, because a young driver can be noticed at quote time but only matter at bind.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

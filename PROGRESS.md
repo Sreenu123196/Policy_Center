@@ -27,7 +27,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D2 | Policy, job and branch tables; effective-dated tables with the no-overlap rule | Done (119 tests pass) |
 | D3 | Submission job from Draft to Quoted, with several quote options | Done (153 tests pass) |
 | D4 | Rating engine: rate books, routines, worksheet, golden tests | Done (174 tests pass) |
-| D5 to D6 | Underwriting, bind | Next: D5 |
+| D5 | Underwriting rules, issue types, authority and referral | Done (196 tests pass) |
+| D6 | Bind and issue, policy schedule PDF | Next: D6 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -36,6 +37,15 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D5
+- Editing and removing coverables and coverages (the underwriting tests change values with plain SQL to stand in for an edit): arrives with policy change, step E1. Re-checking the rules after every edit is therefore explicit (`evaluateRules`), not automatic yet.
+- Binding and issuance call `checkUnderwriting` with the points `bind` and `issuance`: step D6.
+- The referral is a row in the underwriter queue. The general activity and workflow system (assignment to groups, due dates, escalation) is not built.
+- Authority profiles are in the rules file (by role or user name). Admin screens and a database copy for changing them without a release: H2. Authority is checked in the domain function because the limit depends on the issue; the API edge (H1) still checks the `uw.approve` permission.
+- Rule conditions use facts we have: vehicle age and engine size, insured value, youngest driver age, claim-free years, owner type. Question sets (answers feeding rules and rating) are not built.
+- Separation of duties (the person who writes a rule cannot approve it) and the approval of rules themselves.
+- Re-evaluation of rules before renewal (the fourth point in the document): step E4.
 
 ## Deferred from D4
 - Proration by slice days (document section 9, step 4) and comparing with the previous version to create transactions: step E1. D4 prices one whole period.
