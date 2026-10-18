@@ -39,7 +39,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | G2 | Exposures, reserves, payments, recoveries and the financial view | Done (417 tests pass) |
 | H1 | REST API with an OpenAPI description for the main flows | Done (435 tests pass) |
 | H2 | React screens: quote wizard and policy file, with a dev server | Done (462 tests pass) |
-| I1 to I2 | End-to-end test from quote to claim to renewal, review against the document | Next: I1 |
+| I1 | End-to-end test from quote to claim to renewal | Done (479 tests pass) |
+| I2 | Review against the document, and what to extend next | Next: I2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -61,6 +62,12 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 - Read endpoints are scoped by producer code through the account, but the claims and billing endpoints for staff roles (`account.view_all`) show everything. Field-level security (hiding premium from a producer, for example) is not built.
 - Added the dependency `fastify` and the permissions `billing.pay`, `claim.report` and `claim.handle`.
 - Dates for "today" come from a clock that tests can set; the API uses the server's date.
+
+## Found by I1
+- One full run printed "Vitest caught 1 unhandled error" while all 473 tests passed; the next full run was clean (479 tests) and it could not be reproduced. It happened while the machine was slow (a full run took 3.5 minutes). Suspects: a database or React test finishing after its file closed. If it comes back, run with `--reporter=verbose` to see which file raises it.
+- **A real bug, fixed.** The end-to-end test added a cross-module check: what Billing asks the customer to pay (items still to be paid, less credits) must equal everything Policy charged. It failed after a cancellation for non-payment followed by a reinstatement: the payment item that was cancelled with the policy stayed cancelled, so the customer would never have been billed for the last instalment although the cover was back (Rs 4,645.07 short). Billing now puts those items back when `PolicyReinstated` arrives. A focused test in `payments.test.ts` covers it too.
+- **A known gap, shown by hand.** Renewal still adds a claim-free year even after a claim, so the test sets `claimFreeYears` to 0 by hand when it renews. Claims history is not connected to renewal (listed under E4 and G2). The fix is a decision about who owns the claims history: Claims tells Policy by an event, or Policy asks Claims for the claims in a term.
+- Netting a cancellation against what the customer actually paid is still simplified (F2). In the scenario the credit exceeds what was overpaid, and it only balances because the reinstatement charges the same amount back.
 
 ## Deferred from H2
 - Only two screens exist: the quote wizard and the policy file. Not built: account and contact screens, the claims screens (FNOL wizard, claim summary, exposures, reserves, payments, recoveries), billing screens (invoices, payments, suspense), underwriting referral and approval screens, policy change, cancellation, reinstatement and renewal screens, and admin screens for users, roles, authority and configuration (document section 20).

@@ -21,6 +21,7 @@ const moneyEventSchema = z.object({
   accountId: z.uuid(),
   version: z.number().int(),
   termNumber: z.number().int(),
+  reinstatementDate: z.string().nullish(), // a reinstatement with a gap: the first day covered again
   transaction: z.object({
     kind: z.enum(['new_business', 'change', 'cancellation', 'reinstatement', 'renewal']),
     effectiveDate: z.string().refine(isRealDate),
@@ -240,7 +241,7 @@ async function accountFor(tx: Q, config: BillingConfigCatalogue, accountId: stri
 async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: OutboxEvent): Promise<boolean> {
   const parsed = moneyEventSchema.safeParse(event.payload);
   if (!parsed.success) throw new ValidationError([`Event ${event.id} (${event.type}) has an invalid payload: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`]);
-  const { policyNumber, accountId, version, termNumber, transaction } = parsed.data;
+  const { policyNumber, accountId, version, termNumber, transaction, reinstatementDate } = parsed.data;
   const { kind, effectiveDate, premiumPaise, taxPaise } = transaction;
   const total = premiumPaise + taxPaise;
   if (total === 0) return false;
@@ -260,6 +261,11 @@ async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: Ou
        values ($1, $2, $3, $4, $5, $6, $7, $8, $9::date, $10)`,
       [account.id, event.id, event.aggregateId, policyNumber, termNumber, version, kind, type, effectiveDate, amount],
     );
+  }
+
+  // A reinstated policy is covered again, so the payments that were cancelled with it fall due again.
+  if (kind === 'reinstatement') {
+    await tx.query("update billing.schedule_item set status = 'scheduled' where billing_account_id = $1 and policy_number = $2 and status = 'void' and due_date >= $3::date", [account.id, policyNumber, reinstatementDate ?? effectiveDate]);
   }
 
   let items = 0;

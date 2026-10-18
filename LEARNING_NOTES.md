@@ -273,5 +273,11 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Documents need the sign-in.** A plain link cannot send the `X-User` header, so the screen downloads the file with the header and opens it in a new tab.
 - **Testing the screens.** A test draws the screen in a simulated browser, with a stand-in for the API, fills in the fields, presses the buttons and checks what is on screen and what was sent. A separate test checks the API client: headers, idempotency keys and how errors are read. I also ran the real wizard and policy file in a browser against the real API.
 
+## I1. The end-to-end test (document section 21)
+- A **scenario test** runs one customer's whole life through Policy, Billing and Claims, step after step: two quote options compared and one bound, four instalments billed, a mid-term change billed as a difference, a claim paid within a handler's authority, a missed payment that ends in a cancellation for non-payment, a late payment that brings a reinstatement, and a renewal into the next term. Each step checks what the step proves.
+- **Invariants are the real value.** After the story, the test checks things that must be true whatever happened: every premium Policy recorded is a charge in Billing to the paisa; Billing asks the customer for exactly what Policy charged; claim figures add up; the vehicle keeps one fixed id in every version and term; bound versions and every record of money refuse changes even from a direct database command; every stored document matches its checksum; the events and the audit log exist and name who did what; and no phone number or bank account reached the audit log or the events.
+- **It found a bug.** After a reinstatement the cancelled last instalment stayed cancelled, so Billing was short by one instalment. Unit tests of each module had all passed: the fault was in how two modules work together. The fix is in Billing (payment items come back on `PolicyReinstated`), with its own small test.
+- **It also shows a gap honestly.** The renewal ignores the claim in the no-claim bonus, so the test sets the claim-free years by hand and says why.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

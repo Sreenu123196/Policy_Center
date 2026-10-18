@@ -1,12 +1,12 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { listAuditEntries, listEventsAfter, ValidationError } from '../platform/index.js';
-import { bindJob, startCancellation } from '../policy/index.js';
+import { bindJob, quoteBranch, startCancellation, startReinstatement } from '../policy/index.js';
 import type { Account } from '../policy/index.js';
 import { createTestDatabase, loadTestConfiguration, resetDatabase } from '../testing/database.js';
 import { generateInvoices, getBillingAccount, getInvoice, listCredits, listScheduleItems, processPolicyEvents, setPaymentPlan } from './billing.js';
 import { applyCredit, getPayment, listSuspense, matchSuspense, receivePayment, receiveUnmatchedPayment, refundCredit } from './payments.js';
-import { bindDeps, billingConfig, cancelDeps, createCustomer, issueGoldenPolicy } from './test-support.js';
+import { bindDeps, billingConfig, cancelDeps, createCustomer, issueGoldenPolicy, quoteDeps } from './test-support.js';
 
 let db: PGlite;
 let customer: Account;
@@ -174,6 +174,23 @@ describe('credits: return premium paid out or applied (document section 14)', ()
     await cancelled('QUARTERLY');
     const items = await listScheduleItems(db, await billingId());
     expect(items.map((i) => [i.sequence, i.status])).toEqual([[1, 'scheduled'], [2, 'void'], [3, 'void'], [4, 'void']]);
+  });
+
+  it('puts those payment items back when the policy is reinstated, because the cover is back', async () => {
+    await setPaymentPlan(db, billingConfig, customer.id, 'QUARTERLY', 'agent.one', { today: '2026-10-01' });
+    const policy = await issueGoldenPolicy(db, customer);
+    const cancel = await startCancellation(db, cancelDeps, { policyId: policy.policy.id, effectiveDate: '2027-01-01', reasonCode: 'customer_request' }, 'agent.two', { today: '2026-12-20' });
+    await bindJob(db, bindDeps, cancel.job.id, { branchId: cancel.branch.id }, 'agent.two', { today: '2026-12-20' });
+    await processPolicyEvents(db, billingConfig);
+    expect((await listScheduleItems(db, await billingId())).map((i) => i.status)).toEqual(['scheduled', 'void', 'void', 'void']);
+
+    const back = await startReinstatement(db, cancelDeps, { policyId: policy.policy.id, withGap: false }, 'agent.two', { today: '2027-01-05' });
+    await quoteBranch(db, quoteDeps, back.branch.id, 'agent.two', { today: '2027-01-05' });
+    await bindJob(db, bindDeps, back.job.id, { branchId: back.branch.id }, 'agent.two', { today: '2027-01-05' });
+    await processPolicyEvents(db, billingConfig);
+    const items = await listScheduleItems(db, await billingId());
+    expect(items.filter((i) => i.kind === 'new_business').map((i) => i.status)).toEqual(['scheduled', 'scheduled', 'scheduled', 'scheduled']);
+    expect(items.filter((i) => i.kind === 'reinstatement')).toHaveLength(1);
   });
 
   it('pays the refund out when the customer has paid in full', async () => {

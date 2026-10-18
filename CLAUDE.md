@@ -216,6 +216,9 @@ Screens (document section 20)
 - A button that changes something uses `useAction`, so it is disabled while it runs and keeps its idempotency keys until the call succeeds. Screen tests start with `// @vitest-environment jsdom` and use the stand-in API in `web/src/test-support.ts`.
 - Run: `npm run api` and `npm run web`; `npm run check` also type-checks and tests the screens.
 
+Scenario test
+- `src/end-to-end.test.ts` is the story of one customer through all modules, with cross-module invariants. When a change touches how modules talk (events, money, dates), run it and extend its invariants; a unit test passing is not enough. When a new module-to-module rule is added, add its invariant there.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.
