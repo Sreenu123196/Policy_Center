@@ -46,7 +46,7 @@ export async function recordAudit(db: Queryable, entry: NewAuditEntry): Promise<
 }
 
 // Entries in the order they happened, optionally only those about one thing.
-export async function listAuditEntries(db: Database, filter: { entityType?: string; entityId?: string } = {}): Promise<AuditEntry[]> {
+export async function listAuditEntries(db: Database, filter: { entityType?: string; entityId?: string; action?: string } = {}): Promise<AuditEntry[]> {
   const conditions: string[] = [];
   const params: string[] = [];
   if (filter.entityType !== undefined) {
@@ -56,6 +56,10 @@ export async function listAuditEntries(db: Database, filter: { entityType?: stri
   if (filter.entityId !== undefined) {
     params.push(filter.entityId);
     conditions.push(`entity_id = $${params.length}`);
+  }
+  if (filter.action !== undefined) {
+    params.push(filter.action);
+    conditions.push(`action = $${params.length}`);
   }
   const where = conditions.length > 0 ? `where ${conditions.join(' and ')}` : '';
   const result = await db.query<AuditRow>(

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { generateInvoices, getBillingAccount, getInvoice, listCharges, listCredits, listInvoices, listScheduleItems, PAYMENT_METHODS, processPolicyEvents, receivePayment } from '../billing/index.js';
+import { generateInvoices, getBillingAccount, handlePolicyEvent, getInvoice, listCharges, listCredits, listInvoices, listScheduleItems, PAYMENT_METHODS, processPolicyEvents, receivePayment } from '../billing/index.js';
 import {
   addExposure,
   approvePayment,
@@ -21,6 +21,7 @@ import {
   listExposures,
 } from '../claims/index.js';
 import { createContact } from '../contacts/index.js';
+import { listDeadEvents, ValidationError as PlatformValidationError, redriveDeadEvent } from '../platform/index.js';
 import {
   accountIdOfBranch,
   accountIdOfJob,
@@ -49,6 +50,7 @@ import {
   startCancellation,
   startSubmission,
   withdrawJob,
+  handleBillingEvent,
 } from '../policy/index.js';
 import { defineRoute, notFound, type Route } from './registry.js';
 import { compact, dateText, etagOf, pageQuery, paginate, requireIfMatch, uuid, visibleAccount } from './route-helpers.js';
@@ -311,6 +313,24 @@ const billing: Route[] = [
     method: 'POST', path: '/v1/admin/billing/invoices', operationId: 'generateInvoices', summary: 'Run the invoice batch for a date', tag: 'Admin', permission: 'admin.manage_users', success: 200,
     body: z.object({ today: dateText.optional() }),
     handler: async (context) => ({ body: { invoices: await generateInvoices(context.db, context.config.billing, { today: context.body.today ?? context.today() }, context.user.username) } }),
+  }),
+  defineRoute({
+    method: 'GET', path: '/v1/admin/events/dead', operationId: 'listDeadEvents', summary: 'Events a consumer gave up on, waiting for a person', tag: 'Admin', permission: 'admin.manage_users', success: 200,
+    handler: async (context) => ({ body: { items: await listDeadEvents(context.db) } }),
+  }),
+  defineRoute({
+    method: 'POST', path: '/v1/admin/events/dead/{consumer}/{eventId}/redrive', operationId: 'redriveDeadEvent', summary: 'Run the consumer once more on a dead event, after the cause was fixed', tag: 'Admin', permission: 'admin.manage_users', success: 200,
+    handler: async (context) => {
+      const { consumer, eventId } = context.params;
+      const { catalogue, cancellation, billing } = context.config;
+      const handlers: Record<string, Parameters<typeof redriveDeadEvent>[1]['handle']> = {
+        billing: async (event) => void (await handlePolicyEvent(context.db, billing, event)),
+        'billing-requests': async (event) => void (await handleBillingEvent(context.db, { catalogue, cancellation }, context.user.username, context.today(), event)),
+      };
+      const handle = handlers[consumer ?? ''];
+      if (handle === undefined) throw new PlatformValidationError([`There is no consumer called ${consumer}`]);
+      return { body: await redriveDeadEvent(context.db, { consumer: consumer ?? '', eventId: Number(eventId), handle }, context.user.username) };
+    },
   }),
 ];
 

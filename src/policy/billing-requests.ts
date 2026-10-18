@@ -1,6 +1,6 @@
 import type { Database } from '../platform/index.js';
 import { z } from 'zod';
-import { addDays, listEventsAfter, recordAudit, ValidationError } from '../platform/index.js';
+import { addDays, consumeEvents, PermanentEventError, recordAudit, ValidationError, type OutboxEvent } from '../platform/index.js';
 import { getAdjustmentOfBranch, latestBound, startCancellation, startReinstatement, type CancellationDependencies } from './cancellation.js';
 
 // What Billing asks of Policy (document section 14: "Billing sends back payment status, delinquency cancellation
@@ -65,21 +65,26 @@ async function handlePolicy(db: Database, deps: CancellationDependencies, type: 
   }
 }
 
-// Reads Billing's requests that Policy has not handled yet, in order. The offset moves only when the batch is done.
-export async function processBillingEvents(db: Database, deps: CancellationDependencies, actor: string, options: { today?: string; limit?: number } = {}): Promise<BillingRequestResult[]> {
-  const today = options.today ?? new Date().toISOString().slice(0, 10);
-  const offset = (await db.query<{ last_event_id: number }>('select last_event_id::float8 as last_event_id from policy.consumer_offset where consumer = $1', [CONSUMER])).rows[0]?.last_event_id ?? 0;
-  const events = await listEventsAfter(db, offset, options.limit ?? 200);
-  const last = events.at(-1);
-  if (last === undefined) return [];
-
+// Handles one request from Billing. Exported so a dead event can be redriven. Starting a job that is already started is
+// skipped by handlePolicy, so seeing an event twice is harmless.
+export async function handleBillingEvent(db: Database, deps: CancellationDependencies, actor: string, today: string, event: OutboxEvent): Promise<BillingRequestResult[]> {
+  if (!HANDLED.includes(event.type)) return [];
+  const parsed = requestSchema.safeParse(event.payload);
+  if (!parsed.success) throw new PermanentEventError(`Event ${event.id} (${event.type}) has an invalid payload`);
   const results: BillingRequestResult[] = [];
-  for (const event of events) {
-    if (!HANDLED.includes(event.type)) continue;
-    const parsed = requestSchema.safeParse(event.payload);
-    if (!parsed.success) throw new ValidationError([`Event ${event.id} (${event.type}) has an invalid payload`]);
-    for (const policyNumber of parsed.data.policyNumbers) results.push(await handlePolicy(db, deps, event.type, policyNumber, actor, today));
-  }
-  await db.query('insert into policy.consumer_offset (consumer, last_event_id) values ($1, $2) on conflict (consumer) do update set last_event_id = excluded.last_event_id', [CONSUMER, last.id]);
+  for (const policyNumber of parsed.data.policyNumbers) results.push(await handlePolicy(db, deps, event.type, policyNumber, actor, today));
+  return results;
+}
+
+// Reads Billing's requests that Policy has not handled yet, in order (platform consumer: retries and dead letters).
+export async function processBillingEvents(db: Database, deps: CancellationDependencies, actor: string, options: { today?: string; limit?: number; now?: Date } = {}): Promise<BillingRequestResult[]> {
+  const today = options.today ?? new Date().toISOString().slice(0, 10);
+  const results: BillingRequestResult[] = [];
+  await consumeEvents(db, {
+    consumer: CONSUMER,
+    limit: options.limit ?? 200,
+    ...(options.now ? { now: options.now } : {}),
+    handle: async (event) => void results.push(...(await handleBillingEvent(db, deps, actor, today, event))),
+  });
   return results;
 }

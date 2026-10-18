@@ -27,5 +27,7 @@ export type { Language, LoadResult, TypelistEntry } from './typelists.js';
 export { loadConfiguration } from './configuration.js';
 export { listEventsAfter, listUnpublishedEvents, markPublished, recordEvent } from './outbox.js';
 export type { NewEvent, OutboxEvent } from './outbox.js';
+export { consumeEvents, listDeadEvents, PermanentEventError, redriveDeadEvent } from './event-consumer.js';
+export type { ConsumeOptions, ConsumeResult, DeadEvent } from './event-consumer.js';
 export { findIdempotentResponse, saveIdempotentResponse } from './idempotency.js';
 export type { StoredResponse } from './idempotency.js';

@@ -134,7 +134,7 @@ describe('Policy acts on billing events (document section 14: "Billing sends bac
     await delinquency('2026-11-14');
     expect(await act('2026-11-14')).toHaveLength(1);
     expect(await act('2026-11-14')).toEqual([]); // nothing new to read
-    await db.query('delete from policy.consumer_offset'); // as if the offset was lost and the event came again
+    await db.query("delete from platform.event_consumer where consumer = 'billing-requests'"); // as if the offset was lost and the event came again
     expect(await act('2026-11-14')).toEqual([expect.objectContaining({ outcome: 'skipped', reason: expect.stringMatching(/already.*cancellation/i) })]);
   });
 

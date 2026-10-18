@@ -1,7 +1,7 @@
 import type { Database } from '../platform/index.js';
 import { z } from 'zod';
-import { addDays, isRealDate, isUuid, listEventsAfter, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
-import type { OutboxEvent } from '../platform/index.js';
+import { addDays, consumeEvents, isRealDate, isUuid, PermanentEventError, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
+import type { ConsumeResult, OutboxEvent } from '../platform/index.js';
 import type { BillingConfigCatalogue } from './config.js';
 import { allocateUnapplied } from './allocation.js';
 import { splitCharge, type ScheduleItem } from './plan-split.js';
@@ -240,7 +240,7 @@ async function accountFor(tx: Q, config: BillingConfigCatalogue, accountId: stri
 // Turns one policy event into charges, payment items and a credit. Returns true when it created charges.
 async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: OutboxEvent): Promise<boolean> {
   const parsed = moneyEventSchema.safeParse(event.payload);
-  if (!parsed.success) throw new ValidationError([`Event ${event.id} (${event.type}) has an invalid payload: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`]);
+  if (!parsed.success) throw new PermanentEventError(`Event ${event.id} (${event.type}) has an invalid payload: ${parsed.error.issues.map((i) => `${i.path.join('.')} ${i.message}`).join('; ')}`);
   const { policyNumber, accountId, version, termNumber, transaction, reinstatementDate } = parsed.data;
   const { kind, effectiveDate, premiumPaise, taxPaise } = transaction;
   const total = premiumPaise + taxPaise;
@@ -298,25 +298,31 @@ async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: Ou
   return true;
 }
 
-// Reads the events it has not handled yet, in order, and creates the charges. A batch is saved together with the new
-// offset or not at all: if one event is bad, nothing from the batch is kept and the offset does not move.
-export async function processPolicyEvents(db: Database, config: BillingConfigCatalogue, options: { limit?: number } = {}): Promise<{ eventsRead: number; chargesCreated: number }> {
-  const offset = (await db.query<{ last_event_id: number }>('select last_event_id::float8 as last_event_id from billing.consumer_offset where consumer = $1', [CONSUMER])).rows[0]?.last_event_id ?? 0;
-  const events = await listEventsAfter(db, offset, options.limit ?? 100);
-  const last = events.at(-1);
-  if (last === undefined) return { eventsRead: 0, chargesCreated: 0 };
+// Handles one policy event: creates the charges, payment items and credit, in one transaction. Seeing an event twice
+// changes nothing (handleMoneyEvent checks), which the consumer relies on. Exported so a dead event can be redriven.
+export async function handlePolicyEvent(db: Database, config: BillingConfigCatalogue, event: OutboxEvent): Promise<boolean> {
+  if (!MONEY_EVENTS.includes(event.type)) return false;
+  return db.transaction((tx) => handleMoneyEvent(tx, config, event));
+}
 
+// Reads the events it has not handled yet, in order, and creates the charges. A failing event is retried with a growing
+// wait; after too many failures it goes to the dead-letter list and the events behind it carry on (platform consumer).
+export async function processPolicyEvents(
+  db: Database,
+  config: BillingConfigCatalogue,
+  options: { limit?: number; now?: Date; maxAttempts?: number } = {},
+): Promise<{ eventsRead: number; chargesCreated: number; deadLettered: number[]; blockedOn: ConsumeResult['blockedOn'] }> {
   let chargesCreated = 0;
-  await db.transaction(async (tx) => {
-    for (const event of events) {
-      if (MONEY_EVENTS.includes(event.type) && (await handleMoneyEvent(tx, config, event))) chargesCreated++;
-    }
-    await tx.query(
-      'insert into billing.consumer_offset (consumer, last_event_id) values ($1, $2) on conflict (consumer) do update set last_event_id = excluded.last_event_id',
-      [CONSUMER, last.id],
-    );
+  const result = await consumeEvents(db, {
+    consumer: CONSUMER,
+    limit: options.limit ?? 100,
+    ...(options.now ? { now: options.now } : {}),
+    ...(options.maxAttempts ? { maxAttempts: options.maxAttempts } : {}),
+    handle: async (event) => {
+      if (await handlePolicyEvent(db, config, event)) chargesCreated++;
+    },
   });
-  return { eventsRead: events.length, chargesCreated };
+  return { eventsRead: result.handled + result.deadLettered.length, chargesCreated, deadLettered: result.deadLettered, blockedOn: result.blockedOn };
 }
 
 // ---------------------------------------------------------------- invoices

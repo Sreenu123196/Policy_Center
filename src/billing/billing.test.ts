@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url';
 import type { Database } from '../platform/index.js';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact } from '../contacts/index.js';
-import { createProducerCode, createProducerOrganisation, listAuditEntries, listEventsAfter, recordEvent, ValidationError } from '../platform/index.js';
+import { createProducerCode, createProducerOrganisation, listAuditEntries, listDeadEvents, listEventsAfter, recordEvent, ValidationError } from '../platform/index.js';
 import {
   addCoverable,
   addCoverage,
@@ -133,7 +133,7 @@ describe('charges from policy events (document sections 14 and 17)', () => {
     expect((await process()).eventsRead).toBe(1); // only its own ChargesCreated event is new, and it is ignored
     expect((await process()).eventsRead).toBe(0);
 
-    await db.query("update billing.consumer_offset set last_event_id = 0"); // as if the offset was lost and every event came again
+    await db.query("update platform.event_consumer set last_event_id = 0 where consumer = 'billing'"); // as if the offset was lost and every event came again
     const again = await process();
     expect(again.chargesCreated).toBe(0);
     expect(await listCharges(db, account.id)).toHaveLength(2);
@@ -148,13 +148,17 @@ describe('charges from policy events (document sections 14 and 17)', () => {
     expect(await listCharges(db, (await billingAccount()).id)).toHaveLength(2);
   });
 
-  it('keeps nothing from a batch that fails: a bad event stops the consumer and the offset does not move', async () => {
+  it('does not let one bad event stop the rest: it goes to the dead-letter list, and the good events are handled', async () => {
     await issuedPolicy();
     await recordEvent(db, { type: 'PolicyBound', aggregateType: 'policy', aggregateId: '11111111-1111-4111-8111-111111111111', payload: { oops: true } });
-    expect(await errorsOf(process())).toEqual([expect.stringMatching(/PolicyBound.*payload/i)]);
-    expect(await getBillingAccount(db, person.id)).toBeNull(); // the good event before it was rolled back too
-    const offset = await db.query<{ last_event_id: number }>('select last_event_id::float8 as last_event_id from billing.consumer_offset');
-    expect(offset.rows).toEqual([]);
+    const result = await process();
+    expect(result.chargesCreated).toBe(1); // the good event before it
+    expect(result.deadLettered).toHaveLength(1);
+    expect(await getBillingAccount(db, person.id)).not.toBeNull();
+    const [dead] = await listDeadEvents(db);
+    expect(dead).toMatchObject({ consumer: 'billing', eventType: 'PolicyBound', attempts: 1 });
+    expect(dead!.lastError).toMatch(/PolicyBound.*payload/i);
+    expect((await process()).deadLettered).toEqual([]); // it is not tried again
   });
 });
 
