@@ -23,7 +23,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | C2 | Accounts and producer codes | Done (40 tests pass) |
 | C3 | Users, roles, permissions and the audit log | Done (58 tests pass) |
 | C4 | Typelists and loading versioned configuration | Done (73 tests pass). Part C is complete. |
-| D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Next: D1 |
+| D1 | Product model for private car as JSON, with validation | Done (102 tests pass) |
+| D2 to D6 | Policy tables and effective dating, submission, rating, underwriting, bind | Next: D2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -32,6 +33,14 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D1
+- Term kinds and clauses in section 7 that D1 leaves out: "package" terms (linked values), exclusions and conditions, question sets, and coverage terms of different lengths inside one policy.
+- Availability by jurisdiction or date range on a single coverage (a whole version already has jurisdictions and a start date). Which fact names exist (`vehicle.ageYears`, `ownerType`) is not checked yet; D3 will define the facts.
+- `terms_allowed` is stored and checked for shape but not used until quotes pick a policy term (D3).
+- Renewals moving to the newest product version under per-product rules (E4).
+- Hindi and Telugu coverage names were written by the mentor and need review, as with the typelists.
+- Two-wheeler, home and small-business products (document section 7) are outside the learning scope.
 
 ## Deferred from C4
 - The `state` on a contact is still free text. It should become an `indian_state` typelist (the full official list of states and union territories, in three languages). Translations for that list should be reviewed.

@@ -1,0 +1,52 @@
+{
+  "product": "MOTOR_PRIVATE_CAR",
+  "version": "2026.04",
+  "effective_from": "2026-04-01",
+  "names": { "en": "Private car insurance", "hi": "निजी कार बीमा", "te": "ప్రైవేట్ కారు బీమా" },
+  "jurisdictions": ["IN"],
+  "terms_allowed": ["1Y", "1Y_OD_3Y_TP"],
+  "line": {
+    "pattern": "MotorPrivateCar",
+    "coverables": ["Vehicle", "Driver"],
+    "coverages": [
+      {
+        "code": "MOTOR_TP",
+        "names": { "en": "Third-party liability", "hi": "थर्ड-पार्टी देयता", "te": "థర్డ్-పార్టీ బాధ్యత" },
+        "category": "liability",
+        "existence": "required"
+      },
+      {
+        "code": "MOTOR_OD",
+        "names": { "en": "Own damage", "hi": "स्वयं की क्षति", "te": "స్వంత నష్టం" },
+        "category": "own_damage",
+        "existence": "electable",
+        "terms": [
+          { "code": "idv", "type": "direct", "min": 3000000, "max": 500000000 },
+          { "code": "vol_deductible", "type": "option", "options": [0, 250000, 500000], "default": 0 }
+        ]
+      },
+      {
+        "code": "PA_OWNER_DRIVER",
+        "names": { "en": "Personal accident cover for owner-driver", "hi": "मालिक-चालक के लिए व्यक्तिगत दुर्घटना कवर", "te": "యజమాని-డ్రైవర్ కోసం వ్యక్తిగత ప్రమాద కవర్" },
+        "category": "personal_accident",
+        "existence": "required",
+        "available_when": "ownerType == 'individual'"
+      },
+      {
+        "code": "ZERO_DEP",
+        "names": { "en": "Zero depreciation", "hi": "शून्य मूल्यह्रास", "te": "జీరో డిప్రిసియేషన్" },
+        "category": "add_on",
+        "existence": "electable",
+        "available_when": "vehicle.ageYears <= 5",
+        "requires": ["MOTOR_OD"]
+      },
+      {
+        "code": "ROADSIDE_ASSIST",
+        "names": { "en": "Roadside assistance", "hi": "रोडसाइड सहायता", "te": "రోడ్ సైడ్ సహాయం" },
+        "category": "add_on",
+        "existence": "suggested",
+        "requires": ["MOTOR_OD"]
+      }
+    ]
+  }
+}

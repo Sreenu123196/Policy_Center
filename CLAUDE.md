@@ -131,6 +131,11 @@ Configuration (document section 18)
 - A business rule that the code itself relies on (for example `named_insured`) stays in code; only the lists around it are configuration.
 - To check a date written as `yyyy-mm-dd`, use `isRealDate` from Platform. Never call `toISOString()` on a date you have not checked: it throws on an invalid date.
 
+Products (document section 7)
+- A product version is a file `config/products/<product code lower case>-<version>.json`, loaded with `loadProductCatalogue` and checked by a zod schema plus cross-checks. New business uses `versionInForce(product, startDate)`; a policy must record the product code and version it was sold on. Never edit a product version that policies were sold on: add a new version with a later `effective_from`.
+- Availability rules (`available_when`) use the small expression language in `src/policy/expression.ts`. Never use `eval`, `new Function` or any way of running text from a file as code. A missing fact makes a comparison false.
+- A customer's choices are checked with `validateSelection`, which also uses the product's defaults and dependencies. Amounts in product files are whole paise.
+
 Users, permissions and audit
 - Every function that creates or changes something takes an `actor` (the user name of a person or an AI agent). It writes an audit entry in the same transaction as the change, using `recordAudit`. A refused change records nothing. Audit details hold small facts only, never personal numbers such as Aadhaar or PAN.
 - The audit log is append-only; the database refuses updates, deletes and truncates. Never write code that tries to change it.

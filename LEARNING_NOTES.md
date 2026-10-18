@@ -105,5 +105,16 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Bug lesson:** `new Date('2026-13-45')` is an invalid date, and calling `toISOString()` on it throws a `RangeError`. Our C1 date check had that flaw, hidden because its test used February 30th, which JavaScript quietly rolls over into March. The fix is one shared `isRealDate`. A new kind of test case (a month that does not exist) exposed it.
 - Hindi and Telugu names written by the mentor should be reviewed by a native speaker before real use.
 
+## D1. The product model (section 7, Appendix C)
+- A **product** is configuration, not code. A product file names the product and its **version**, the date it applies from (`effective_from`), the jurisdictions, the policy terms allowed, and a **line** with its coverables (Vehicle, Driver) and coverages. All amounts are whole paise, so Rs 50,000 is `5000000`.
+- A **coverage** has a code, names in English, Hindi and Telugu, a category and an **existence**: `required` (always on when available), `electable` (the customer may choose it) or `suggested` (recommended).
+- A **term** is one value of a coverage: an `option` from a list (a deductible of 0, 250000 or 500000, with a default) or a `direct` number between `min` and `max` (the insured value).
+- **Availability rules** (`available_when`) such as `vehicle.ageYears <= 5` say when a coverage can be offered. **Dependencies**: `requires` ("zero depreciation requires own damage") and `excludes`.
+- **New business uses the product version in force on the start date.** Two versions of private car (2026.04 and 2026.10) show this: the minimum insured value is Rs 30,000 in one and Rs 50,000 in the other.
+- **Two kinds of validation.** (1) The file itself: the schema checks shape, and cross-checks verify that parts agree (a dependency points at a real coverage, two required coverages do not exclude each other, a rule parses, versions start on different dates). Every problem in every file is reported together. (2) A customer's choices against the product: a coverage must exist and be available, every available required one must be chosen, dependencies must hold, and each term needs a legal value or a default.
+- **Why a tiny expression language and not `eval`:** running text from a file as code would let a product file do anything. The tokenizer and parser only understand comparisons, `and`, `or`, `not` and brackets. `and` binds tighter than `or`. A fact that is missing makes a comparison false, so an unknown fact never offers a cover by accident. Fact lookup uses `Object.hasOwn`, so it never reaches things built into JavaScript.
+- The product catalogue is loaded from files into memory at start-up (as the document says), unlike typelists which live in the database. Old versions stay in the repository, so they remain available, and Git keeps their history.
+- **Testing lesson:** when two tests failed I read the real messages first. The schema was right (a one-letter code is not allowed); my test data was wrong.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.
