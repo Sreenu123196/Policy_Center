@@ -279,5 +279,11 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **It found a bug.** After a reinstatement the cancelled last instalment stayed cancelled, so Billing was short by one instalment. Unit tests of each module had all passed: the fault was in how two modules work together. The fix is in Billing (payment items come back on `PolicyReinstated`), with its own small test.
 - **It also shows a gap honestly.** The renewal ignores the claim in the no-claim bonus, so the test sets the claim-free years by hand and says why.
 
+## I2. The review (REVIEW.md)
+- A review compares **what was asked** (the document) with **what was built**, section by section, and says plainly what is missing. A scorecard with a short reason for each score is more useful than one big percentage.
+- **Check the rules, not only the features.** The design rules (money in paise, bound versions never edited, modules never read each other's tables, everything audited) were each checked against evidence: a test or a database rule that enforces them.
+- **List the weaknesses yourself.** Trusted sign-in, simplified refund netting, thin concurrency handling, illustrative numbers and unreviewed translations are written down, so nobody mistakes the learning version for a product.
+- **Plan the next work by value.** First make it safe to run (real database, real sign-in, event publisher), then make it usable (screens, languages, queues), then broaden the business, then prove it at scale.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.
