@@ -300,5 +300,12 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **One plain answer.** Every bad token gets the same 401, so an attacker learns nothing about why.
 - **A matrix test.** A table of every role against every route is too long to write and check by hand, so the test builds it from the route list and the role definitions, and a new route is covered the day it is added. It found a permission that nothing uses.
 
+## Tier 2, item 5. Read-only screens first
+- **Start with what only reads.** A list and a detail page need no new business rules and cannot damage data, so they are the safest screens to build first and still useful to a person on the phone.
+- **The screen adds nothing of its own.** It shows the server's figures (outstanding, incurred). It sums only to display a total of numbers the server already gave.
+- **Partial failure.** One page makes two calls (the account and its billing). If the second fails (no permission, nothing billed yet), the first still shows, with the reason. Show an unknown number as "-", never as 0: zero looks like a fact.
+- **Links are the navigation.** Every policy, claim and account number is a link to its page, so a person follows the story instead of retyping numbers.
+- **Missing API means missing screen.** Several wanted screens (policy change, renewal, approval of referrals) cannot be built until the API has the route. The screens list shows what the API lacks.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

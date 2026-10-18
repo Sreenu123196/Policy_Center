@@ -1,5 +1,5 @@
 import { vi } from 'vitest';
-import type { Api, PolicyAsOfView, PolicyFileView, ProductView, QuoteView } from './api.js';
+import type { AccountView, Api, BillingView, ClaimView, ExposureView, FinancialsView, PolicyAsOfView, PolicyFileView, ProductView, QuoteView } from './api.js';
 
 // Stand-ins for the API, so the screens can be tested without a server. Each call is a spy the test can look at.
 
@@ -67,9 +67,58 @@ export const asOf: PolicyAsOfView = {
   ],
 };
 
+export const accounts: AccountView[] = [
+  { id: 'acc-1', accountNumber: 'AC-0000001', producerCode: 'PC-100', status: 'active', contacts: [{ contactId: 'c1', role: 'named_insured' }] },
+  { id: 'acc-2', accountNumber: 'AC-0000002', producerCode: 'PC-200', status: 'closed', contacts: [] },
+];
+
+export const billing: BillingView = {
+  account: { id: 'bill-1', planCode: 'ANNUAL', status: 'active' },
+  charges: [
+    { id: 'ch1', policyNumber: 'PL-0000001', kind: 'new_business', type: 'premium', effectiveDate: '2026-10-15', amountPaise: 1574600 },
+    { id: 'ch2', policyNumber: 'PL-0000001', kind: 'new_business', type: 'tax', effectiveDate: '2026-10-15', amountPaise: 283428 },
+  ],
+  scheduleItems: [
+    { id: 's1', policyNumber: 'PL-0000001', kind: 'new_business', sequence: 1, dueDate: '2026-10-15', amountPaise: 1858028, status: 'invoiced' },
+    { id: 's2', policyNumber: 'PL-0000001', kind: 'change', sequence: 1, dueDate: '2027-01-01', amountPaise: 445360, status: 'scheduled' },
+  ],
+  credits: [{ id: 'cr1', policyNumber: 'PL-0000001', kind: 'cancellation', totalPaise: 100000, remainingPaise: 40000, status: 'open' }],
+  invoices: [
+    { id: 'i1', number: 'INV-0000001', invoiceDate: '2026-09-25', dueDate: '2026-10-15', totalPaise: 1858028, paidPaise: 1000000, outstandingPaise: 858028, status: 'open' },
+    { id: 'i2', number: 'INV-0000002', invoiceDate: '2026-12-10', dueDate: '2027-01-01', totalPaise: 445360, paidPaise: 445360, outstandingPaise: 0, status: 'paid' },
+  ],
+};
+
+export const claims: ClaimView[] = [
+  { claimNumber: 'CL-0000001', policyNumber: 'PL-0000001', lossDate: '2026-12-01', reportedOn: '2026-12-02', cause: 'collision', place: 'Hyderabad', description: 'Rear-ended at a signal', status: 'under_review', verification: 'verified', lateReport: false, reporter: { name: 'Asha Rao', phone: null } },
+  { claimNumber: 'CL-0000002', policyNumber: 'PL-0000002', lossDate: '2026-11-20', reportedOn: '2027-01-05', cause: 'theft', place: 'Warangal', description: 'Car stolen overnight', status: 'rejected', verification: 'not_verified', lateReport: true, reporter: null },
+];
+
+export const exposures: ExposureView[] = [
+  { id: 'e1', number: 1, coverageCode: 'MOTOR_OD', claimant: { name: 'Asha Rao', kind: 'insured' }, description: 'Own car damage', status: 'approved', handler: 'carl.claims', limitPaise: 50000000, deductiblePaise: 100000 },
+  { id: 'e2', number: 2, coverageCode: 'MOTOR_TP', claimant: { name: 'Ravi Kumar', kind: 'third_party' }, description: 'Damage to a motorcycle', status: 'under_review', handler: null, limitPaise: null, deductiblePaise: 0 },
+];
+
+export const financials: FinancialsView = {
+  claim: { paidPaise: 3000000, outstandingPaise: 2000000, recoveredPaise: 500000, incurredPaise: 4500000 },
+  exposures: [
+    { number: 1, status: 'approved', paidPaise: 3000000, outstandingPaise: 1000000, recoveredPaise: 500000, incurredPaise: 3500000 },
+    { number: 2, status: 'under_review', paidPaise: 0, outstandingPaise: 1000000, recoveredPaise: 0, incurredPaise: 1000000 },
+  ],
+  byCostType: {
+    claim_cost: { paidPaise: 2800000, outstandingPaise: 2000000, recoveredPaise: 500000, incurredPaise: 4300000 },
+    expense: { paidPaise: 200000, outstandingPaise: 0, recoveredPaise: 0, incurredPaise: 200000 },
+  },
+};
+
 export function fakeApi(overrides: Partial<Api> = {}): { [K in keyof Api]: ReturnType<typeof vi.fn<Api[K]>> } {
   const api: Api = {
-    listAccounts: async () => ({ items: [], total: 0, limit: 200, offset: 0 }),
+    listAccounts: async () => ({ items: accounts, total: accounts.length, limit: 200, offset: 0 }),
+    account: async (id) => accounts.find((a) => a.id === id) ?? accounts[0]!,
+    billing: async () => billing,
+    listClaims: async () => ({ items: claims, total: claims.length, limit: 200, offset: 0 }),
+    claim: async (number) => ({ ...(claims.find((c) => c.claimNumber === number) ?? claims[0]!), exposures }),
+    claimFinancials: async () => financials,
     product: async () => product,
     createContact: async () => ({ id: 'contact-1' }),
     createAccount: async () => ({ id: 'account-1', accountNumber: 'AC-0000001', producerCode: 'PC-100' }),

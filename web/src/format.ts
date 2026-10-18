@@ -19,3 +19,9 @@ export function rupeesToPaise(text: string): number | null {
   if (!/^\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   return Math.round(Number(cleaned) * 100);
 }
+
+// A code from the API such as under_review, as a sentence for a person: "Under review".
+export const sentence = (code: string): string => {
+  const words = code.replace(/_/g, ' ');
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};

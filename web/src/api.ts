@@ -24,6 +24,85 @@ export interface AccountView {
   id: string;
   accountNumber: string;
   producerCode: string;
+  status?: 'active' | 'closed';
+  contacts?: { contactId: string; role: string }[];
+}
+
+export interface InvoiceView {
+  id: string;
+  number: string;
+  invoiceDate: string;
+  dueDate: string;
+  totalPaise: number;
+  paidPaise: number;
+  outstandingPaise: number;
+  status: 'open' | 'paid' | 'void';
+}
+
+export interface ScheduleItemView {
+  id: string;
+  policyNumber: string;
+  kind: string;
+  sequence: number;
+  dueDate: string;
+  amountPaise: number;
+  status: 'scheduled' | 'invoiced' | 'paid' | 'void';
+}
+
+export interface CreditView {
+  id: string;
+  policyNumber: string;
+  kind: string;
+  totalPaise: number;
+  remainingPaise: number;
+  status: 'open' | 'refunded' | 'applied';
+}
+
+export interface BillingView {
+  account: { id: string; planCode: string; status: 'active' | 'closed' };
+  charges: { id: string; policyNumber: string; kind: string; type: 'premium' | 'tax'; effectiveDate: string; amountPaise: number }[];
+  scheduleItems: ScheduleItemView[];
+  credits: CreditView[];
+  invoices: InvoiceView[];
+}
+
+export interface ClaimView {
+  claimNumber: string;
+  policyNumber: string;
+  lossDate: string;
+  reportedOn: string;
+  cause: string;
+  place: string;
+  description: string;
+  status: string;
+  verification: string;
+  lateReport: boolean;
+  reporter: { name: string; phone: string | null } | null;
+}
+
+export interface ExposureView {
+  id: string;
+  number: number;
+  coverageCode: string;
+  claimant: { name: string; kind: string };
+  description: string;
+  status: string;
+  handler: string | null;
+  limitPaise: number | null;
+  deductiblePaise: number;
+}
+
+export interface MoneyView {
+  paidPaise: number;
+  outstandingPaise: number;
+  recoveredPaise: number;
+  incurredPaise: number;
+}
+
+export interface FinancialsView {
+  claim: MoneyView;
+  exposures: (MoneyView & { number: number; status: string })[];
+  byCostType: Record<string, MoneyView>;
 }
 
 export type TermDef =
@@ -91,6 +170,11 @@ export interface PolicyAsOfView {
 
 export interface Api {
   listAccounts(): Promise<Page<AccountView>>;
+  account(id: string): Promise<AccountView>;
+  billing(accountId: string): Promise<BillingView>;
+  listClaims(): Promise<Page<ClaimView>>;
+  claim(number: string): Promise<ClaimView & { exposures: ExposureView[] }>;
+  claimFinancials(number: string): Promise<FinancialsView>;
   product(code: string, date: string): Promise<ProductView>;
   createContact(body: { kind: 'person'; name: string; address: Address }, key: string): Promise<{ id: string }>;
   createAccount(body: { namedInsuredContactId: string; producerCode: string }, key: string): Promise<AccountView>;
@@ -138,6 +222,11 @@ export function createApi(options: ApiOptions): Api {
 
   return {
     listAccounts: () => get('/v1/accounts?limit=200'),
+    account: (id) => get(`/v1/accounts/${encodeURIComponent(id)}`),
+    billing: (accountId) => get(`/v1/accounts/${encodeURIComponent(accountId)}/billing`),
+    listClaims: () => get('/v1/claims?limit=200'),
+    claim: (number) => get(`/v1/claims/${encodeURIComponent(number)}`),
+    claimFinancials: (number) => get(`/v1/claims/${encodeURIComponent(number)}/financials`),
     product: (code, date) => get(`/v1/products/${encodeURIComponent(code)}?date=${date}`),
     createContact: (body, key) => post('/v1/contacts', body, key),
     createAccount: (body, key) => post('/v1/accounts', body, key),

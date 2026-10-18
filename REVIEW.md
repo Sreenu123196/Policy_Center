@@ -81,7 +81,7 @@ Ordered by what makes the biggest difference to being usable, not by size.
 4. Connect claims history to renewal and to the no-claim bonus; replace the simplified cancellation netting with a small ledger.
 
 **Tier 2: make it usable (about 6 to 8 weeks)**
-5. The rest of the screens: account and search, FNOL and claim summary with exposures and payments, billing and delinquency, underwriting referrals, policy change, cancellation, reinstatement and renewal, admin for users and authority.
+5. **Update: accounts, account billing, claims list and claim pages are done; the rest wait for API routes (see PROGRESS.md).** The rest of the screens: account and search, FNOL and claim summary with exposures and payments, billing and delinquency, underwriting referrals, policy change, cancellation, reinstatement and renewal, admin for users and authority.
 6. Hindi and Telugu screens and documents with reviewed translations; accessibility checks (WCAG 2.2 AA).
 7. Activities and queues for referrals, claims handling and delinquency.
 

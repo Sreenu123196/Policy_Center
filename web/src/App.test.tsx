@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { App } from './App.js';
 import { fakeApi } from './test-support.js';
@@ -47,5 +47,34 @@ describe('the application', () => {
     await screen.findByRole('heading', { name: 'Policy PL-0000001' });
     fireEvent.click(screen.getByRole('link', { name: 'New quote' }));
     expect(await screen.findByRole('heading', { name: /1\. Customer/ })).toBeTruthy();
+  });
+
+  it('opens the accounts and claims screens from the menu, and from an address', async () => {
+    const api = fakeApi();
+    render(<App api={api} users={users} today="2026-10-16" onUserChange={() => undefined} />);
+    fireEvent.click(screen.getByRole('link', { name: 'Accounts' }));
+    expect(await screen.findByRole('heading', { name: 'Accounts' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('link', { name: 'Claims' }));
+    expect(await screen.findByRole('heading', { name: 'Claims' })).toBeTruthy();
+    act(() => {
+      window.location.hash = '#/claim/CL-0000001';
+    });
+    expect(await screen.findByRole('heading', { name: 'Claim CL-0000001' })).toBeTruthy();
+    act(() => {
+      window.location.hash = '#/account/acc-1';
+    });
+    expect(await screen.findByRole('heading', { name: 'Account AC-0000001' })).toBeTruthy();
+    expect(api.billing).toHaveBeenCalledWith('acc-1');
+  });
+
+  it('loads the screen again when another user is chosen, since they may see different things', async () => {
+    window.location.hash = '#/accounts';
+    const api = fakeApi();
+    render(<App api={api} users={users} today="2026-10-16" onUserChange={() => undefined} />);
+    await screen.findByRole('heading', { name: 'Accounts' });
+    expect(api.listAccounts).toHaveBeenCalledTimes(1);
+    fireEvent.change(screen.getByLabelText('Signed in as'), { target: { value: 'uma.underwriter' } });
+    await screen.findByRole('heading', { name: 'Accounts' });
+    expect(api.listAccounts).toHaveBeenCalledTimes(2);
   });
 });

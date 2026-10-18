@@ -78,6 +78,11 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 - **Found by the matrix:** no API route uses `uw.approve` (an underwriter cannot approve a referred issue through the API). Added to the extension list; not fixed here.
 - **Not done:** no real identity provider was used (only a test one), the screens still send X-User (they need a login step), no refresh/logout, no token for machine-to-machine calls, and role assignment from the provider's groups is not mapped.
 
+## Tier 2, item 5 (first part): more screens (REVIEW.md, section 6)
+- **Done.** Four new screens in `web/src/`, built tests first and using only the existing API: **accounts list** with search (`#/accounts`), **account page** with billing (outstanding, invoices, payment schedule, credits; `#/account/<id>`), **claims list** with status and text filters and flags for late or unverified claims (`#/claims`), **claim page** with the loss, each exposure with its limit, paid, outstanding, recovered and incurred, and the totals by cost type (`#/claim/<number>`). The menu has Accounts and Claims. 20 new screen tests (39 in all).
+- **Behaviour worth knowing:** a person without `billing.view` still sees the account, with the reason; an account with nothing billed says so; if a claim's money cannot be loaded the columns show "-", never zero; every screen is loaded again when another user is chosen.
+- **Not done (rest of item 5):** screens for underwriting referrals (needs the missing `uw.approve` API route), policy change, cancellation, reinstatement and renewal (the API has only start-cancellation; change, reinstatement and renewal routes do not exist yet), billing actions (take a payment, delinquency), claim actions (add exposure, reserves, payments, FNOL form), and admin for users and authority (no user-admin API). An account page cannot list the account's policies: the API has no such call. These each need new API routes first. The screens still send `X-User` (no login step for the token mode).
+
 ## Result of I2
 The roadmap is complete (29 of 29 steps). `REVIEW.md` compares the build with the document section by section (about 55% of the whole document, by my estimate), lists the design rules that held, the known weaknesses and risks, and an ordered plan of what to extend next. Nothing is pending in the roadmap.
 

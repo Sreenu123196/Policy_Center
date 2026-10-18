@@ -214,6 +214,7 @@ API (document section 17)
 Screens (document section 20)
 - The screens are in `web/` (React + Vite) and talk only to the REST API through `web/src/api.ts`; they never contain a business rule, a price or a limit of their own, and they show the server's reasons for a refusal (`ErrorList`). Money is shown with `formatRupees` and dates with `formatDate`; they travel as whole paise and yyyy-mm-dd.
 - A button that changes something uses `useAction`, so it is disabled while it runs and keeps its idempotency keys until the call succeeds. Screen tests start with `// @vitest-environment jsdom` and use the stand-in API in `web/src/test-support.ts`.
+- Screens are chosen by the address after `#`: `#/` wizard, `#/accounts`, `#/account/<id>`, `#/claims`, `#/claim/<number>`, `#/policy/<number>`. A new screen adds a case to `screenFromHash` in `App.tsx`, an `Api` method in `api.ts` with its fake in `test-support.ts`, and a test written first. Show an unknown figure as `-`, never as zero.
 - Run: `npm run api` and `npm run web`; `npm run check` also type-checks and tests the screens.
 
 Sign-in (document sections 13 and 17)
