@@ -34,3 +34,35 @@ export async function branchFingerprint(db: Q, branchId: string): Promise<string
 export async function policyIdOfNumber(db: Q, policyNumber: string): Promise<string | null> {
   return (await db.query<{ id: string }>('select id from policy.policy where policy_number = $1', [policyNumber])).rows[0]?.id ?? null;
 }
+
+export async function accountIdOfPolicy(db: Q, policyId: string): Promise<string | null> {
+  return accountId(db, 'select account_id from policy.policy where id = $1', policyId);
+}
+
+export interface PolicyVersion {
+  termNumber: number;
+  version: number;
+  periodStart: string;
+  periodEnd: string;
+  cancelledOn: string | null;
+  jobType: string;
+  jobNumber: string;
+}
+
+// The bound versions of a policy, oldest first: what the policy file shows as its timeline.
+export async function listVersions(db: Q, policyId: string): Promise<PolicyVersion[]> {
+  const result = await db.query<{ term_number: number; version: number; period_start: string; period_end: string; cancelled_on: string | null; type: string; job_number: string }>(
+    `select b.term_number, b.version, to_char(b.period_start, 'YYYY-MM-DD') as period_start, to_char(b.period_end, 'YYYY-MM-DD') as period_end,
+            to_char(b.cancelled_on, 'YYYY-MM-DD') as cancelled_on, j.type, j.job_number
+       from policy.policy_period b join policy.job j on j.id = b.job_id
+      where b.policy_id = $1 and b.status = 'bound' order by b.term_number, b.version`,
+    [policyId],
+  );
+  return result.rows.map((r) => ({ termNumber: r.term_number, version: r.version, periodStart: r.period_start, periodEnd: r.period_end, cancelledOn: r.cancelled_on, jobType: r.type, jobNumber: r.job_number }));
+}
+
+// The basic facts of a policy by its number, or null.
+export async function policySummary(db: Q, policyNumber: string): Promise<{ policyId: string; policyNumber: string; productCode: string; accountId: string } | null> {
+  const row = (await db.query<{ id: string; policy_number: string; product_code: string; account_id: string }>('select id, policy_number, product_code, account_id from policy.policy where policy_number = $1', [policyNumber])).rows[0];
+  return row ? { policyId: row.id, policyNumber: row.policy_number, productCode: row.product_code, accountId: row.account_id } : null;
+}

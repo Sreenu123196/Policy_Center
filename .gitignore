@@ -19,3 +19,4 @@ Thumbs.db
 
 # Local database files (PGlite)
 .data/
+dist-web/

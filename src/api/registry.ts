@@ -50,6 +50,7 @@ export interface RouteInput<B extends z.ZodType, Q extends z.ZodType> {
   query?: Q;
   ifMatch?: boolean; // the request must carry If-Match with the ETag of what it changes
   success: number; // the status of a successful answer
+  produces?: string; // the content type of a successful answer when it is not JSON, for example application/pdf
   handler: (context: RouteContext<z.output<B>, z.output<Q>>) => Promise<RouteResult>;
 }
 
@@ -65,6 +66,7 @@ export interface Route {
   query: z.ZodType | undefined;
   ifMatch: boolean;
   success: number;
+  produces: string;
   run: (context: RouteContext<unknown, unknown>) => Promise<RouteResult>;
 }
 
@@ -81,6 +83,7 @@ export function defineRoute<B extends z.ZodType, Q extends z.ZodType>(input: Rou
     query: input.query,
     ifMatch: input.ifMatch ?? false,
     success: input.success,
+    produces: input.produces ?? 'application/json',
     run: (context) => input.handler(context as RouteContext<z.output<B>, z.output<Q>>),
   };
 }

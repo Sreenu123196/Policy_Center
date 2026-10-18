@@ -24,6 +24,7 @@ import { createContact } from '../contacts/index.js';
 import {
   accountIdOfBranch,
   accountIdOfJob,
+  accountIdOfPolicy,
   accountIdOfPolicyNumber,
   addCoverable,
   addCoverage,
@@ -34,10 +35,16 @@ import {
   getBranch,
   getBranchAsOf,
   getJob,
+  getCoverStatus,
+  getDocument,
   getPolicyAsOf,
   issueJob,
+  listDocuments,
+  listTransactions,
+  listVersions,
   listAccounts,
   policyIdOfNumber,
+  policySummary,
   quoteBranch,
   startCancellation,
   startSubmission,
@@ -190,6 +197,56 @@ const policy: Route[] = [
       const jobId = context.params.id ?? '';
       await visibleAccount(context, await accountIdOfJob(context.db, jobId), 'The job');
       return { body: await withdrawJob(context.db, jobId, context.user.username, context.body.reason) };
+    },
+  }),
+  defineRoute({
+    method: 'GET', path: '/v1/products/{code}', operationId: 'getProduct', summary: 'The product version in force on a date: its covers and their terms', tag: 'Policy', success: 200,
+    query: z.object({ date: dateText }),
+    handler: async (context) => {
+      const version = context.config.catalogue.versionInForce(context.params.code ?? '', context.query.date);
+      if (version === null) throw notFound('The product version');
+      return { body: { product: version.product, version: version.version, effectiveFrom: version.effective_from, names: version.names, coverages: version.line.coverages } };
+    },
+  }),
+  defineRoute({
+    method: 'GET', path: '/v1/policies/{number}', operationId: 'getPolicyFile', summary: 'The policy file: versions, premium transactions, documents and claims', tag: 'Policy', success: 200,
+    handler: async (context) => {
+      const number = context.params.number ?? '';
+      const summary = await policySummary(context.db, number);
+      if (summary === null) throw notFound('The policy');
+      await visibleAccount(context, summary.accountId, 'The policy');
+      const policyId = summary.policyId;
+      const [versions, transactions, documents, claims, cover] = await Promise.all([
+        listVersions(context.db, policyId),
+        listTransactions(context.db, policyId),
+        listDocuments(context.db, policyId),
+        listClaims(context.db, { policyNumber: number }),
+        getCoverStatus(context.db, policyId),
+      ]);
+      return {
+        body: {
+          policyNumber: number,
+          productCode: summary.productCode,
+          accountId: summary.accountId,
+          cover,
+          versions,
+          transactions,
+          documents,
+          claims: claims.map((c) => ({ claimNumber: c.claimNumber, lossDate: c.lossDate, cause: c.cause, status: c.status, verification: c.verification.status })),
+        },
+      };
+    },
+  }),
+  defineRoute({
+    method: 'GET', path: '/v1/documents/{id}', operationId: 'downloadDocument', summary: 'Download a document (the PDF itself)', tag: 'Policy', success: 200, produces: 'application/pdf',
+    handler: async (context) => {
+      const document = await getDocument(context.db, context.params.id ?? '');
+      if (document === null) throw notFound('The document');
+      await visibleAccount(context, await accountIdOfPolicy(context.db, document.policyId), 'The document');
+      return {
+        body: Buffer.from(document.content),
+        headers: { 'Content-Type': 'application/pdf', 'Content-Disposition': `inline; filename="${document.metadata.policyNumber}-${document.kind}.pdf"` },
+      };
     },
   }),
   defineRoute({

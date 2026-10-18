@@ -38,7 +38,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | G1 | First notice of loss and the policy as of the loss date | Done (389 tests pass) |
 | G2 | Exposures, reserves, payments, recoveries and the financial view | Done (417 tests pass) |
 | H1 | REST API with an OpenAPI description for the main flows | Done (435 tests pass) |
-| H2 | Simple React screens for the quote wizard and the policy file | Next: H2 |
+| H2 | React screens: quote wizard and policy file, with a dev server | Done (462 tests pass) |
+| I1 to I2 | End-to-end test from quote to claim to renewal, review against the document | Next: I1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -60,6 +61,17 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 - Read endpoints are scoped by producer code through the account, but the claims and billing endpoints for staff roles (`account.view_all`) show everything. Field-level security (hiding premium from a producer, for example) is not built.
 - Added the dependency `fastify` and the permissions `billing.pay`, `claim.report` and `claim.handle`.
 - Dates for "today" come from a clock that tests can set; the API uses the server's date.
+
+## Deferred from H2
+- Only two screens exist: the quote wizard and the policy file. Not built: account and contact screens, the claims screens (FNOL wizard, claim summary, exposures, reserves, payments, recoveries), billing screens (invoices, payments, suspense), underwriting referral and approval screens, policy change, cancellation, reinstatement and renewal screens, and admin screens for users, roles, authority and configuration (document section 20).
+- Screens are in English only. The product, typelists and documents have Hindi and Telugu names, but there is no language switch and no translation of screen text. Screens are not tested for accessibility beyond using labels and headings, and the layout is not tested on a phone.
+- Sign-in is a choice of demo user in a drop-down (the API's `X-User` header). A real sign-in with the identity provider replaces it.
+- The wizard keeps its work in the page: reloading the page loses the draft, although what was already saved on the server (a customer, a submission) remains. A list of "my open quotes" to come back to is not built, and the wizard has no way to change a step after the quote except "Start again".
+- The wizard creates a new customer each time unless an existing one is chosen; there is no search or duplicate check, and a new customer is always a person, not a company.
+- "Today" in the browser is the browser's date, in UTC; the server uses its own date for quote validity.
+- Documents open in a new tab from a download that carries the sign-in; pop-up blockers may stop it.
+- Running: `npm run api` (build and start on port 3000 with a data folder in `.data/`), `npm run web` (Vite on port 5173, passing `/v1` to the API; set `API_URL` when port 3000 is taken), `npm run build:web` (a static build into `dist-web/`, ignored by Git). The API server keeps its database in `.data/insurance-suite` and adds the demo users on every start. Nothing serves the built screens yet.
+- Added the dependencies `react`, `react-dom` and, for development, `vite`, `@vitejs/plugin-react`, `jsdom` and the Testing Library. The screen tests run in a simulated browser (jsdom), not a real one. I also checked the wizard and the policy file by hand in a real browser against the real API.
 
 ## Deferred from G2
 - Part G is complete. Handling features of document section 15 are not built: segmentation (fast track or complex), assignment rules and work queues, activities, surveyor appointment where rules require it, the cashless garage network, fraud indicators beyond the two flags, litigation, and reopening a closed claim as a whole. A handler is a name on an exposure.

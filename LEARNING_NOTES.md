@@ -264,5 +264,14 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Sensitive data stays out.** The claim payment answer shows only the masked account (`XXXXXXXXXX6789`).
 - The whole customer journey was run through the API in a test: contact, account, submission, vehicle and covers, quote (an agent), bind and issue (an underwriter; an agent is refused), policy as of a date, a claim with exposure, reserve and payment, then billing events, invoice and a payment.
 
+## H2. The screens: quote wizard and policy file (section 20)
+- **React** builds the screen from small functions called components; when data changes, React redraws only what changed. **Vite** serves the screens while developing and builds them for release. The screens are plain: forms, tables and messages.
+- **The screen holds no business rule.** It offers choices from the product (covers, the limits of the insured value, the deductible options), and the API checks every rule. When the API refuses, the screen shows the **server's reasons** exactly: a refusal (422) lists every problem, a missing permission (403) says "You are not allowed to do this", and nothing technical is shown.
+- **The quote wizard** has five steps: customer, vehicle, covers, quote, bind and issue. Each step calls the API when it is complete, so what is saved on the server stays saved. An agent can quote but not bind; the screen says so and leaves the quote on screen, so an underwriter can bind it.
+- **Pressing a button twice does no harm.** Each call has an **idempotency key**, kept until the call succeeds. If the second step fails after the first worked, the retry repeats the same calls with the same keys, so the customer is not created twice. A button is disabled while its work runs.
+- **The policy file** shows what a service person needs when a customer calls: the policy and whether it is in force or cancelled, the **timeline of versions**, the **premium transactions** (the whole premium of version 1, only the difference of a change), the documents and the claims. A date picker shows **the policy as it was on any date**, using the same effective-dating answer that claims use.
+- **Documents need the sign-in.** A plain link cannot send the `X-User` header, so the screen downloads the file with the header and opens it in a new tab.
+- **Testing the screens.** A test draws the screen in a simulated browser, with a stand-in for the API, fills in the fields, presses the buttons and checks what is on screen and what was sent. A separate test checks the API client: headers, idempotency keys and how errors are read. I also ran the real wizard and policy file in a browser against the real API.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

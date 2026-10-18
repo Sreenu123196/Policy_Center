@@ -211,6 +211,11 @@ API (document section 17)
 - The API calls module functions through `../<module>/index.js` only, passes the user name as `actor`, and never contains business rules: if a rule is needed, it goes into the module. Permission checks live here, in the route; domain functions do not check permissions (except financial authority limits, which depend on the amount).
 - Dates for "today" come from `context.today()`, never `new Date()` inside a handler, so tests can control them.
 
+Screens (document section 20)
+- The screens are in `web/` (React + Vite) and talk only to the REST API through `web/src/api.ts`; they never contain a business rule, a price or a limit of their own, and they show the server's reasons for a refusal (`ErrorList`). Money is shown with `formatRupees` and dates with `formatDate`; they travel as whole paise and yyyy-mm-dd.
+- A button that changes something uses `useAction`, so it is disabled while it runs and keeps its idempotency keys until the call succeeds. Screen tests start with `// @vitest-environment jsdom` and use the stand-in API in `web/src/test-support.ts`.
+- Run: `npm run api` and `npm run web`; `npm run check` also type-checks and tests the screens.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

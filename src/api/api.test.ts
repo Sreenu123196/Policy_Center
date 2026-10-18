@@ -347,3 +347,57 @@ describe('errors (document section 17)', () => {
     expect(reply.body.errors).toEqual([expect.stringMatching(/idv must be between/)]);
   });
 });
+
+describe('what the screens need: the product, the policy file and the documents', () => {
+  it('describes the product version in force on a date, with its covers and terms, for the quote wizard', async () => {
+    const reply = await call('agent.hundred', 'GET', '/v1/products/MOTOR_PRIVATE_CAR?date=2026-10-15');
+    expect(reply.status).toBe(200);
+    expect(reply.body).toMatchObject({ product: 'MOTOR_PRIVATE_CAR', version: '2026.10', names: { en: 'Private car insurance' } });
+    const od = reply.body.coverages.find((c: { code: string }) => c.code === 'MOTOR_OD');
+    expect(od).toMatchObject({ existence: 'electable', names: { en: 'Own damage' } });
+    expect(od.terms).toEqual(expect.arrayContaining([expect.objectContaining({ code: 'idv', type: 'direct', min: 5000000 })]));
+    expect(reply.body.coverages.find((c: { code: string }) => c.code === 'MOTOR_TP').existence).toBe('required');
+    expect((await call('agent.hundred', 'GET', '/v1/products/FLYING_CARPET?date=2026-10-15')).status).toBe(404);
+    expect((await call('agent.hundred', 'GET', '/v1/products/MOTOR_PRIVATE_CAR?date=2020-01-01')).status).toBe(404);
+  });
+
+  it('gives the policy file: versions, premium transactions, documents and claims, to people who may see the policy', async () => {
+    const { jobId, branchId } = await newSubmission();
+    await call('agent.hundred', 'POST', `/v1/jobs/${jobId}/quote`, { branchId });
+    await call('uw.boss', 'POST', `/v1/jobs/${jobId}/bind`, { branchId });
+    const issued = await call('uw.boss', 'POST', `/v1/jobs/${jobId}/issue`, {});
+
+    const file = await call('agent.hundred', 'GET', '/v1/policies/PL-0000001');
+    expect(file.status).toBe(200);
+    expect(file.body).toMatchObject({
+      policyNumber: 'PL-0000001',
+      productCode: 'MOTOR_PRIVATE_CAR',
+      cover: { status: 'in_force', version: 1 },
+      versions: [expect.objectContaining({ termNumber: 1, version: 1, periodStart: '2026-10-15', periodEnd: '2027-10-15', cancelledOn: null })],
+      transactions: [expect.objectContaining({ version: 1, kind: 'new_business', premiumPaise: 1574600, totalPaise: 1858028 })],
+      documents: [expect.objectContaining({ id: issued.body.document.id, kind: 'policy_schedule' })],
+      claims: [],
+    });
+    expect((await call('agent.twohundred', 'GET', '/v1/policies/PL-0000001')).status).toBe(404);
+    expect((await call('agent.hundred', 'GET', '/v1/policies/PL-9999999')).status).toBe(404);
+  });
+
+  it('downloads a document as the PDF itself, with the same producer code security', async () => {
+    const { jobId, branchId } = await newSubmission();
+    await call('agent.hundred', 'POST', `/v1/jobs/${jobId}/quote`, { branchId });
+    await call('uw.boss', 'POST', `/v1/jobs/${jobId}/bind`, { branchId });
+    const issued = await call('uw.boss', 'POST', `/v1/jobs/${jobId}/issue`, {});
+    const url = `/v1/documents/${issued.body.document.id}`;
+
+    const response = await app.inject({ method: 'GET', url, headers: { 'x-user': 'agent.hundred' } });
+    expect(response.statusCode).toBe(200);
+    expect(response.headers['content-type']).toBe('application/pdf');
+    expect(response.headers['content-disposition']).toMatch(/PL-0000001/);
+    expect(response.rawPayload.subarray(0, 5).toString()).toBe('%PDF-');
+    expect((await call('agent.twohundred', 'GET', url)).status).toBe(404);
+    expect((await call('agent.hundred', 'GET', '/v1/documents/00000000-0000-0000-0000-000000000000')).status).toBe(404);
+    const spec = (await call(null, 'GET', '/openapi.json')).body;
+    expect(Object.keys(spec.paths['/v1/documents/{id}'].get.responses['200'].content)).toEqual(['application/pdf']);
+  });
+});
+

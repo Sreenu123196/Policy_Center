@@ -43,4 +43,5 @@ export { processBillingEvents } from './billing-requests.js';
 export type { BillingRequestResult } from './billing-requests.js';
 export { findPolicyNumbersByRegistration, getPolicyAsOf } from './as-of.js';
 export type { NotInForceReason, PolicyAsOf } from './as-of.js';
-export { accountIdOfBranch, accountIdOfJob, accountIdOfPolicyNumber, branchFingerprint, policyIdOfNumber } from './lookup.js';
+export { accountIdOfBranch, accountIdOfJob, accountIdOfPolicy, accountIdOfPolicyNumber, branchFingerprint, listVersions, policyIdOfNumber, policySummary } from './lookup.js';
+export type { PolicyVersion } from './lookup.js';

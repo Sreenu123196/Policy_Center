@@ -37,7 +37,7 @@ function operation(route: Route): Json {
   }
 
   const responses: Record<string, Json> = {
-    [String(route.success)]: { description: 'Success', content: { 'application/json': { schema: { type: 'object' } } } },
+    [String(route.success)]: { description: 'Success', content: { [route.produces]: { schema: route.produces === 'application/json' ? { type: 'object' } : { type: 'string', format: 'binary' } } } },
   };
   if (route.body || route.query) responses['400'] = errorRef('The request is not shaped right (bad JSON, a missing or wrong field)');
   if (!route.public) {
