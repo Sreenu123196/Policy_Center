@@ -26,7 +26,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D1 | Product model for private car as JSON, with validation | Done (102 tests pass) |
 | D2 | Policy, job and branch tables; effective-dated tables with the no-overlap rule | Done (119 tests pass) |
 | D3 | Submission job from Draft to Quoted, with several quote options | Done (153 tests pass) |
-| D4 to D6 | Rating, underwriting, bind | Next: D4 |
+| D4 | Rating engine: rate books, routines, worksheet, golden tests | Done (174 tests pass) |
+| D5 to D6 | Underwriting, bind | Next: D5 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -35,6 +36,14 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D4
+- Proration by slice days (document section 9, step 4) and comparing with the previous version to create transactions: step E1. D4 prices one whole period.
+- Rate book life cycle (Draft, In review, Approved, Active, Retired) with approval by a second person, and impact testing against policies in force: the file has a `status` and only `active` books are used, but no approval workflow yet (needs separation of duties, with D5/H1).
+- Rating zone and city factors, own-damage cover for other vehicle types, loadings, fees and minimum total premium.
+- `engineCc` and `claimFreeYears` are read from vehicle attributes. A real claims history lookup and vehicle master data (make, model, variant gives cc) are future work. A missing `claimFreeYears` means 0 (no discount).
+- All rates are illustrative, not from a filed tariff. The 2026.04 book is the 2026.10 base rates reduced by 10%.
+- Rate books are loaded from `config/ratebooks/` into memory like products, not into the database; `loadRateBooks` is called at start-up (wiring comes with the API, H1).
 
 ## Deferred from D3
 - The real rating engine: D3 takes the price from an injected `Quoter`; tests use a stand-in price labelled TEST-PRICE. Real rate books, golden tests and the worksheet arrive in D4.

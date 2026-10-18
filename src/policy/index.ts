@@ -15,3 +15,6 @@ export type { Branch, BranchAsOf, BranchStatus, CoverableKind, CoverableSlice, C
 export { allowedNextStatuses, isFinalStatus } from './job-status.js';
 export type { Quote, QuoteDependencies, QuoteRequest, QuoteResult, Quoter, WorksheetLine } from './quote.js';
 export { addQuoteOption, compareQuotes, declineJob, markNotTaken, quoteBranch, startSubmission, withdrawJob } from './submission.js';
+export { loadRateBooks } from './rate-book.js';
+export type { RateBook, RateBookCatalogue } from './rate-book.js';
+export { createQuoter } from './rating.js';

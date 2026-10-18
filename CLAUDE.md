@@ -152,6 +152,10 @@ Submissions and quotes (document section 8)
 - Rating is an injected `Quoter` (pure function). A quote row in `policy.quote` is never updated or deleted; a new price is a new quote. Editing a quoted branch reopens it (`reopenIfQuoted`) and the job follows (`refreshJobStatus`).
 - A branch has a `label` (Option A, B ...). Copies of a branch keep the fixed ids.
 
+Rating (document section 9)
+- Rate books are files `config/ratebooks/<product lower case>-<product version>.json`, loaded with `loadRateBooks`, one per product version. Never edit a rate book that priced policies; add a new version. Rates are in basis points, amounts in whole paise.
+- Routines are declarative steps only. Never add code that runs text from a rate book. Rating stays a pure function (`createQuoter`); every change of a rate needs its golden test updated on purpose.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

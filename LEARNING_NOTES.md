@@ -139,5 +139,16 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Ending a submission (withdraw, decline with a mandatory reason, not taken) also withdraws its open branches in the same transaction, and everything is in the audit log.
 - **Testing lesson:** my audit test said the job became quoted after only one of two options was quoted. That contradicted another test (and the rule), so I fixed the test, not the code.
 
+## D4. The rating engine (section 9, Appendix D)
+- A **rate book** is a versioned file with lookup **tables**, constants, a **routine** per coverage, and a tax rate. It prices one product version. Only books with status `active` are used, and the book is chosen by product and the policy start date.
+- A **routine** is a list of declarative steps (input, constant, lookup, multiply, discount, subtract, minimum, round to rupee). There is no free-form code, the same safety idea as the expression language of D1. The loader checks that every name is defined before use, tables and constants exist, and a lookup's keys match its table.
+- **Lookup tables** match exact values or ranges (engine size, vehicle age). Exactly one row must match; none or two is an error, never a guess.
+- **Rates are in basis points** (320 bps = 3.20%) and amounts in paise, rounded at each step. So the arithmetic is whole numbers and the result is the same every time.
+- **Rating is a pure function** (`createQuoter(rateBooks)` returns the `Quoter` that D3 expects). Same request, same book, same price; the request is not changed.
+- **The worksheet** records every step with its inputs, the table used, the factor found and the amount, plus one `cost` line per coverage and a separate GST line. It is stored with the quote, so any price can be explained later.
+- **Golden tests** are fixed risks with the exact premium worked out by hand from the rate book: a basic policy, a voluntary deductible, the minimum premium, rounding, add-ons, other rows of the base-rate table, and the older book. If someone changes a rate, a golden test fails and the change must be confirmed on purpose.
+- Missing facts are reported (no engine size) and a missing claim history means no discount; the engine never invents an input.
+- **Testing lesson:** my first failure was a one-letter table name in the test data, rejected by the schema (the same lesson as D1). Read the real message first.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

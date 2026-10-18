@@ -9,6 +9,8 @@ import type { Account } from './account.js';
 import { addCoverable, addCoverage, getBranch, getBranchAsOf, getJob } from './policy-repository.js';
 import { loadProductCatalogue } from './product-catalogue.js';
 import type { Quoter } from './quote.js';
+import { loadRateBooks } from './rate-book.js';
+import { createQuoter } from './rating.js';
 import { addQuoteOption, compareQuotes, declineJob, markNotTaken, quoteBranch, startSubmission, withdrawJob } from './submission.js';
 
 const catalogue = loadProductCatalogue(fileURLToPath(new URL('../../config/products/', import.meta.url)));
@@ -310,5 +312,27 @@ describe('the audit log for submissions', () => {
     expect(forA.at(-1)).toMatchObject({ actor: 'agent.one', action: 'branch.quote', details: { quoteId: quote.id, totalPaise: quote.totalPaise } });
     const forB = await listAuditEntries(db, { entityType: 'policy_period', entityId: optionB.id });
     expect(forB[0]).toMatchObject({ actor: 'agent.two', action: 'branch.copy', details: { copiedFrom: branch.id } });
+  });
+});
+
+describe('quoting with the real rating engine (step D4)', () => {
+  const realDeps = { catalogue, quoter: createQuoter(loadRateBooks(fileURLToPath(new URL('../../config/ratebooks/', import.meta.url)), catalogue)) };
+
+  it('prices a branch from the rate book and stores the worksheet with the quote', async () => {
+    const started = await startSubmission(db, catalogue, { accountId: person.id, productCode: PRODUCT, periodStart: START }, 'agent.one');
+    const car = await addCoverable(db, started.branch.id, { kind: 'Vehicle', attributes: { ...swift, engineCc: 1197, claimFreeYears: 2 } }, 'agent.one');
+    for (const [code, terms] of [['MOTOR_TP', {}], ['PA_OWNER_DRIVER', {}], ['MOTOR_OD', { idv: 50000000 }]] as const) {
+      await addCoverage(db, started.branch.id, { coverableFixedId: car.fixedId, patternCode: code, terms }, 'agent.one');
+    }
+    const quote = await quoteBranch(db, realDeps, started.branch.id, 'agent.one', { today: TODAY });
+    expect(quote).toMatchObject({ premiumPaise: 1574600, taxPaise: 283428, totalPaise: 1858028, rateBook: 'MPC-2026.10' });
+    expect(quote.worksheet.length).toBeGreaterThan(10);
+  });
+
+  it('refuses to quote a vehicle with no engine size, and saves nothing', async () => {
+    const { branch } = await readyBranch(); // this vehicle has no engineCc
+    expect(await errorsOf(quoteBranch(db, realDeps, branch.id, 'u', { today: TODAY }))).toEqual([expect.stringMatching(/engine size/i)]);
+    expect((await getBranch(db, branch.id))?.status).toBe('draft');
+    expect(await quoteCount()).toBe(0);
   });
 });

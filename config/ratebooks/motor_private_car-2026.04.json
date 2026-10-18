@@ -1,0 +1,478 @@
+{
+  "product": "MOTOR_PRIVATE_CAR",
+  "version": "2026.04",
+  "rate_book": "MPC-2026.04",
+  "effective_from": "2026-04-01",
+  "status": "active",
+  "jurisdiction": "IN",
+  "tax": {
+    "name": "GST",
+    "rate_bps": 1800
+  },
+  "constants": {
+    "MIN_OD_PREMIUM": 200000,
+    "PA_OWNER_DRIVER_PREMIUM": 33000,
+    "ENGINE_PROTECT_BPS": 500,
+    "ROADSIDE_ASSIST_PREMIUM": 49900
+  },
+  "tables": {
+    "OD_BASE_RATE": {
+      "keys": [
+        "engine_cc",
+        "vehicle_age_years"
+      ],
+      "rows": [
+        {
+          "when": {
+            "engine_cc": {
+              "max": 1000
+            },
+            "vehicle_age_years": {
+              "min": 0,
+              "max": 5
+            }
+          },
+          "value": 274
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "max": 1000
+            },
+            "vehicle_age_years": {
+              "min": 6,
+              "max": 10
+            }
+          },
+          "value": 288
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "max": 1000
+            },
+            "vehicle_age_years": {
+              "min": 11
+            }
+          },
+          "value": 302
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1001,
+              "max": 1500
+            },
+            "vehicle_age_years": {
+              "min": 0,
+              "max": 5
+            }
+          },
+          "value": 288
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1001,
+              "max": 1500
+            },
+            "vehicle_age_years": {
+              "min": 6,
+              "max": 10
+            }
+          },
+          "value": 302
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1001,
+              "max": 1500
+            },
+            "vehicle_age_years": {
+              "min": 11
+            }
+          },
+          "value": 317
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1501
+            },
+            "vehicle_age_years": {
+              "min": 0,
+              "max": 5
+            }
+          },
+          "value": 302
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1501
+            },
+            "vehicle_age_years": {
+              "min": 6,
+              "max": 10
+            }
+          },
+          "value": 317
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1501
+            },
+            "vehicle_age_years": {
+              "min": 11
+            }
+          },
+          "value": 331
+        }
+      ]
+    },
+    "TP_RATE": {
+      "keys": [
+        "engine_cc"
+      ],
+      "rows": [
+        {
+          "when": {
+            "engine_cc": {
+              "max": 1000
+            }
+          },
+          "value": 209400
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1001,
+              "max": 1500
+            }
+          },
+          "value": 341600
+        },
+        {
+          "when": {
+            "engine_cc": {
+              "min": 1501
+            }
+          },
+          "value": 754400
+        }
+      ]
+    },
+    "NCB_SCALE": {
+      "keys": [
+        "claim_free_years"
+      ],
+      "rows": [
+        {
+          "when": {
+            "claim_free_years": 0
+          },
+          "value": 0
+        },
+        {
+          "when": {
+            "claim_free_years": 1
+          },
+          "value": 2000
+        },
+        {
+          "when": {
+            "claim_free_years": 2
+          },
+          "value": 2500
+        },
+        {
+          "when": {
+            "claim_free_years": 3
+          },
+          "value": 3500
+        },
+        {
+          "when": {
+            "claim_free_years": 4
+          },
+          "value": 4500
+        },
+        {
+          "when": {
+            "claim_free_years": {
+              "min": 5
+            }
+          },
+          "value": 5000
+        }
+      ]
+    },
+    "VOL_DED_DISC": {
+      "keys": [
+        "vol_deductible"
+      ],
+      "rows": [
+        {
+          "when": {
+            "vol_deductible": 0
+          },
+          "value": 0
+        },
+        {
+          "when": {
+            "vol_deductible": 250000
+          },
+          "value": 1500
+        },
+        {
+          "when": {
+            "vol_deductible": 500000
+          },
+          "value": 2000
+        }
+      ]
+    },
+    "ZERO_DEP_RATE": {
+      "keys": [
+        "vehicle_age_years"
+      ],
+      "rows": [
+        {
+          "when": {
+            "vehicle_age_years": {
+              "min": 0,
+              "max": 5
+            }
+          },
+          "value": 1500
+        }
+      ]
+    }
+  },
+  "routines": {
+    "MOTOR_TP": {
+      "steps": [
+        {
+          "op": "input",
+          "name": "engine_cc",
+          "as": "engine_cc"
+        },
+        {
+          "op": "lookup",
+          "table": "TP_RATE",
+          "by": [
+            "engine_cc"
+          ],
+          "as": "tp"
+        }
+      ],
+      "output": "tp"
+    },
+    "PA_OWNER_DRIVER": {
+      "steps": [
+        {
+          "op": "constant",
+          "name": "PA_OWNER_DRIVER_PREMIUM",
+          "as": "pa"
+        }
+      ],
+      "output": "pa"
+    },
+    "MOTOR_OD": {
+      "steps": [
+        {
+          "op": "input",
+          "name": "idv",
+          "as": "idv"
+        },
+        {
+          "op": "input",
+          "name": "engine_cc",
+          "as": "engine_cc"
+        },
+        {
+          "op": "input",
+          "name": "vehicle_age_years",
+          "as": "vehicle_age_years"
+        },
+        {
+          "op": "lookup",
+          "table": "OD_BASE_RATE",
+          "by": [
+            "engine_cc",
+            "vehicle_age_years"
+          ],
+          "as": "base_rate"
+        },
+        {
+          "op": "multiply_bps",
+          "value": "idv",
+          "rate": "base_rate",
+          "as": "od_basic"
+        },
+        {
+          "op": "input",
+          "name": "claim_free_years",
+          "as": "claim_free_years"
+        },
+        {
+          "op": "input",
+          "name": "vol_deductible",
+          "as": "vol_deductible"
+        },
+        {
+          "op": "lookup",
+          "table": "NCB_SCALE",
+          "by": [
+            "claim_free_years"
+          ],
+          "as": "ncb_bps"
+        },
+        {
+          "op": "discount_bps",
+          "value": "od_basic",
+          "rate": "ncb_bps",
+          "as": "od_after_ncb"
+        },
+        {
+          "op": "lookup",
+          "table": "VOL_DED_DISC",
+          "by": [
+            "vol_deductible"
+          ],
+          "as": "vd_bps"
+        },
+        {
+          "op": "discount_bps",
+          "value": "od_after_ncb",
+          "rate": "vd_bps",
+          "as": "od_net"
+        },
+        {
+          "op": "constant",
+          "name": "MIN_OD_PREMIUM",
+          "as": "min_od"
+        },
+        {
+          "op": "minimum",
+          "value": "od_net",
+          "min": "min_od",
+          "as": "od_min"
+        },
+        {
+          "op": "round_rupee",
+          "value": "od_min",
+          "as": "od_final"
+        }
+      ],
+      "output": "od_final"
+    },
+    "ZERO_DEP": {
+      "steps": [
+        {
+          "op": "input",
+          "name": "idv",
+          "as": "idv"
+        },
+        {
+          "op": "input",
+          "name": "engine_cc",
+          "as": "engine_cc"
+        },
+        {
+          "op": "input",
+          "name": "vehicle_age_years",
+          "as": "vehicle_age_years"
+        },
+        {
+          "op": "lookup",
+          "table": "OD_BASE_RATE",
+          "by": [
+            "engine_cc",
+            "vehicle_age_years"
+          ],
+          "as": "base_rate"
+        },
+        {
+          "op": "multiply_bps",
+          "value": "idv",
+          "rate": "base_rate",
+          "as": "od_basic"
+        },
+        {
+          "op": "lookup",
+          "table": "ZERO_DEP_RATE",
+          "by": [
+            "vehicle_age_years"
+          ],
+          "as": "zd_bps"
+        },
+        {
+          "op": "multiply_bps",
+          "value": "od_basic",
+          "rate": "zd_bps",
+          "as": "zd"
+        }
+      ],
+      "output": "zd"
+    },
+    "ENGINE_PROTECT": {
+      "steps": [
+        {
+          "op": "input",
+          "name": "idv",
+          "as": "idv"
+        },
+        {
+          "op": "input",
+          "name": "engine_cc",
+          "as": "engine_cc"
+        },
+        {
+          "op": "input",
+          "name": "vehicle_age_years",
+          "as": "vehicle_age_years"
+        },
+        {
+          "op": "lookup",
+          "table": "OD_BASE_RATE",
+          "by": [
+            "engine_cc",
+            "vehicle_age_years"
+          ],
+          "as": "base_rate"
+        },
+        {
+          "op": "multiply_bps",
+          "value": "idv",
+          "rate": "base_rate",
+          "as": "od_basic"
+        },
+        {
+          "op": "constant",
+          "name": "ENGINE_PROTECT_BPS",
+          "as": "ep_bps"
+        },
+        {
+          "op": "multiply_bps",
+          "value": "od_basic",
+          "rate": "ep_bps",
+          "as": "ep"
+        }
+      ],
+      "output": "ep"
+    },
+    "ROADSIDE_ASSIST": {
+      "steps": [
+        {
+          "op": "constant",
+          "name": "ROADSIDE_ASSIST_PREMIUM",
+          "as": "ra"
+        }
+      ],
+      "output": "ra"
+    }
+  }
+}
