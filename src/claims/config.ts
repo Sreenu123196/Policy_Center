@@ -12,12 +12,25 @@ const cause = z.strictObject({
   requires_coverage: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{1,39}$/)).min(1, 'requires_coverage needs at least one coverage code'),
 });
 
+// Claim financial authority (document section 15): how much a person may reserve and pay. Held by role or by name.
+const profile = z.strictObject({
+  code: z.string().regex(/^[A-Z][A-Z0-9_]{1,39}$/, 'A profile code is capital letters, digits or underscores'),
+  roles: z.array(z.string()).default([]),
+  users: z.array(z.string()).default([]),
+  reserve_limit_paise: z.number().int().min(0), // the most the outstanding reserve of one exposure may be
+  payment_limit_paise: z.number().int().min(0), // the most one payment may be without a second person's approval
+});
+
 export const claimsConfigSchema = z.strictObject({
   version: z.string().regex(/^\d{4}\.\d{2}$/, 'Version looks like 2026.04'),
   effective_from: z.string().refine(isRealDate, 'effective_from must be a real date written yyyy-mm-dd'),
   late_report_days: z.number().int().min(0),
   causes: z.array(cause).min(1),
+  reserve_categories: z.array(z.string().regex(/^[a-z][a-z0-9_]{1,39}$/)).min(1),
+  authority_profiles: z.array(profile),
 });
+
+export type AuthorityProfile = z.infer<typeof profile>;
 
 export type ClaimsConfig = z.infer<typeof claimsConfigSchema>;
 
@@ -53,7 +66,14 @@ export function loadClaimsConfig(folder: string): ClaimsConfigCatalogue {
     }
     const codes = parsed.data.causes.map((c) => c.code);
     const repeated = codes.filter((code, i) => codes.indexOf(code) !== i);
-    if (repeated.length > 0) errors.push(...[...new Set(repeated)].map((code) => `${file}: cause ${code} is used more than once`));
+    const problems: string[] = [...new Set(repeated)].map((code) => `${file}: cause ${code} is used more than once`);
+    const profiles = parsed.data.authority_profiles;
+    profiles.forEach((p, i) => {
+      if (profiles.findIndex((x) => x.code === p.code) !== i) problems.push(`${file}: profile ${p.code} is used more than once`);
+      if (p.roles.length === 0 && p.users.length === 0) problems.push(`${file}: profile ${p.code} has no role and no user, so nobody can hold it`);
+      if (p.payment_limit_paise > p.reserve_limit_paise) problems.push(`${file}: profile ${p.code}: payment_limit_paise must not be above reserve_limit_paise`);
+    });
+    if (problems.length > 0) errors.push(...problems);
     else all.push(parsed.data);
   }
   if (errors.length > 0) throw new ValidationError(errors);

@@ -40,7 +40,7 @@ export async function createCustomer(db: PGlite, name = 'Asha Rao'): Promise<Acc
 }
 
 // The golden policy (premium 1,574,600 + GST 283,428 = 1,858,028 paise), bound and issued, for an account.
-export async function issueGoldenPolicy(db: PGlite, account: Account, options: { ownDamage?: boolean; start?: string } = {}) {
+export async function issueGoldenPolicy(db: PGlite, account: Account, options: { ownDamage?: boolean; start?: string; idv?: number } = {}) {
   const start = options.start ?? START;
   const started = await startSubmission(db, catalogue, { accountId: account.id, productCode: 'MOTOR_PRIVATE_CAR', periodStart: start }, 'agent.one');
   const car = await addCoverable(
@@ -49,7 +49,7 @@ export async function issueGoldenPolicy(db: PGlite, account: Account, options: {
     { kind: 'Vehicle', attributes: { make: 'Maruti', model: 'Swift', year: 2023, registrationNumber: 'TS09XX0001', engineCc: 1197, claimFreeYears: 2 } },
     'agent.one',
   );
-  const covers: (readonly [string, Record<string, number>])[] = [['MOTOR_TP', {}], ['PA_OWNER_DRIVER', {}], ...(options.ownDamage === false ? [] : [['MOTOR_OD', { idv: 50000000 }] as const])];
+  const covers: (readonly [string, Record<string, number>])[] = [['MOTOR_TP', {}], ['PA_OWNER_DRIVER', {}], ...(options.ownDamage === false ? [] : [['MOTOR_OD', { idv: options.idv ?? 50000000 }] as const])];
   const coverIds: Record<string, string> = {};
   for (const [code, terms] of covers) {
     coverIds[code] = (await addCoverage(db, started.branch.id, { coverableFixedId: car.fixedId, patternCode: code, terms }, 'agent.one')).fixedId;

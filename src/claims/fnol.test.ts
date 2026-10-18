@@ -66,7 +66,7 @@ describe('loading the claims configuration (document section 15)', () => {
   });
 
   describe('checks the file and reports every problem together', () => {
-    const base = { version: '2026.04', effective_from: '2026-04-01', late_report_days: 7, causes: [{ code: 'collision', requires_coverage: ['MOTOR_OD'] }] };
+    const base = { version: '2026.04', effective_from: '2026-04-01', late_report_days: 7, causes: [{ code: 'collision', requires_coverage: ['MOTOR_OD'] }], reserve_categories: ['repair'], authority_profiles: [] };
     const load = (file: unknown, name = 'claims-2026.04.json') => {
       const folder = mkdtempSync(join(tmpdir(), 'claims-'));
       writeFileSync(join(folder, name), JSON.stringify(file));

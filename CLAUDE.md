@@ -201,6 +201,11 @@ Claims (document section 15)
 - Which cover each cause of loss needs is in `config/claims/claims-<version>.json`; cause codes are also the `loss_cause` typelist. A report that can be understood is always recorded, even when it cannot be verified.
 - Keep personal numbers (phone, Aadhaar, PAN) out of the audit log and events.
 
+Claim money (document section 15)
+- Reserves change only through `setReserve` or a payment (`makePayment` / `approvePayment`), and each change is in `claims.reserve_change`, which is never changed. Payments and recoveries are never deleted. Claim limits are in `authority_profiles` of `config/claims/claims-<version>.json`; do not hard-code amounts.
+- Exposure status moves only through `moveExposure` (the diagram is tested), and the claim status is derived from its exposures by `refreshClaimStatus`; never update either directly.
+- Never store or log a full bank account number or UPI address: only the masked instrument.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

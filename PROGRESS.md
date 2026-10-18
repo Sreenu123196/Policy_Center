@@ -36,7 +36,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | F1 | Billing: charges from events, payment plans, invoices | Done (340 tests pass) |
 | F2 | Payments, allocation, suspense, credits, missed payments and the cancellation request | Done (369 tests pass) |
 | G1 | First notice of loss and the policy as of the loss date | Done (389 tests pass) |
-| G2 | Exposures, reserves and payments | Next: G2 |
+| G2 | Exposures, reserves, payments, recoveries and the financial view | Done (417 tests pass) |
+| H1 to H2 | REST API with OpenAPI, React screens | Next: H1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -45,6 +46,17 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from G2
+- Part G is complete. Handling features of document section 15 are not built: segmentation (fast track or complex), assignment rules and work queues, activities, surveyor appointment where rules require it, the cashless garage network, fraud indicators beyond the two flags, litigation, and reopening a closed claim as a whole. A handler is a name on an exposure.
+- Reserves are set by a person. Automatic initial reserves from the cause or the insured value, and reserve review dates, are not built.
+- Payment approval is one second person with enough payment limit. Approval chains, dual limits per cover or per cost type, and rules by claim size are not built. Reserve changes above a person's limit are refused (no approval queue).
+- Payments are records with a masked instrument. Real payment through a bank or UPI adapter, payee verification against a bank (name match), TDS and GST on claim payments, and returned (failed) payments are not built. A payment cannot be reversed.
+- Own damage is paid up to the insured value on the loss date; the deductible (voluntary or compulsory) and depreciation are recorded or deduced by hand, not worked out. The deductible recovery is a manual entry. Third-party payments have no limit.
+- A claim is not linked to billing: unpaid premium does not stop a claim (the policy was in force that day), and a settled claim does not change the no-claim bonus at renewal. Renewal still adds one claim-free year; claims should reset it (an open point from E4).
+- Recoveries are booked only against the claim cost, and a recovery cannot be more than was paid. A recovery before payment (an expected one), and recovering expenses, are not modelled.
+- The financial figures are read from the tables on request; there is no month-end snapshot, and no reinsurance or ledger entries (document section 14, accounting).
+- Claims-side permissions (`claim.pay`) are checked at the API edge in H1; the financial authority limits are checked in the domain.
 
 ## Deferred from G1
 - Exposures (one claimant against one cover), reserves, payments, recoveries and the financial view (incurred = paid + outstanding reserves - recoveries): step G2.

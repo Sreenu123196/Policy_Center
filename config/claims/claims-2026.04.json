@@ -3,13 +3,81 @@
   "effective_from": "2026-04-01",
   "late_report_days": 7,
   "causes": [
-    { "code": "collision", "requires_coverage": ["MOTOR_OD"] },
-    { "code": "fire", "requires_coverage": ["MOTOR_OD"] },
-    { "code": "flood", "requires_coverage": ["MOTOR_OD"] },
-    { "code": "theft", "requires_coverage": ["MOTOR_OD"] },
-    { "code": "vandalism", "requires_coverage": ["MOTOR_OD"] },
-    { "code": "third_party_injury", "requires_coverage": ["MOTOR_TP"] },
-    { "code": "third_party_property", "requires_coverage": ["MOTOR_TP"] },
-    { "code": "owner_driver_accident", "requires_coverage": ["PA_OWNER_DRIVER"] }
+    {
+      "code": "collision",
+      "requires_coverage": [
+        "MOTOR_OD"
+      ]
+    },
+    {
+      "code": "fire",
+      "requires_coverage": [
+        "MOTOR_OD"
+      ]
+    },
+    {
+      "code": "flood",
+      "requires_coverage": [
+        "MOTOR_OD"
+      ]
+    },
+    {
+      "code": "theft",
+      "requires_coverage": [
+        "MOTOR_OD"
+      ]
+    },
+    {
+      "code": "vandalism",
+      "requires_coverage": [
+        "MOTOR_OD"
+      ]
+    },
+    {
+      "code": "third_party_injury",
+      "requires_coverage": [
+        "MOTOR_TP"
+      ]
+    },
+    {
+      "code": "third_party_property",
+      "requires_coverage": [
+        "MOTOR_TP"
+      ]
+    },
+    {
+      "code": "owner_driver_accident",
+      "requires_coverage": [
+        "PA_OWNER_DRIVER"
+      ]
+    }
+  ],
+  "reserve_categories": [
+    "repair",
+    "total_loss",
+    "medical",
+    "legal",
+    "survey",
+    "other"
+  ],
+  "authority_profiles": [
+    {
+      "code": "HANDLER",
+      "roles": [
+        "claims_handler"
+      ],
+      "users": [],
+      "reserve_limit_paise": 5000000,
+      "payment_limit_paise": 2500000
+    },
+    {
+      "code": "MANAGER",
+      "roles": [
+        "claims_manager"
+      ],
+      "users": [],
+      "reserve_limit_paise": 100000000,
+      "payment_limit_paise": 50000000
+    }
   ]
 }
