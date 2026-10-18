@@ -396,6 +396,12 @@ function coverageRows(defs, map) {
 
 function periodSummary(productCode, period) {
   const pm = product(productCode);
+  if (productCode === 'CommercialProperty') {
+    const { locations, lineCoverages, claimsLast5Years } = period.line;
+    return `<h3>Locations</h3>${table(['Location', 'ZIP', 'Construction', 'Occupancy', 'Protection', 'Building', 'Contents'], locations.map((l) => [esc(l.description || l.address.line1), esc(l.address.zip), esc(l.construction), esc(l.occupancy), esc(l.protectionClass), usd0(l.buildingValue), usd0(l.contentsValue)]))}
+      <h3>Coverages</h3>${table(['Coverage', 'Limit / deductible'], coverageRows(pm.lineCoverages, lineCoverages))}
+      <div class="muted">Property claims in the last 5 years: ${esc(claimsLast5Years)}</div>`;
+  }
   if (productCode === 'GeneralLiability') {
     const { exposures, lineCoverages, claimsLast5Years } = period.line;
     return `<h3>Classes of business</h3>${table(['Class', 'Description', 'Base', 'Annual amount'], exposures.map((x) => [esc(x.classCode), esc(x.description), esc(x.base), usd0(x.amount)]))}
@@ -488,6 +494,7 @@ const isEditable = (job) => OPEN.includes(job.status) && EDITABLE_TYPES.includes
 
 function jobSteps(job) {
   if (!EDITABLE_TYPES.includes(job.type)) return [['summary', 'Summary']];
+  if (job.product === 'CommercialProperty') return [['info', 'Policy info'], ['locations', 'Locations'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'GeneralLiability') return [['info', 'Policy info'], ['exposures', 'Classes of business'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'PersonalAuto' || job.product === 'CommercialAuto') return [['info', 'Policy info'], ['drivers', 'Drivers'], ['vehicles', 'Vehicles'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   return [['info', 'Policy info'], ['dwelling', 'Dwelling'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
@@ -539,7 +546,7 @@ const STEPS = {
     return `<h2>Policy info</h2>
       <div class="form-grid">
         ${field('Named insured', `<input value="${esc(p.insured.name)}" disabled>`)}
-        ${job.product === 'CommercialAuto' || job.product === 'GeneralLiability' ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
+        ${job.product === 'CommercialAuto' || job.product === 'GeneralLiability' || job.product === 'CommercialProperty' ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
         ${field('Base state', `<input value="${esc(S.meta.states[p.state])}" disabled>`)}
         ${field('Producer code', `<input value="${esc(p.producerCode)}" disabled>`)}
         ${field('Term', `<input value="${pm.termMonths} months" disabled>`)}
@@ -571,6 +578,32 @@ const STEPS = {
             ${field('Good student (under 25)', `<input type="checkbox" data-bind="${b('goodStudent')}" ${d.goodStudent ? 'checked' : ''} ${dis(editable)}>`, 'check')}
           </div>
           ${editable && drivers.length > 1 ? `<div style="margin-top:10px"><button class="btn small danger" data-action="remove-driver" data-index="${i}">Remove driver</button></div>` : ''}
+        </fieldset>`;
+      }).join('')}`;
+  },
+
+  locations(job, draft, editable) {
+    const pm = product('CommercialProperty');
+    const list = draft.line.locations;
+    return `<div class="spread"><h2>Locations</h2>${editable ? '<button class="btn" data-action="add-location">Add location</button>' : ''}</div>
+      <div class="form-grid">${field('Property claims in the last 5 years', `<input type="number" min="0" data-type="number" data-bind="line.claimsLast5Years" value="${esc(draft.line.claimsLast5Years)}" ${dis(editable)}>`)}</div>
+      ${list.length ? '' : '<div class="empty">No locations yet. Add one to continue.</div>'}
+      ${list.map((loc, i) => {
+        const b = (f) => `line.locations.${i}.${f}`;
+        return `<fieldset><legend>Location ${i + 1}${loc.description ? `: ${esc(loc.description)}` : ''}</legend>
+          <div class="form-grid">
+            ${field('Description', `<input data-bind="${b('description')}" value="${esc(loc.description)}" ${dis(editable)}>`)}
+            ${field('Street address', `<input data-bind="${b('address.line1')}" value="${esc(loc.address.line1)}" ${dis(editable)}>`)}
+            ${field('City', `<input data-bind="${b('address.city')}" value="${esc(loc.address.city)}" ${dis(editable)}>`)}
+            ${field('ZIP', `<input data-bind="${b('address.zip')}" value="${esc(loc.address.zip)}" maxlength="5" ${dis(editable)}>`)}
+            ${field('Construction', `<select data-bind="${b('construction')}" ${dis(editable)}>${pm.constructionTypes.map((x) => `<option ${sel(x, loc.construction)}>${x}</option>`).join('')}</select>`)}
+            ${field('Occupancy', `<select data-bind="${b('occupancy')}" ${dis(editable)}>${pm.occupancies.map((x) => `<option ${sel(x, loc.occupancy)}>${x}</option>`).join('')}</select>`)}
+            ${field('Year built', `<input type="number" data-type="number" data-bind="${b('yearBuilt')}" value="${esc(loc.yearBuilt)}" ${dis(editable)}>`)}
+            ${field('Protection class (1 best to 10)', `<input type="number" min="1" max="10" data-type="number" data-bind="${b('protectionClass')}" value="${esc(loc.protectionClass)}" ${dis(editable)}>`)}
+            ${field('Building value ($)', `<input type="number" min="0" data-type="number" data-bind="${b('buildingValue')}" value="${esc(loc.buildingValue)}" ${dis(editable)}>`)}
+            ${field('Contents value ($)', `<input type="number" min="0" data-type="number" data-bind="${b('contentsValue')}" value="${esc(loc.contentsValue)}" ${dis(editable)}>`)}
+          </div>
+          ${editable ? `<div style="margin-top:10px"><button class="btn small danger" data-action="remove-location" data-index="${i}">Remove location</button></div>` : ''}
         </fieldset>`;
       }).join('')}`;
   },
@@ -678,7 +711,7 @@ const STEPS = {
     };
     const group = (title, inner) => (inner.trim() ? `<div class="cov-group"><div class="cov-title">${esc(title)}</div>${inner}</div>` : '');
 
-    if (job.product === 'GeneralLiability') {
+    if (job.product === 'GeneralLiability' || job.product === 'CommercialProperty') {
       const { lineCoverages } = draft.line;
       return `<h2>Coverages</h2>${group('Policy-level coverages', pm.lineCoverages.map((d) => row(d, lineCoverages[d.code], `line.lineCoverages.${d.code}`)).join(''))}`;
     }
@@ -1117,6 +1150,8 @@ const ACTIONS = {
   },
   'add-driver': async () => { S.jv.draft.line.drivers.push({ firstName: '', lastName: '', dob: '', licenseNumber: '', licenseState: S.jv.job.period.state, yearsLicensed: null, accidents: 0, violations: 0 }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-driver': async (d) => { S.jv.draft.line.drivers.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
+  'add-location': async () => { S.jv.draft.line.locations.push({ description: '', address: { line1: '', city: '', zip: S.jv.job.account.address.zip }, construction: 'Frame', occupancy: 'Office', yearBuilt: null, protectionClass: 4, buildingValue: null, contentsValue: 0 }); S.jv.dirty = true; await saveDraft(); renderJob(); },
+  'remove-location': async (d) => { S.jv.draft.line.locations.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'add-exposure': async () => { S.jv.draft.line.exposures.push({ classCode: '60010', description: '', amount: null }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-exposure': async (d) => { S.jv.draft.line.exposures.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },

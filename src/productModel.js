@@ -202,7 +202,35 @@ const GENERAL_LIABILITY = {
   vehicleCoverages: [],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY };
+const COMMERCIAL_PROPERTY = {
+  code: 'CommercialProperty',
+  name: 'Commercial Property',
+  prefix: 'CP',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  constructionTypes: ['Frame', 'Masonry', 'Superior'],
+  occupancies: ['Office', 'Retail', 'Warehouse', 'Restaurant'],
+  lineCoverages: [
+    {
+      code: 'CPBuildingCov', name: 'Building', category: 'Property', existence: 'Required',
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([1000, 2500, 5000, 10000]), default: '2500' }],
+    },
+    {
+      code: 'CPBusinessPersonalPropertyCov', name: 'Business Personal Property (contents)', category: 'Property', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([1000, 2500, 5000, 10000]), default: '2500' }],
+    },
+    {
+      code: 'CPBusinessIncomeCov', name: 'Business Income (12 months)', category: 'Income', existence: 'Electable',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([50000, 100000, 250000]), default: '100000' }],
+    },
+  ],
+  vehicleCoverages: [],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

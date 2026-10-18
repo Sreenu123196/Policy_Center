@@ -151,6 +151,28 @@ function validateGeneralLiability(p, add) {
   if (!isInt(claimsLast5Years, 0, 50)) add('line.claimsLast5Years', 'Liability claims in the last 5 years must be 0 to 50');
 }
 
+function validateCommercialProperty(p, add) {
+  const pm = PRODUCTS.CommercialProperty;
+  const { businessName, locations, claimsLast5Years } = p.line;
+  const effYear = D.yearOf(p.effectiveDate);
+  if (blank(businessName)) add('line.businessName', 'Business name is required');
+  if (!locations.length) add('line.locations', 'At least one location is required');
+  if (locations.length > 50) add('line.locations', 'A commercial property policy can have at most 50 locations');
+  locations.forEach((loc, i) => {
+    const at = (f) => `line.locations.${i}.${f}`;
+    const what = `Location ${i + 1}`;
+    if (blank(loc.address.line1)) add(at('address.line1'), `${what}: street address is required`);
+    if (!ZIP.test(loc.address.zip || '')) add(at('address.zip'), `${what}: ZIP must be 5 digits`);
+    if (!pm.constructionTypes.includes(loc.construction)) add(at('construction'), `${what}: choose a construction type`);
+    if (!pm.occupancies.includes(loc.occupancy)) add(at('occupancy'), `${what}: choose an occupancy`);
+    if (!isInt(loc.yearBuilt, 1800, effYear)) add(at('yearBuilt'), `${what}: year built must be between 1800 and the effective year`);
+    if (!isInt(loc.protectionClass, 1, 10)) add(at('protectionClass'), `${what}: protection class must be 1 to 10`);
+    if (!isInt(loc.buildingValue, 1, 500000000)) add(at('buildingValue'), `${what}: building value is required`);
+    if (!isInt(loc.contentsValue, 0, 500000000)) add(at('contentsValue'), `${what}: contents value must be 0 or more`);
+  });
+  if (!isInt(claimsLast5Years, 0, 50)) add('line.claimsLast5Years', 'Property claims in the last 5 years must be 0 to 50');
+}
+
 function validatePeriod(product, p, { jobType, today }) {
   const e = [];
   const add = (path, message) => e.push({ path, message });
@@ -163,6 +185,7 @@ function validatePeriod(product, p, { jobType, today }) {
   if (product === 'PersonalAuto') validatePersonalAuto(p, add);
   else if (product === 'CommercialAuto') validateCommercialAuto(p, add);
   else if (product === 'GeneralLiability') validateGeneralLiability(p, add);
+  else if (product === 'CommercialProperty') validateCommercialProperty(p, add);
   else validateHomeowners(p, add);
   return e;
 }

@@ -388,7 +388,9 @@ class PolicyCenter {
       insured: { name: this.accountName(account), address: clone(account.address) },
       line: null,
     };
-    if (product === 'GeneralLiability') {
+    if (product === 'CommercialProperty') {
+      period.line = { businessName: '', claimsLast5Years: 0, locations: [], lineCoverages: {} };
+    } else if (product === 'GeneralLiability') {
       period.line = { businessName: '', claimsLast5Years: 0, exposures: [], lineCoverages: {} };
     } else if (product === 'CommercialAuto') {
       period.line = { businessName: '', drivers: [], vehicles: [], lineCoverages: {} };
@@ -445,6 +447,26 @@ class PolicyCenter {
       };
     }
 
+    if (product === 'CommercialProperty') {
+      const pm = PRODUCTS.CommercialProperty;
+      const ctx = { state: period.state };
+      return {
+        businessName: str(line.businessName),
+        claimsLast5Years: int(line.claimsLast5Years) ?? 0,
+        locations: (line.locations || []).map((loc) => ({
+          id: loc.id || this.store.id('loc'),
+          description: str(loc.description),
+          address: { line1: str(loc.address && loc.address.line1), city: str(loc.address && loc.address.city), zip: str(loc.address && loc.address.zip) },
+          construction: pm.constructionTypes.includes(loc.construction) ? loc.construction : 'Frame',
+          occupancy: pm.occupancies.includes(loc.occupancy) ? loc.occupancy : 'Office',
+          yearBuilt: int(loc.yearBuilt),
+          protectionClass: int(loc.protectionClass),
+          buildingValue: int(loc.buildingValue),
+          contentsValue: int(loc.contentsValue) ?? 0,
+        })),
+        lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+      };
+    }
     if (product === 'GeneralLiability') {
       const pm = PRODUCTS.GeneralLiability;
       const ctx = { state: period.state };

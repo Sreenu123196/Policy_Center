@@ -118,10 +118,30 @@ function generalLiabilityIssues(p) {
   return out;
 }
 
+function commercialPropertyIssues(p) {
+  const out = [];
+  const { locations, claimsLast5Years } = p.line;
+  const effYear = D.yearOf(p.effectiveDate);
+  if (claimsLast5Years >= 4) out.push(issue('CP_LOSS_HISTORY', 'Property loss history', `${claimsLast5Years} property claims in 5 years`, 'BlocksQuote', 2, claimsLast5Years));
+  else if (claimsLast5Years >= 2) out.push(issue('CP_LOSS_HISTORY', 'Property loss history', `${claimsLast5Years} property claims in 5 years`, 'BlocksQuote', 1, claimsLast5Years));
+  let total = 0;
+  locations.forEach((loc, i) => {
+    const what = `Location ${i + 1} (${loc.description || loc.address.line1})`;
+    total += (loc.buildingValue || 0) + (loc.contentsValue || 0);
+    if (loc.protectionClass >= 8) out.push(issue('CP_POOR_PROTECTION', 'Poor fire protection', `${what} has protection class ${loc.protectionClass}`, 'BlocksQuote', 1, loc.protectionClass, loc.id));
+    if (loc.buildingValue > 5000000) out.push(issue('CP_LARGE_LOCATION', 'Large location', `${what} building value is $${Number(loc.buildingValue).toLocaleString('en-US')}; over $5M needs UW Manager`, 'BlocksBind', 2, loc.buildingValue, loc.id));
+    if (loc.construction === 'Frame' && effYear - loc.yearBuilt > 50) out.push(issue('CP_OLD_FRAME', 'Older frame building', `${what} is a frame building over 50 years old`, 'BlocksBind', 1, effYear - loc.yearBuilt, loc.id));
+    if (loc.occupancy === 'Restaurant') out.push(issue('CP_RESTAURANT', 'Cooking exposure', `${what} is a restaurant; underwriter review for cooking fire risk`, 'BlocksBind', 1, 1, loc.id));
+  });
+  if (total > 10000000) out.push(issue('CP_TOTAL_VALUES', 'Large total insured value', `Total insured value is $${Number(total).toLocaleString('en-US')}; over $10M needs UW Manager`, 'BlocksBind', 2, total));
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
     : product === 'CommercialAuto' ? commercialAutoIssues(period)
-    : product === 'GeneralLiability' ? generalLiabilityIssues(period) : homeownersIssues(period);
+    : product === 'GeneralLiability' ? generalLiabilityIssues(period)
+    : product === 'CommercialProperty' ? commercialPropertyIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

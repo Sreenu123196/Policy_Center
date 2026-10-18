@@ -140,6 +140,25 @@ const GL_TABLES = {
   policyFee: 50,
 };
 
+// Commercial property: rate per $100 of value by construction, then factors for protection class,
+// occupancy, state, territory and deductible. Demonstration values, not filed rates.
+const CP_TABLES = {
+  buildingRates: { Frame: 0.42, Masonry: 0.24, Superior: 0.14 },
+  contentsMultiplier: 1.1,
+  protectionFactors: [{ max: 3, f: 0.85 }, { max: 5, f: 1.0 }, { max: 7, f: 1.2 }, { f: 1.5 }],
+  occupancyFactors: { Office: 0.9, Retail: 1.0, Warehouse: 1.15, Restaurant: 1.35 },
+  stateFactors: { CA: 1.2, FL: 1.4, IL: 1.0, NY: 1.3, OH: 0.9, TX: 1.1 },
+  territoryFactors: { 1: 0.92, 2: 0.97, 3: 1.0, 4: 1.06, 5: 1.14 },
+  deductibleFactors: {
+    CPBuildingCov: { 1000: 1.12, 2500: 1.0, 5000: 0.9, 10000: 0.8 },
+    CPBusinessPersonalPropertyCov: { 1000: 1.12, 2500: 1.0, 5000: 0.9, 10000: 0.8 },
+  },
+  businessIncomeRate: 0.15,
+  discounts: { paidInFull: 0.05 },
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 50,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
@@ -148,6 +167,7 @@ const RATE_BOOKS = [
   { code: 'HO-STD', product: 'Homeowners', version: '2027.2', effectiveDate: '2027-07-01', status: 'Draft', rateLevel: 1.08, description: 'Proposed +8% (pending regulatory approval, not used for rating)', tables: HO_TABLES },
   { code: 'CA-STD', product: 'CommercialAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial auto standard rate book', tables: CA_TABLES },
   { code: 'GL-STD', product: 'GeneralLiability', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'General liability standard rate book', tables: GL_TABLES },
+  { code: 'CP-STD', product: 'CommercialProperty', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial property standard rate book', tables: CP_TABLES },
 ];
 
 module.exports = { RATE_BOOKS };

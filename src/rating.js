@@ -422,11 +422,74 @@ function rateGeneralLiability(period, ctx) {
   return result;
 }
 
+// ---------------------------------------------------------------- Commercial Property
+
+function rateCommercialProperty(period, ctx) {
+  const book = selectRateBook('CommercialProperty', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.CommercialProperty;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const termF = round4(product.termMonths / 12);
+  const costs = [];
+
+  period.line.locations.forEach((loc, i) => {
+    const terr = territoryOf(loc.address.zip);
+    const coverable = `Location ${i + 1}: ${loc.description || loc.address.line1}`;
+    const protF = band(t.protectionFactors, loc.protectionClass);
+    const occF = t.occupancyFactors[loc.occupancy];
+    const base = { type: 'Coverage', coverableId: loc.id, coverable };
+    const common = (ws, code) => ws
+      .x(`State factor (${state})`, sf)
+      .x(`Territory ${terr} (ZIP ${loc.address.zip})`, t.territoryFactors[terr])
+      .x(`Protection class ${loc.protectionClass}`, protF)
+      .x(`Occupancy: ${loc.occupancy}`, occF)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+
+    const bld = period.line.lineCoverages.CPBuildingCov;
+    if (bld && bld.selected) {
+      const d = bld.terms.deductible;
+      const ws = new Worksheet(`Building $${Number(loc.buildingValue).toLocaleString('en-US')} at $${t.buildingRates[loc.construction]} per $100 (${loc.construction})`, (loc.buildingValue / 100) * t.buildingRates[loc.construction])
+        .x(`Deductible ${usd(d)}`, t.deductibleFactors.CPBuildingCov[d]);
+      common(ws);
+      costs.push(cost({ ...base, coverageCode: 'CPBuildingCov', coverageName: 'Building', termValue: d }, ws));
+    }
+    const bpp = period.line.lineCoverages.CPBusinessPersonalPropertyCov;
+    if (bpp && bpp.selected && loc.contentsValue > 0) {
+      const d = bpp.terms.deductible;
+      const ws = new Worksheet(`Contents $${Number(loc.contentsValue).toLocaleString('en-US')} at $${(t.buildingRates[loc.construction] * t.contentsMultiplier).toFixed(3)} per $100`, (loc.contentsValue / 100) * t.buildingRates[loc.construction] * t.contentsMultiplier)
+        .x(`Deductible ${usd(d)}`, t.deductibleFactors.CPBusinessPersonalPropertyCov[d]);
+      common(ws);
+      costs.push(cost({ ...base, coverageCode: 'CPBusinessPersonalPropertyCov', coverageName: 'Business personal property', termValue: d }, ws));
+    }
+  });
+
+  const bi = period.line.lineCoverages.CPBusinessIncomeCov;
+  if (bi && bi.selected) {
+    const limit = bi.terms.limit;
+    const ws = new Worksheet(`Business income limit ${usd(limit)}`, (limit / 100) * t.businessIncomeRate)
+      .x(`State factor (${state})`, sf)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'CPBusinessIncomeCov', coverageName: 'Business income', termValue: limit }, ws));
+  }
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  if (period.paymentPlan === 'PaidInFull') {
+    const pct = t.discounts.paidInFull;
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`Paid-in-full discount (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: 'PaidInFullDiscount', coverageName: 'Paid-in-full discount' }, ws));
+  }
+  return finish(book, costs, state, ctx);
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
   if (product === 'CommercialAuto') return rateCommercialAuto(period, ctx);
   if (product === 'GeneralLiability') return rateGeneralLiability(period, ctx);
+  if (product === 'CommercialProperty') return rateCommercialProperty(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 
