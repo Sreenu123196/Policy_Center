@@ -1,9 +1,13 @@
 // Accounts (document section 5): the customer relationship. An account has a number, a status, a producer
 // of record, and contacts with roles. Names and addresses stay in the Contacts module.
 
-// The roles a contact can have on an account. A typelist (step C4) will manage this list later.
-export const ACCOUNT_CONTACT_ROLES = ['named_insured', 'driver', 'financier', 'billing_contact'] as const;
-export type AccountContactRole = (typeof ACCOUNT_CONTACT_ROLES)[number];
+// The roles a contact can have on an account come from the account_contact_role typelist
+// (document section 18), so a new role is a configuration release, not a code change.
+export type AccountContactRole = string;
+
+// The one role the code itself relies on: every account has exactly one named insured. That is a
+// business rule, not configuration.
+export const NAMED_INSURED = 'named_insured';
 
 export interface AccountContact {
   contactId: string;

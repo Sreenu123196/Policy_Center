@@ -1,3 +1,4 @@
+import { isRealDate } from '../platform/index.js';
 import { isValidEmail, isValidGstin, isValidPan, isValidPinCode, maskAadhaar, normalisePhone } from './identifiers.js';
 
 export type ContactKind = 'person' | 'company';
@@ -65,9 +66,6 @@ export function tidy(input: NewContact): NewContact {
     aadhaar: clean(input.aadhaar),
   };
 }
-
-const isRealDate = (text: string): boolean =>
-  /^\d{4}-\d{2}-\d{2}$/.test(text) && new Date(`${text}T00:00:00Z`).toISOString().slice(0, 10) === text;
 
 // Returns every problem with a tidied contact. An empty list means it is acceptable.
 export function validateNewContact(contact: NewContact, today: string = new Date().toISOString().slice(0, 10)): string[] {

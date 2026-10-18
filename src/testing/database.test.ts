@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { listAuditEntries, recordAudit } from '../platform/index.js';
-import { createTestDatabase, resetDatabase } from './database.js';
+import { getTypelist, listAuditEntries, recordAudit } from '../platform/index.js';
+import { createTestDatabase, loadTestConfiguration, resetDatabase } from './database.js';
 
 let db: PGlite;
 
@@ -39,5 +39,13 @@ describe('test database support', () => {
 
     await recordAudit(db, { actor: 'test', action: 'x.y', entityType: 'x', entityId: '1' });
     await expect(db.query('delete from platform.audit_log')).rejects.toThrow(/append-only/);
+  });
+
+  it('loadTestConfiguration puts the real typelists back after a reset', async () => {
+    await resetDatabase(db);
+    expect(await getTypelist(db, 'account_contact_role')).toBeNull();
+
+    await loadTestConfiguration(db);
+    expect((await getTypelist(db, 'account_contact_role'))?.length).toBeGreaterThan(0);
   });
 });

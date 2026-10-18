@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact, type Contact, type NewContact } from '../contacts/index.js';
@@ -10,10 +14,11 @@ import {
   createUser,
   deactivateProducerCode,
   listAuditEntries,
+  loadTypelists,
   ValidationError,
   visibilityFor,
 } from '../platform/index.js';
-import { createTestDatabase, resetDatabase } from '../testing/database.js';
+import { createTestDatabase, loadTestConfiguration, resetDatabase } from '../testing/database.js';
 import { addAccountContact, createAccount, getAccount, listAccounts } from './account-repository.js';
 
 let db: PGlite;
@@ -35,6 +40,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await resetDatabase(db);
+  await loadTestConfiguration(db); // the contact roles come from the account_contact_role typelist
 
   // Two agencies, each with one producer code. All names are made up.
   const acme = await createProducerOrganisation(db, { name: 'Acme Insurance Agency' }, 'admin');
@@ -158,5 +164,32 @@ describe('accounts with the audit log and real users (document sections 5 and 13
 
     expect((await listAccounts(db, await visibilityFor(db, agent.id))).map((a) => a.id)).toEqual([own.id]);
     expect(await listAccounts(db, await visibilityFor(db, boss.id))).toHaveLength(2);
+  });
+});
+
+const roleTypelistFile = fileURLToPath(new URL('../../config/typelists/account_contact_role.json', import.meta.url));
+
+describe('account contact roles come from a typelist (document section 18)', () => {
+  it('refuse a role that is not in the typelist, or that a newer typelist version has retired', async () => {
+    const account = await createAccount(db, { namedInsuredContactId: asha.id, producerCode: 'PC-100' }, 'u');
+    expect(await errorsOf(addAccountContact(db, account.id, { contactId: ravi.id, role: 'astronaut' }, 'u'))).toEqual([
+      expect.stringMatching(/astronaut is not an active account contact role/i),
+    ]);
+
+    // A newer version of the typelist retires the financier role. That is a configuration release, not a code change.
+    const dir = mkdtempSync(join(tmpdir(), 'suite-roles-'));
+    try {
+      const current = JSON.parse(readFileSync(roleTypelistFile, 'utf8')) as { version: string; entries: { code: string }[] };
+      const retired = { ...current, version: '2099.1.1', entries: current.entries.map((e) => (e.code === 'financier' ? { ...e, retired: true } : e)) };
+      writeFileSync(join(dir, 'account_contact_role.json'), JSON.stringify(retired));
+      await loadTypelists(db, dir, 'admin');
+
+      expect(await errorsOf(addAccountContact(db, account.id, { contactId: bank.id, role: 'financier' }, 'u'))).toEqual([
+        expect.stringMatching(/financier is not an active account contact role/i),
+      ]);
+      await expect(addAccountContact(db, account.id, { contactId: ravi.id, role: 'driver' }, 'u')).resolves.toBeDefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

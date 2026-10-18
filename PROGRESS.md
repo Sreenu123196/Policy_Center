@@ -22,8 +22,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | C1 | Contacts: people and companies, PIN code, masked identifiers | Done (27 tests pass) |
 | C2 | Accounts and producer codes | Done (40 tests pass) |
 | C3 | Users, roles, permissions and the audit log | Done (58 tests pass) |
-| C4 | Typelists and loading versioned configuration | Next: C4 |
-| D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Not started |
+| C4 | Typelists and loading versioned configuration | Done (73 tests pass). Part C is complete. |
+| D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Next: D1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -32,6 +32,13 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from C4
+- The `state` on a contact is still free text. It should become an `indian_state` typelist (the full official list of states and union territories, in three languages). Translations for that list should be reviewed.
+- Hindi and Telugu names in `account_contact_role.json` were written by the mentor and should be reviewed by a native speaker or the insurer's terminology team before real use.
+- More typelists are added when a step needs them (cancellation reasons in E3, loss causes in Part G).
+- `effective_from` is validated and stored, but not applied yet: it starts to matter for rate books and product models (D1, D4).
+- Promoting configuration from development to test to production with approvals, and admin screens for configuration (H2).
 
 ## Deferred from C3
 - Making the audit log tamper-evident (each entry carrying a hash of the previous one) so changes made outside the database's protections could be detected.

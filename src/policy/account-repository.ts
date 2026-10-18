@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { getContact } from '../contacts/index.js';
-import { canSeeProducerCode, getProducerCode, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
-import { ACCOUNT_CONTACT_ROLES, type Account, type AccountContact, type AccountContactRole, type NewAccount } from './account.js';
+import { canSeeProducerCode, getProducerCode, isActiveTypelistCode, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
+import { NAMED_INSURED, type Account, type AccountContact, type AccountContactRole, type NewAccount } from './account.js';
 
 interface AccountRow {
   id: string;
@@ -73,7 +73,7 @@ export async function createAccount(db: PGlite, input: NewAccount, actor: string
     await tx.query('insert into policy.account_contact (account_id, contact_id, role, created_by) values ($1, $2, $3, $4)', [
       id,
       input.namedInsuredContactId,
-      'named_insured',
+      NAMED_INSURED,
       actor,
     ]);
     await recordAudit(tx, { actor, action: 'account.create', entityType: 'account', entityId: id, details: { producerCode: input.producerCode } });
@@ -92,10 +92,10 @@ export async function addAccountContact(db: PGlite, accountId: string, contact: 
   const exists = isUuid(accountId) ? await db.query('select 1 from policy.account where id = $1', [accountId]) : { rows: [] };
   if (exists.rows.length === 0) errors.push('The account does not exist');
   if ((await getContact(db, contact.contactId)) === null) errors.push('The contact does not exist');
-  if (!ACCOUNT_CONTACT_ROLES.includes(contact.role)) errors.push(`Role must be one of ${ACCOUNT_CONTACT_ROLES.join(', ')}`);
+  if (!(await isActiveTypelistCode(db, 'account_contact_role', contact.role))) errors.push(`${contact.role} is not an active account contact role`);
   if (errors.length > 0) throw new ValidationError(errors);
 
-  if (contact.role === 'named_insured') throw new ValidationError(['An account has exactly one named insured']);
+  if (contact.role === NAMED_INSURED) throw new ValidationError(['An account has exactly one named insured']);
 
   const already = await db.query('select 1 from policy.account_contact where account_id = $1 and contact_id = $2 and role = $3', [
     accountId,

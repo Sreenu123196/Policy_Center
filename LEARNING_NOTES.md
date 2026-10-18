@@ -95,5 +95,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Sign-in is not our job in this project: the document hands it to an identity provider (OpenID Connect with MFA). We model users and what they may do.
 - **Testing lesson:** starting a database takes about 3 seconds, and several test files start one at once. A fresh database per test made setup time out. The fix is one database per test file plus a fast reset between tests. The reset must skip the audit log's protection triggers, which is acceptable only in test support code.
 
+## C4. Typelists and versioned configuration (section 18)
+- Things that change with the business live in **versioned configuration files**, not in code: typelists now, later the product model, rate books, rules and plans.
+- A **typelist** is a managed list of codes. Each entry has a code, a name in English, Hindi and Telugu, a sort order and a **retired** flag. Codes are **never deleted or reused**: an old code is retired, because old records still use it.
+- Files are **checked against a schema** (we use the zod library). The check reports **every** problem in **every** file together, and if any file is bad, nothing is loaded.
+- Every file carries a **version** (such as 2026.10.1) and an `effective_from` date. A loaded version is history: loading the same version again does nothing, changed content under the same version is refused, and an older version is refused. To change a list, publish a higher version.
+- The **version history** (`platform.config_version`) and the **audit log** record who loaded which version and when.
+- Policy's account contact roles now come from the `account_contact_role` typelist. Retiring a role is a configuration release; no code or database change is needed. The role `named_insured` stays in code because "exactly one named insured per account" is a business rule, not configuration.
+- **Bug lesson:** `new Date('2026-13-45')` is an invalid date, and calling `toISOString()` on it throws a `RangeError`. Our C1 date check had that flaw, hidden because its test used February 30th, which JavaScript quietly rolls over into March. The fix is one shared `isRealDate`. A new kind of test case (a month that does not exist) exposed it.
+- Hindi and Telugu names written by the mentor should be reviewed by a native speaker before real use.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

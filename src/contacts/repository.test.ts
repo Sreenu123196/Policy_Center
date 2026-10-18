@@ -117,6 +117,11 @@ describe('contacts (document section 16)', () => {
 
     const notReal = await createContact(db, { ...asha, dateOfBirth: '1990-02-30' }, 'u').catch((e: unknown) => e);
     expect((notReal as ValidationError).errors).toEqual(expect.arrayContaining([expect.stringMatching(/date of birth/i)]));
+
+    // A month that does not exist must give a clear message, not crash.
+    const noSuchMonth = await createContact(db, { ...asha, dateOfBirth: '1990-13-45' }, 'u').catch((e: unknown) => e);
+    expect(noSuchMonth).toBeInstanceOf(ValidationError);
+    expect((noSuchMonth as ValidationError).errors).toEqual(expect.arrayContaining([expect.stringMatching(/date of birth/i)]));
   });
 
   it('is protected twice: the database itself refuses an unmasked Aadhaar even if our code is bypassed', async () => {

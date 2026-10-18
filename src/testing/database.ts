@@ -2,9 +2,10 @@
 // resetDatabase before each test, instead of starting a new database for every test.
 import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
-import { MODULES, createDatabase, runMigrations } from '../platform/index.js';
+import { MODULES, createDatabase, loadConfiguration, runMigrations } from '../platform/index.js';
 
 const migrationsFolder = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
+const configFolder = fileURLToPath(new URL('../../config/', import.meta.url));
 
 // A new in-memory database with every real migration applied.
 export async function createTestDatabase(): Promise<PGlite> {
@@ -37,4 +38,10 @@ export async function resetDatabase(db: PGlite): Promise<void> {
   } finally {
     await db.exec('set session_replication_role = origin');
   }
+}
+
+// Loads the project's real configuration (typelists, and later more). resetDatabase removes it along with
+// everything else, so tests that need it call this after the reset.
+export async function loadTestConfiguration(db: PGlite): Promise<void> {
+  await loadConfiguration(db, configFolder, 'test');
 }

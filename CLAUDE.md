@@ -125,6 +125,12 @@ Data rules (from the document)
 - A bound policy version is never edited. A new job copies it into a branch.
 - Every change records who made it (person or agent), when, and through which job.
 
+Configuration (document section 18)
+- Anything that changes with the business lives in versioned files under `config/`, not in code: typelists now; the product model, rate books, rules and plans later. Files are checked against a zod schema and loaded with `loadConfiguration`.
+- A loaded version is history. To change a file, give it a new, higher version number. A typelist code is retired, never removed and never reused. Every entry needs names in English, Hindi and Telugu.
+- A business rule that the code itself relies on (for example `named_insured`) stays in code; only the lists around it are configuration.
+- To check a date written as `yyyy-mm-dd`, use `isRealDate` from Platform. Never call `toISOString()` on a date you have not checked: it throws on an invalid date.
+
 Users, permissions and audit
 - Every function that creates or changes something takes an `actor` (the user name of a person or an AI agent). It writes an audit entry in the same transaction as the change, using `recordAudit`. A refused change records nothing. Audit details hold small facts only, never personal numbers such as Aadhaar or PAN.
 - The audit log is append-only; the database refuses updates, deletes and truncates. Never write code that tries to change it.
