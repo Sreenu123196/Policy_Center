@@ -35,7 +35,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | E4 | Renewal: window, direction, offer, non-renewal | Done (302 tests pass) |
 | F1 | Billing: charges from events, payment plans, invoices | Done (340 tests pass) |
 | F2 | Payments, allocation, suspense, credits, missed payments and the cancellation request | Done (369 tests pass) |
-| G1 to G2 | Claims (first notice of loss, exposures, reserves, payments) | Next: G1 |
+| G1 | First notice of loss and the policy as of the loss date | Done (389 tests pass) |
+| G2 | Exposures, reserves and payments | Next: G2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -44,6 +45,18 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from G1
+- Exposures (one claimant against one cover), reserves, payments, recoveries and the financial view (incurred = paid + outstanding reserves - recoveries): step G2.
+- Claim statuses (submitted, under review, documents pending, approved, settled, rejected, closed) exist in the table but only `submitted` is set; the life cycle and its allowed moves come with exposures in G2.
+- Handling (document section 15): segmentation into fast track or complex, assignment to a handler, activities, surveyor appointment, cashless garage network, fraud indicators and litigation are not built. A late report and a possible duplicate are the only flags.
+- The reporter (name and phone) is kept as text on the claim. A claimant or witness should be a contact in the Contacts module with consent rules; that link is not built. Phone numbers are kept out of the audit log and events.
+- Attachments are references (a file name or id) only. The file store is an adapter that is not built (document section 17).
+- Coverage verification checks that a cover the cause needs was on the policy that day. It does not yet check the exclusions, the driver's licence, the vehicle's registration against the one reported, a deductible calculation or a limit. The policy snapshot (insured value, deductible term) is kept so those checks can be added.
+- The policy as of the loss date uses the newest bound version of the term containing the date, as known now. A version bound after the report (an out-of-sequence change) would show on a later lookup but the claim keeps the snapshot of the moment it was reported.
+- Added the Policy public API `getPolicyAsOf` and `findPolicyNumbersByRegistration`. Visibility by producer code (who may see a claim) is checked at the API edge (H1).
+- The Hindi and Telugu names in `loss_cause.json` were written by the mentor and need review.
+- Shared test setup moved to `src/testing/golden-policy.ts` for all modules.
 
 ## Deferred from F2
 - Part F is complete. The double-entry sub-ledger, the daily export to the general ledger, commissions, payment gateway adapters, UPI AutoPay / e-NACH mandates and automatic matching of bank statements are not built. Payments are entered by a person or a script.

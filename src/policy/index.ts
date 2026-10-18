@@ -41,3 +41,5 @@ export { approveNonRenewal, issueNonRenewalNotice, listRenewalDirections, produc
 export type { RenewalDependencies, RenewalDirection, RenewalDirectionKind } from './renewal.js';
 export { processBillingEvents } from './billing-requests.js';
 export type { BillingRequestResult } from './billing-requests.js';
+export { findPolicyNumbersByRegistration, getPolicyAsOf } from './as-of.js';
+export type { NotInForceReason, PolicyAsOf } from './as-of.js';

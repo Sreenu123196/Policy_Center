@@ -196,6 +196,11 @@ Payments and missed payments (document section 14)
 - Billing asks Policy to act only by events (`CancellationRequested`, `ReinstatementRequested`) carrying `accountId` and `policyNumbers`; Policy answers by starting jobs in `processBillingEvents`. Neither module calls the other's functions.
 - The steps after a missed payment come from `delinquency` in the billing configuration and the plan's `grace_days`; do not hard-code days.
 
+Claims (document section 15)
+- Claims asks Policy only through its public door (`getPolicyAsOf`, `findPolicyNumbersByRegistration`) and keeps the policy snapshot it received with the claim; never query Policy's tables and never re-ask for an old claim.
+- Which cover each cause of loss needs is in `config/claims/claims-<version>.json`; cause codes are also the `loss_cause` typelist. A report that can be understood is always recorded, even when it cannot be verified.
+- Keep personal numbers (phone, Aadhaar, PAN) out of the audit log and events.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

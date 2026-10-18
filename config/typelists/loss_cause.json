@@ -1,0 +1,15 @@
+{
+  "typelist": "loss_cause",
+  "version": "2026.10.1",
+  "effective_from": "2026-10-01",
+  "entries": [
+    { "code": "collision", "sort": 10, "names": { "en": "Collision", "hi": "टक्कर", "te": "ఢీకొనడం" } },
+    { "code": "fire", "sort": 20, "names": { "en": "Fire", "hi": "आग", "te": "అగ్ని ప్రమాదం" } },
+    { "code": "flood", "sort": 30, "names": { "en": "Flood", "hi": "बाढ़", "te": "వరద" } },
+    { "code": "theft", "sort": 40, "names": { "en": "Theft", "hi": "चोरी", "te": "దొంగతనం" } },
+    { "code": "vandalism", "sort": 50, "names": { "en": "Vandalism", "hi": "तोड़फोड़", "te": "ధ్వంసం" } },
+    { "code": "third_party_injury", "sort": 60, "names": { "en": "Injury to a third party", "hi": "तीसरे पक्ष को चोट", "te": "మూడవ పక్షానికి గాయం" } },
+    { "code": "third_party_property", "sort": 70, "names": { "en": "Damage to third-party property", "hi": "तीसरे पक्ष की संपत्ति को नुकसान", "te": "మూడవ పక్ష ఆస్తికి నష్టం" } },
+    { "code": "owner_driver_accident", "sort": 80, "names": { "en": "Accident to the owner-driver", "hi": "मालिक-चालक की दुर्घटना", "te": "యజమాని-డ్రైవర్‌కు ప్రమాదం" } }
+  ]
+}

@@ -233,5 +233,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Policy listens.** On `CancellationRequested`, Policy starts a **non-payment cancellation** with the notice the product requires (15 days). On `ReinstatementRequested` (sent once when an invoice that led to a cancellation request is finally paid), Policy starts a **reinstatement** if the policy was cancelled for non-payment and the 30-day limit has not passed. A person still quotes and binds these jobs. Requests that cannot be done are skipped with a reason in the audit log.
 - Everything between the two modules goes through the **outbox**, and each side keeps its own offset, so each can restart or see an event twice safely.
 
+## G1. First notice of loss and the policy as of the loss date (section 15)
+- **FNOL** is the first report of a loss: when and where it happened, the cause, a description, who reported it and by which channel (staff, portal, phone, WhatsApp, partner), incidents (damage or injury) and references to photos. A claim gets a number (`CL-0000001`).
+- **The policy as of the loss date.** Claims asks Policy a question: what was this policy on that day? Policy answers from effective dating: the newest *bound* version of the *term that contains the date*, read *as of that date*. The answer is **in force** (with the vehicle, the covers and their terms, such as the insured value) or **not in force** with a reason: outside any term, cancelled from a date, or a gap in cover. An open job never counts. A change takes effect from its own date, so the day before it shows the old value.
+- **Verification.** The cause needs a cover (a collision needs own damage, an injury to a third party needs third-party liability). If the policy was in force and had that cover, the claim is **verified**; otherwise it is **not verified**, with the reasons. The report is **still recorded**: a handler decides. Only a report that cannot be understood (unknown policy, impossible dates) is refused, and then nothing is saved.
+- **The claim keeps its own copy** of the policy as it was on the loss date. If the policy is cancelled later, the claim is not changed.
+- **Flags, not refusals.** A report more than 7 days after the loss is a **late report**; the same policy, date and cause as an earlier claim is a **possible duplicate**. Both are accepted and shown.
+- **Finding the policy.** A caller who knows only the car's number can be matched through the vehicle's registration number (spaces and capitals do not matter), among the policies in force that day.
+- **Personal data.** The reporter's phone number is stored on the claim but never goes into the audit log or the `ClaimOpened` event.
+- Claims never reads Policy's tables; it uses only Policy's public door, and the architecture test checks it.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

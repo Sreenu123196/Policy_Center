@@ -1,0 +1,15 @@
+{
+  "version": "2026.04",
+  "effective_from": "2026-04-01",
+  "late_report_days": 7,
+  "causes": [
+    { "code": "collision", "requires_coverage": ["MOTOR_OD"] },
+    { "code": "fire", "requires_coverage": ["MOTOR_OD"] },
+    { "code": "flood", "requires_coverage": ["MOTOR_OD"] },
+    { "code": "theft", "requires_coverage": ["MOTOR_OD"] },
+    { "code": "vandalism", "requires_coverage": ["MOTOR_OD"] },
+    { "code": "third_party_injury", "requires_coverage": ["MOTOR_TP"] },
+    { "code": "third_party_property", "requires_coverage": ["MOTOR_TP"] },
+    { "code": "owner_driver_accident", "requires_coverage": ["PA_OWNER_DRIVER"] }
+  ]
+}
