@@ -1481,7 +1481,7 @@ class PolicyCenter {
       const notes = this.db.followUps.filter((f) => f.policyId === p.id).sort((a, b) => b.date.localeCompare(a.date) || b.loggedAt.localeCompare(a.loggedAt));
       const latest = notes[0] || null;
       out.push({
-        policyId: p.id, policyNumber: p.policyNumber, insured: this.accountName(account), product: p.product, status,
+        policyId: p.id, accountId: account.id, policyNumber: p.policyNumber, insured: this.accountName(account), product: p.product, status,
         expirationDate: last.expirationDate, daysToExpiry: days,
         premium: round2(last.latest.quote.premium + last.latest.quote.taxes),
         salesperson: seller,

@@ -766,6 +766,31 @@ const SALES = { tab: 'analytics', period: 'month', product: '' };
 const FOLLOW_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
 const FOLLOW_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
 
+// Opens the customer's WhatsApp chat or email app with the renewal (or lapse) message filled in.
+// The message comes from the saved templates; nothing is sent by the server, and the user presses Send.
+async function contactRenewal(d) {
+  const language = (document.getElementById('renewal-lang') || {}).value || 'en';
+  const channel = d.channel;
+  // Pop-up blockers allow a new tab only when it is opened straight from the click, so open it first.
+  const tab = channel === 'whatsapp' ? window.open('', '_blank') : null;
+  try {
+    const p = await api('POST', '/messages/preview', { accountId: d.account, policyId: d.policy, template: d.status === 'Lapsed' ? 'lapse' : 'renewal', channel, language });
+    if (!p.to) {
+      if (tab) tab.close();
+      toast(channel === 'email' ? 'This customer has no email address on file.' : 'This customer has no valid phone number on file (use 10 digits or a number with country code).', 'error');
+      return;
+    }
+    if (channel === 'email') {
+      window.location.href = `mailto:${p.to}?subject=${encodeURIComponent(p.subject || '')}&body=${encodeURIComponent(p.body)}`;
+    } else {
+      tab.location.href = `https://wa.me/${p.to}?text=${encodeURIComponent(p.body)}`;
+    }
+  } catch (err) {
+    if (tab) tab.close();
+    toast(err.message, 'error');
+  }
+}
+
 async function pageSales() {
   const tabs = [['analytics', 'Sales analytics'], ['lapsing', 'Lapsing & lapsed'], ['history', 'Follow-up history']];
   const tabBar = `<div class="tabs">${tabs.map(([k, n]) => `<button class="${SALES.tab === k ? 'active' : ''}" data-action="sales-tab" data-tab="${k}">${n}</button>`).join('')}</div>`;
@@ -786,11 +811,12 @@ async function pageSales() {
   } else if (SALES.tab === 'lapsing') {
     const rows = await api('GET', '/sales/lapsing');
     body = '<div class="muted" style="margin-bottom:10px">Lapsing: the term ends within 60 days and nothing has renewed. Lapsed: the term ended in the last 90 days and nothing has renewed.</div>'
+      + `<div class="toolbar" style="margin-bottom:10px"><label class="field"><span>Message language for WhatsApp and email</span><select id="renewal-lang"><option value="en">English</option><option value="hi">हिन्दी</option><option value="te">తెలుగు</option></select></label><span class="muted">Opens your WhatsApp or email app with the message filled in. You send it yourself.</span></div>`
       + table(['Policy', 'Insured', 'Status', '$Premium', 'Ends', 'Days left', 'Salesperson', 'Last follow-up', ''], rows.map((r) => [
         policyLink({ policyNumber: r.policyNumber, policyId: r.policyId }), esc(r.insured), badge(r.status), money(r.premium), esc(r.expirationDate),
         r.daysToExpiry, esc(r.salesperson.name),
         r.lastFollowUp ? `${esc(r.lastFollowUp.date)} · ${esc(r.lastFollowUp.channel)} · ${esc(r.lastFollowUp.result)}` : '<span class="muted">None yet</span>',
-        `<div class="toolbar"><button class="btn small primary" data-action="log-followup" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">Log follow-up</button><button class="btn small" data-action="followup-history" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">History</button></div>`,
+        `<div class="toolbar"><button class="btn small primary" data-action="log-followup" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">Log follow-up</button><button class="btn small" data-action="followup-history" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">History</button>${['whatsapp', 'email'].map((ch) => `<button class="btn small" data-action="contact-policy" data-channel="${ch}" data-account="${esc(r.accountId)}" data-policy="${esc(r.policyId)}" data-status="${esc(r.status)}">${ch === 'whatsapp' ? 'WhatsApp' : 'Email'}</button>`).join('')}</div>`,
       ]), 'No lapsing or lapsed policies for you');
   } else {
     const rows = await api('GET', '/sales/followups');
@@ -1020,6 +1046,7 @@ const ACTIONS = {
   },
   'sales-tab': (d) => { SALES.tab = d.tab; pageSales(); },
   'log-followup': (d) => followUpModal(d.id, d.number),
+  'contact-policy': (d) => contactRenewal(d),
   'followup-history': (d) => followUpHistoryModal(d.id, d.number),
   'close-modal': () => closeModal(),
   print: () => window.print(),

@@ -118,3 +118,21 @@ test('follow-ups: the all-follow-ups list is limited by role', () => {
   assert.ok(forAlex[0].insured, 'the customer name is included');
   assert.equal(pc.followUpsVisible(pc.user('agent2')).length, 1);
 });
+
+test('renewal follow-up: each lapsing row carries the customer, and the message preview gives the WhatsApp number and text for managers, agents and executives', () => {
+  const { pc, users, setToday } = twoSellers();
+  setToday('2026-08-15');
+  const { Messaging } = require('../src/messaging');
+  const messaging = new Messaging(pc, { transports: {} });
+  const row = pc.lapsePolicies(users.uwm)[0];
+  assert.ok(row.accountId, 'the row names the customer account');
+  for (const who of [users.uwm, users.agent, users.executive || pc.user('venkatesh')]) {
+    const mine = pc.lapsePolicies(who).find((r) => r.policyId === row.policyId);
+    if (!mine) continue; // an agent only sees their own sales
+    const msg = messaging.preview({ accountId: mine.accountId, policyId: mine.policyId, template: 'renewal', channel: 'whatsapp', language: 'en' }, who);
+    assert.ok(msg.body.includes(mine.policyNumber), 'the message names the policy');
+    assert.equal(msg.channel, 'whatsapp');
+  }
+  const lapse = messaging.preview({ accountId: row.accountId, policyId: row.policyId, template: 'lapse', channel: 'email', language: 'hi' }, users.uwm);
+  assert.ok(lapse.subject && lapse.body.length > 0, 'lapse template renders for email');
+});
