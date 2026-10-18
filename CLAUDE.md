@@ -141,6 +141,12 @@ Users, permissions and audit
 - The audit log is append-only; the database refuses updates, deletes and truncates. Never write code that tries to change it.
 - Permissions are a fixed list in code (`src/platform/permissions.ts`); roles are data. Permission checks (`requirePermission`) happen at the API edge, not inside domain functions. Account visibility comes from `visibilityFor(db, userId)`.
 
+Effective-dated data (document sections 5 and 6)
+- Effective-dated tables carry `branch_id`, `fixed_id` (the object, the same in every slice and version), a row id per slice, and `eff_from` (inclusive) to `eff_to` (exclusive). Read "as of a date" with `eff_from <= date and date < eff_to`.
+- Slices of one object never overlap: the database enforces it with an exclusion constraint, and the code checks first to give a clear message. Rows must lie inside their branch's period.
+- A `policy_period` row is a branch; it has a `version` number if and only if it is bound. A bound branch and its rows are never edited: triggers refuse it. Only the bind function (step D6) may set a branch to bound. Policy changes copy the latest bound version into a new branch.
+- A branch records the product version in force on its start date (`product_version`).
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

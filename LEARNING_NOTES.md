@@ -116,5 +116,17 @@ A policy change job does **not** update the old policy period. It copies the lat
 - The product catalogue is loaded from files into memory at start-up (as the document says), unlike typelists which live in the database. Old versions stay in the repository, so they remain available, and Git keeps their history.
 - **Testing lesson:** when two tests failed I read the real messages first. The schema was right (a one-letter code is not allowed); my test data was wrong.
 
+## D2. Policies, jobs, branches and effective-dated tables (sections 4, 5, 6, Appendix A)
+- A **policy** is the contract with a number that never changes. A **job** is a unit of work on it (eight types), starting as a draft. A **branch** (a `policy_period` row) is a working copy of one term inside a job. When bound it gets a **version** number and is never edited again. A branch and a version are the same table; the version number is given at binding, and a CHECK rule says a row has a version if and only if it is bound.
+- A branch records the **term number**, its start and end dates (the end is exclusive) and the **product version in force on the start date**.
+- **Effective-dated rows** (coverables like a vehicle or driver, and coverages) are true only between `eff_from` and `eff_to`. Each object has a **fixed id** (the same in every slice and every version) and a **row id** per slice.
+- The range is **half-open**: it includes its first day and excludes its last. So one slice can end on 1 October while the next begins on 1 October, and "what was true on 1 October" returns the later slice.
+- **Slices of one object never overlap.** PostgreSQL's exclusion constraint on `daterange(eff_from, eff_to)` refuses it, but different objects may cover the same dates. The code checks first to give a clear message; the database remains the safety net if two requests race.
+- **Rows must lie inside the policy period.** Checked in the code and again by a trigger.
+- **A bound version is never edited.** Triggers refuse any insert, update or delete on its rows, and any change to the period itself, so even a raw SQL command is refused. Binding is the only way a branch becomes bound.
+- "As of a date" is one simple query: `eff_from <= date and date < eff_to`.
+- Policies obey **producer code security**: `getPolicy` hides a policy the viewer may not see as "not found".
+- Every create writes an **audit entry** in the same transaction.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

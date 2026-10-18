@@ -8,3 +8,7 @@ export type { ProductCatalogue } from './product-catalogue.js';
 export type { ProductCoverage, ProductFile, ProductTerm } from './product-model.js';
 export { availableCoverages, defaultSelection, validateSelection } from './product-selection.js';
 export type { Facts, Selection } from './product-selection.js';
+export { addCoverable, addCoverage, createBranch, createPolicy, getBranch, getBranchAsOf, getPolicy, startJob } from './policy-repository.js';
+export type { NewCoverable, NewCoverage } from './policy-repository.js';
+export { COVERABLE_KINDS, JOB_TYPES } from './policy.js';
+export type { Branch, BranchAsOf, BranchStatus, CoverableKind, CoverableSlice, CoverageSlice, Job, JobStatus, JobType, Policy } from './policy.js';

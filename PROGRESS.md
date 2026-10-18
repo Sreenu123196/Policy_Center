@@ -24,7 +24,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | C3 | Users, roles, permissions and the audit log | Done (58 tests pass) |
 | C4 | Typelists and loading versioned configuration | Done (73 tests pass). Part C is complete. |
 | D1 | Product model for private car as JSON, with validation | Done (102 tests pass) |
-| D2 to D6 | Policy tables and effective dating, submission, rating, underwriting, bind | Next: D2 |
+| D2 | Policy, job and branch tables; effective-dated tables with the no-overlap rule | Done (119 tests pass) |
+| D3 to D6 | Submission, rating, underwriting, bind | Next: D3 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -33,6 +34,15 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D2
+- Copying the latest bound version into a new branch (`copyBranch`), which keeps fixed ids, and editing "from a date" by splitting a slice: step E1.
+- Job and branch status changes (draft to quoted and so on) and the rules for each job type: step D3. Binding, which sets `version` and `status = 'bound'`: step D6. Tests now mark a branch as bound with plain SQL in the way binding will.
+- Costs, transactions and modifiers (no-claim bonus, discounts): steps D4 and E1.
+- A coverage's dates must lie inside its coverable's dates: not checked yet (E1).
+- Optimistic locking and preemption (a version number on the policy period): step E2.
+- The policy term code (1Y, 1Y_OD_3Y_TP) is not stored on the branch yet: step D3.
+- Questions, forms and documents on a branch: later.
 
 ## Deferred from D1
 - Term kinds and clauses in section 7 that D1 leaves out: "package" terms (linked values), exclusions and conditions, question sets, and coverage terms of different lengths inside one policy.
