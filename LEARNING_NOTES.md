@@ -128,5 +128,16 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Policies obey **producer code security**: `getPolicy` hides a policy the viewer may not see as "not found".
 - Every create writes an **audit entry** in the same transaction.
 
+## D3. The submission: quoting with several options (section 8)
+- A **submission** is the job that sells new business. `startSubmission` creates the policy, a submission job and the first branch (**Option A**) for one year. A policy that starts on 29 February ends on 1 March of the next year, because the end date is excluded.
+- A job has a **life cycle**: only the arrows of the diagram are allowed (draft to quoted, a quoted job back to draft when edited, to withdrawn, declined or not taken ...). A test tries every pair of statuses for every job type, so a forbidden move cannot slip in. "Not taken" exists only for submissions and renewals, from quoted.
+- **Quote options**: one job can hold several branches (Option A, B ...). A copy keeps the **fixed ids**, so the same vehicle is still the same vehicle in both options; after the copy, the options change independently.
+- **Rating is a function we pass in** (a `Quoter`). The quote process does not care how the price is worked out, so we could test it now and plug in the real engine in D4.
+- **A quote is a permanent record**: premium, tax and total in paise, 30 days of validity, the rate book and the worksheet. A trigger refuses any update or delete. Editing a quoted branch sends it (and the job) back to draft; quoting again makes a new quote and the old one stays as history.
+- The **job is quoted only when every open option is quoted**. Withdrawn options do not count.
+- Before quoting, the branch is checked against **its own product version**, and every problem is listed together. Facts about the risk (vehicle age, owner type) come from the branch and the named insured, so a company is never offered the owner-driver cover.
+- Ending a submission (withdraw, decline with a mandatory reason, not taken) also withdraws its open branches in the same transaction, and everything is in the audit log.
+- **Testing lesson:** my audit test said the job became quoted after only one of two options was quoted. That contradicted another test (and the rule), so I fixed the test, not the code.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

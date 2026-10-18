@@ -38,6 +38,7 @@ export interface Branch {
   policyId: string;
   jobId: string;
   termNumber: number;
+  label: string; // the quote option: Option A, Option B ...
   version: number | null; // given when the branch is bound
   basedOnId: string | null; // the version this branch was copied from
   status: BranchStatus;

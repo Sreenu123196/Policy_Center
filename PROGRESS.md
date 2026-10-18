@@ -25,7 +25,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | C4 | Typelists and loading versioned configuration | Done (73 tests pass). Part C is complete. |
 | D1 | Product model for private car as JSON, with validation | Done (102 tests pass) |
 | D2 | Policy, job and branch tables; effective-dated tables with the no-overlap rule | Done (119 tests pass) |
-| D3 to D6 | Submission, rating, underwriting, bind | Next: D3 |
+| D3 | Submission job from Draft to Quoted, with several quote options | Done (153 tests pass) |
+| D4 to D6 | Rating, underwriting, bind | Next: D4 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -34,6 +35,15 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from D3
+- The real rating engine: D3 takes the price from an injected `Quoter`; tests use a stand-in price labelled TEST-PRICE. Real rate books, golden tests and the worksheet arrive in D4.
+- Underwriting issues that block a quote (section 10): D5. Today a quote is refused only for product-model problems (missing or unavailable coverage, bad term values, not exactly one vehicle, no model year).
+- The policy term code (1Y or 1Y_OD_3Y_TP) is still not stored: D3 always quotes one year. Choosing a term comes with E4/renewal or a later extension.
+- Quote validity is a fixed 30 days in code; it should become configuration. An expired quote cannot be bound: that check belongs to D6.
+- Only the submission job type has a life cycle in use. The matrix allows the moves for all eight types; their work arrives in D6 and Part E.
+- `startSubmission` creates the policy, job and branch in three steps after checking everything first. A crash between steps could leave an empty policy; a single transaction across the three needs repository functions that accept a transaction.
+- Permission checks (who may quote, decline) belong to the API edge (H1).
 
 ## Deferred from D2
 - Copying the latest bound version into a new branch (`copyBranch`), which keeps fixed ids, and editing "from a date" by splitting a slice: step E1.

@@ -147,6 +147,11 @@ Effective-dated data (document sections 5 and 6)
 - A `policy_period` row is a branch; it has a `version` number if and only if it is bound. A bound branch and its rows are never edited: triggers refuse it. Only the bind function (step D6) may set a branch to bound. Policy changes copy the latest bound version into a new branch.
 - A branch records the product version in force on its start date (`product_version`).
 
+Submissions and quotes (document section 8)
+- Job moves go through `moveJob` (src/policy/job-sync.ts), which checks `allowedNextStatuses` (src/policy/job-status.ts) and audits the move. Never update `policy.job.status` directly.
+- Rating is an injected `Quoter` (pure function). A quote row in `policy.quote` is never updated or deleted; a new price is a new quote. Editing a quoted branch reopens it (`reopenIfQuoted`) and the job follows (`refreshJobStatus`).
+- A branch has a `label` (Option A, B ...). Copies of a branch keep the fixed ids.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

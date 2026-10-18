@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { PGlite } from '@electric-sql/pglite';
+import type { PGlite, Transaction } from '@electric-sql/pglite';
 import { canSeeProducerCode, isRealDate, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
 import {
   COVERABLE_KINDS,
@@ -15,6 +15,7 @@ import {
   type JobType,
   type Policy,
 } from './policy.js';
+import { reopenIfQuoted } from './job-sync.js';
 import type { ProductCatalogue } from './product-catalogue.js';
 
 // ---------------------------------------------------------------- reading
@@ -43,6 +44,7 @@ interface BranchRow {
   policy_id: string;
   job_id: string;
   term_number: number;
+  label: string;
   version: number | null;
   based_on_id: string | null;
   status: BranchStatus;
@@ -56,7 +58,7 @@ interface BranchRow {
 const POLICY_COLUMNS = 'id, policy_number, account_id, product_code, created_by, created_at';
 const JOB_COLUMNS = 'id, job_number, policy_id, type, status, created_by, created_at';
 // Dates are read as text (yyyy-mm-dd), so a time zone can never shift a date by a day.
-const BRANCH_COLUMNS = `id, policy_id, job_id, term_number, version, based_on_id, status,
+const BRANCH_COLUMNS = `id, policy_id, job_id, term_number, label, version, based_on_id, status,
   to_char(period_start, 'YYYY-MM-DD') as period_start, to_char(period_end, 'YYYY-MM-DD') as period_end,
   product_version, created_by, created_at`;
 
@@ -84,6 +86,7 @@ const toBranch = (row: BranchRow): Branch => ({
   policyId: row.policy_id,
   jobId: row.job_id,
   termNumber: row.term_number,
+  label: row.label,
   version: row.version,
   basedOnId: row.based_on_id,
   status: row.status,
@@ -107,6 +110,13 @@ export async function getPolicy(db: PGlite, id: string, visibility: Visibility):
   return row && canSeeProducerCode(visibility, row.producer_code) ? toPolicy(row) : null;
 }
 
+export async function getJob(db: PGlite, id: string): Promise<Job | null> {
+  if (!isUuid(id)) return null;
+  const result = await db.query<JobRow>(`select ${JOB_COLUMNS} from policy.job where id = $1`, [id]);
+  const row = result.rows[0];
+  return row ? toJob(row) : null;
+}
+
 export async function getBranch(db: PGlite, id: string): Promise<Branch | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<BranchRow>(`select ${BRANCH_COLUMNS} from policy.policy_period where id = $1`, [id]);
@@ -116,6 +126,12 @@ export async function getBranch(db: PGlite, id: string): Promise<Branch | null> 
 
 const exists = async (db: PGlite, table: 'account' | 'policy' | 'job', id: string): Promise<boolean> =>
   isUuid(id) && (await db.query(`select 1 from policy.${table} where id = $1`, [id])).rows.length > 0;
+
+// The next free option name in a job: Option A, Option B ... (a job rarely has more than a few).
+export async function nextOptionLabel(db: Pick<Transaction, 'query'>, jobId: string): Promise<string> {
+  const counted = await db.query<{ n: number }>('select count(*)::int as n from policy.policy_period where job_id = $1', [jobId]);
+  return `Option ${String.fromCharCode(65 + (counted.rows[0]?.n ?? 0))}`;
+}
 
 // ---------------------------------------------------------------- policy, job, branch
 
@@ -199,10 +215,11 @@ export async function createBranch(
   if (errors.length > 0 || !job || productVersion === undefined) throw new ValidationError(errors);
 
   const id = await db.transaction(async (tx) => {
+    const label = await nextOptionLabel(tx, input.jobId);
     const inserted = await tx.query<{ id: string }>(
-      `insert into policy.policy_period (policy_id, job_id, term_number, period_start, period_end, product_version, created_by)
-       values ($1, $2, $3, $4::date, $5::date, $6, $7) returning id`,
-      [job.policy_id, input.jobId, input.termNumber ?? 1, input.periodStart, input.periodEnd, productVersion, actor],
+      `insert into policy.policy_period (policy_id, job_id, term_number, label, period_start, period_end, product_version, created_by)
+       values ($1, $2, $3, $4, $5::date, $6::date, $7, $8) returning id`,
+      [job.policy_id, input.jobId, input.termNumber ?? 1, label, input.periodStart, input.periodEnd, productVersion, actor],
     );
     const newId = inserted.rows[0]?.id;
     if (newId === undefined) throw new Error('The branch was not saved');
@@ -282,6 +299,7 @@ export async function addCoverable(db: PGlite, branchId: string, input: NewCover
 
   try {
     await db.transaction(async (tx) => {
+      await reopenIfQuoted(tx, branch, actor);
       await tx.query(
         `insert into policy.coverable (branch_id, fixed_id, kind, eff_from, eff_to, attributes, created_by)
          values ($1, $2, $3, $4::date, $5::date, $6::jsonb, $7)`,
@@ -341,6 +359,7 @@ export async function addCoverage(db: PGlite, branchId: string, input: NewCovera
   const terms = input.terms ?? {};
   try {
     await db.transaction(async (tx) => {
+      await reopenIfQuoted(tx, branch, actor);
       await tx.query(
         `insert into policy.coverage (branch_id, fixed_id, coverable_fid, pattern_code, eff_from, eff_to, terms, created_by)
          values ($1, $2, $3, $4, $5::date, $6::date, $7::jsonb, $8)`,
