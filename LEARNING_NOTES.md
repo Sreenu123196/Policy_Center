@@ -223,5 +223,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Billing raises its own event, `ChargesCreated`, in the same transaction.
 - **Architecture test**: modules import each other only through their public door and never read each other's tables.
 
+## F2. Payments, allocation and missed payments (section 14)
+- A **payment** is money received: amount in paise, a method (UPI, e-NACH, card, bank transfer), a **reference**, and a date. The **same reference is the same payment**, so a gateway calling twice counts once; the same reference with another amount is refused.
+- **Allocation, oldest first.** A payment goes against the open invoice lines with the oldest due date first. A payment can be meant for one **policy**; then only that policy's lines are paid. Each rupee is recorded as an **allocation** (never changed). A line is paid when its allocations reach its amount; an invoice is paid when every line is.
+- **Unapplied cash.** What cannot be allocated (an overpayment, or paying ahead) waits, and is put against the next invoices when they are made.
+- **Suspense.** A payment that cannot be matched to an account is stored with no billing account. Someone **matches** it later and it is allocated then. It is announced as `PaymentReceived` once it belongs to an account.
+- **Credits** (return premium) are **applied** to what the customer owes, or **paid out**. Cash goes out only up to what the customer **paid for the policy beyond what the insurer keeps**; for a customer who paid one quarterly instalment and cancels, nothing goes out in cash and the credit is applied instead. A cancelled policy's future unbilled instalments are **voided**.
+- **Missed payments.** After the invoice due date plus the plan's grace days, timed steps run: a **reminder** (announced as `DelinquencyStarted`), a **final notice** after 10 more days, and a **cancellation request** after 20. Each step happens **once** per invoice, in order, even if the batch runs late.
+- **Policy listens.** On `CancellationRequested`, Policy starts a **non-payment cancellation** with the notice the product requires (15 days). On `ReinstatementRequested` (sent once when an invoice that led to a cancellation request is finally paid), Policy starts a **reinstatement** if the policy was cancelled for non-payment and the 30-day limit has not passed. A person still quotes and binds these jobs. Requests that cannot be done are skipped with a reason in the audit log.
+- Everything between the two modules goes through the **outbox**, and each side keeps its own offset, so each can restart or see an event twice safely.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

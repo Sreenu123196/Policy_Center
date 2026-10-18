@@ -24,11 +24,16 @@ const plan = z.strictObject({
   grace_days: z.number().int().min(0), // days after the due date before a missed payment is treated as late (step F2)
 });
 
+// The timed steps after a missed payment (document section 14). Days count from the end of the plan's grace days.
+export const DELINQUENCY_ACTIONS = ['reminder', 'final_notice', 'cancellation_request'] as const;
+const delinquencyStep = z.strictObject({ action: z.enum(DELINQUENCY_ACTIONS), days_after_grace: z.number().int().min(0) });
+
 export const billingConfigSchema = z.strictObject({
   version: z.string().regex(/^\d{4}\.\d{2}$/, 'Version looks like 2026.10'),
   effective_from: z.string().refine(isRealDate, 'effective_from must be a real date written yyyy-mm-dd'),
   default_plan: z.string(),
   plans: z.array(plan).min(1),
+  delinquency: z.array(delinquencyStep).min(1),
 });
 
 export type BillingConfig = z.infer<typeof billingConfigSchema>;
@@ -49,6 +54,15 @@ function crossCheck(file: string, config: BillingConfig): string[] {
     if (p.down_payment_bps < 10000 && p.installments === 0) errors.push(`${file}: ${p.code} takes less than 100% as a down payment but has no instalments for the rest`);
     if (p.installments > 0 && p.interval_days === 0) errors.push(`${file}: ${p.code} has instalments but no interval between them`);
   }
+  const steps = config.delinquency;
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
+    const before = steps[i - 1];
+    if (!step) continue;
+    if (steps.findIndex((s) => s.action === step.action) !== i) errors.push(`${file}: delinquency step ${step.action} is used more than once`);
+    if (before && step.days_after_grace < before.days_after_grace) errors.push(`${file}: delinquency steps must be in order of days_after_grace (${step.action} comes too early)`);
+  }
+  if (steps.at(-1)?.action !== 'cancellation_request') errors.push(`${file}: the last delinquency step must be cancellation_request`);
   if (!seen.has(config.default_plan)) errors.push(`${file}: the default plan ${config.default_plan} is not one of the plans`);
   return errors;
 }

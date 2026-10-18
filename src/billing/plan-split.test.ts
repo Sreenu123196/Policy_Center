@@ -25,7 +25,8 @@ describe('loading the billing configuration (document section 14)', () => {
   describe('checks the file and reports every problem together', () => {
     const names = { en: 'Plan', hi: 'योजना', te: 'ప్లాన్' };
     const full = { code: 'FULL_PAY', names, down_payment_bps: 10000, installments: 0, interval_days: 0, installment_fee_paise: 0, invoice_lead_days: 15, grace_days: 10 };
-    const base = { version: '2026.04', effective_from: '2026-04-01', default_plan: 'FULL_PAY', plans: [full] };
+    const delinquency = [{ action: 'reminder', days_after_grace: 0 }, { action: 'cancellation_request', days_after_grace: 20 }];
+    const base = { version: '2026.04', effective_from: '2026-04-01', default_plan: 'FULL_PAY', plans: [full], delinquency };
     const load = (file: unknown, name = 'billing-2026.04.json') => {
       const folder = mkdtempSync(join(tmpdir(), 'billing-'));
       writeFileSync(join(folder, name), JSON.stringify(file));
@@ -60,6 +61,15 @@ describe('loading the billing configuration (document section 14)', () => {
         ],
       };
       expect(problems(load(bad))).toEqual(expect.arrayContaining([expect.stringMatching(/BAD_ONE.*100%.*instalments/i), expect.stringMatching(/BAD_TWO.*interval/i)]));
+    });
+
+    it('refuses delinquency steps that are out of order, repeated, or do not end with a cancellation request', () => {
+      const outOfOrder = { ...base, delinquency: [{ action: 'final_notice', days_after_grace: 10 }, { action: 'reminder', days_after_grace: 0 }, { action: 'cancellation_request', days_after_grace: 20 }] };
+      expect(problems(load(outOfOrder))).toEqual([expect.stringMatching(/in order of days_after_grace/)]);
+      const repeated = { ...base, delinquency: [{ action: 'reminder', days_after_grace: 0 }, { action: 'reminder', days_after_grace: 5 }, { action: 'cancellation_request', days_after_grace: 20 }] };
+      expect(problems(load(repeated))).toEqual([expect.stringMatching(/reminder is used more than once/)]);
+      const noEnd = { ...base, delinquency: [{ action: 'reminder', days_after_grace: 0 }] };
+      expect(problems(load(noEnd))).toEqual([expect.stringMatching(/last delinquency step must be cancellation_request/)]);
     });
 
     it('refuses a plan name that is missing in one of the three languages', () => {

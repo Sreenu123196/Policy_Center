@@ -6,3 +6,5 @@ export { splitCharge } from './plan-split.js';
 export type { ScheduleItem } from './plan-split.js';
 export { generateInvoices, getBillingAccount, getInvoice, listCharges, listCredits, listInvoices, listScheduleItems, processPolicyEvents, setPaymentPlan } from './billing.js';
 export type { BillingAccount, BillingScheduleItem, Charge, Credit, Invoice, InvoiceLine } from './billing.js';
+export { applyCredit, getPayment, listDelinquencySteps, listSuspense, matchSuspense, PAYMENT_METHODS, receivePayment, receiveUnmatchedPayment, refundCredit, runDelinquency } from './payments.js';
+export type { DelinquencyAction, NewPayment, Payment, PaymentMethod, Payout } from './payments.js';

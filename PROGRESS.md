@@ -34,7 +34,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | E3 | Cancellation (flat, pro rata, short rate) and reinstatement | Done (283 tests pass) |
 | E4 | Renewal: window, direction, offer, non-renewal | Done (302 tests pass) |
 | F1 | Billing: charges from events, payment plans, invoices | Done (340 tests pass) |
-| F2 | Payments, allocation, missed payments leading to a cancellation request | Next: F2 |
+| F2 | Payments, allocation, suspense, credits, missed payments and the cancellation request | Done (369 tests pass) |
+| G1 to G2 | Claims (first notice of loss, exposures, reserves, payments) | Next: G1 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -43,6 +44,17 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from F2
+- Part F is complete. The double-entry sub-ledger, the daily export to the general ledger, commissions, payment gateway adapters, UPI AutoPay / e-NACH mandates and automatic matching of bank statements are not built. Payments are entered by a person or a script.
+- Netting a cancellation against what was really billed and paid is simplified: payment items not yet invoiced and falling due on or after the cancellation date are voided, the refund credit is the amount Policy computed, and cash is paid out only up to what the customer paid for the policy beyond what the insurer keeps. Invoices already issued for dates after the cancellation are not voided; the credit can be applied to them.
+- Delinquency steps are recorded and announced as events (`DelinquencyStarted`, `FinalNoticeDue`, `CancellationRequested`), but no reminder or notice document is made or sent (SMS, email, WhatsApp adapters, document section 17).
+- Policy handles `CancellationRequested` and `ReinstatementRequested` by starting jobs; a person still quotes and binds them. Whether a cancellation for non-payment may bind itself automatically after a final notice is a business decision left open.
+- A late payment for an invoice asks for reinstatement only if a cancellation was requested for that invoice. If the invoice was paid in part before the request, the request still fires on the whole invoice; partial-payment arrangements are not modelled.
+- Refunds of unapplied cash (an overpayment the customer wants back) and bank-reversal of payments (a bounced cheque or failed UPI) are not built. A payment cannot be reversed.
+- `done_on` of the reinstatement-requested step uses the database date (`current_date`), not a date passed in.
+- The consumers (Billing reading Policy, Policy reading Billing) are run by calling the function; a scheduler and a dead-letter table for poison messages come with operations.
+- Policy reads Billing's events by type and policy number only; it trusts Billing's policy numbers. Event signing is not built.
 
 ## Deferred from F1
 - Payments, allocation, the status of invoices (paid or overdue), delinquency steps and the cancellation request: step F2. Invoices are made but nothing marks them paid yet.

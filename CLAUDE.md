@@ -191,6 +191,11 @@ Billing (document sections 14 and 17)
 - Payment plans are in `config/billing/billing-<version>.json`. Never recompute a premium in Billing: charges come from the transaction in the event. Splits use `splitCharge` so that items add up exactly.
 - Event payloads of `PolicyBound`, `PolicyRenewed`, `PolicyReinstated` and `PolicyCancelled` carry `accountId`, `policyNumber`, `termNumber`, `version` and `transaction`; keep them stable, because Billing relies on them.
 
+Payments and missed payments (document section 14)
+- Money in goes through `receivePayment` / `receiveUnmatchedPayment` (never a direct insert), and every rupee is placed by `allocate` (src/billing/allocation.ts), oldest due first. Allocations are never changed or deleted. Credits are used only through `applyCredit` and `refundCredit`.
+- Billing asks Policy to act only by events (`CancellationRequested`, `ReinstatementRequested`) carrying `accountId` and `policyNumbers`; Policy answers by starting jobs in `processBillingEvents`. Neither module calls the other's functions.
+- The steps after a missed payment come from `delinquency` in the billing configuration and the plan's `grace_days`; do not hard-code days.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

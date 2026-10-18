@@ -39,3 +39,5 @@ export { loadRenewalRules } from './renewal-rules.js';
 export type { RenewalRules, RenewalRulesCatalogue } from './renewal-rules.js';
 export { approveNonRenewal, issueNonRenewalNotice, listRenewalDirections, produceRenewalOffer, setRenewalDirection, startRenewal } from './renewal.js';
 export type { RenewalDependencies, RenewalDirection, RenewalDirectionKind } from './renewal.js';
+export { processBillingEvents } from './billing-requests.js';
+export type { BillingRequestResult } from './billing-requests.js';

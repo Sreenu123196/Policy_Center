@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { addDays, isRealDate, isUuid, listEventsAfter, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
 import type { OutboxEvent } from '../platform/index.js';
 import type { BillingConfigCatalogue } from './config.js';
+import { allocateUnapplied } from './allocation.js';
 import { splitCharge, type ScheduleItem } from './plan-split.js';
 
 // Billing (document section 14). It learns about policies only through events from the outbox (section 17): when a
@@ -74,6 +75,7 @@ export interface Credit {
   premiumPaise: number;
   taxPaise: number;
   totalPaise: number;
+  remainingPaise: number; // what is left to apply or pay out
   status: 'open' | 'refunded' | 'applied';
 }
 
@@ -87,6 +89,8 @@ export interface Invoice {
   taxPaise: number;
   feePaise: number;
   totalPaise: number;
+  paidPaise: number;
+  outstandingPaise: number;
   status: 'open' | 'paid' | 'void';
 }
 
@@ -98,6 +102,7 @@ export interface InvoiceLine {
   taxPaise: number;
   feePaise: number;
   amountPaise: number;
+  paidPaise: number;
 }
 
 // Money columns are bigint; they are read as float8, which is exact for whole numbers far beyond any premium.
@@ -145,29 +150,33 @@ export async function listScheduleItems(db: Q, billingAccountId: string): Promis
 }
 
 export async function listCredits(db: Q, billingAccountId: string): Promise<Credit[]> {
-  const result = await db.query<{ id: string; source_event_id: number; policy_number: string; kind: string; effective_date: string; premium_paise: number; tax_paise: number; total_paise: number; status: Credit['status'] }>(
-    `select id, source_event_id::float8 as source_event_id, policy_number, kind, ${DATE('effective_date')} as effective_date, premium_paise::float8 as premium_paise,
-            tax_paise::float8 as tax_paise, total_paise::float8 as total_paise, status
-       from billing.credit where billing_account_id = $1 order by source_event_id`,
+  const result = await db.query<{ id: string; source_event_id: number; policy_number: string; kind: string; effective_date: string; premium_paise: number; tax_paise: number; total_paise: number; remaining: number; status: Credit['status'] }>(
+    `select c.id, c.source_event_id::float8 as source_event_id, c.policy_number, c.kind, ${DATE('c.effective_date')} as effective_date, c.premium_paise::float8 as premium_paise,
+            c.tax_paise::float8 as tax_paise, c.total_paise::float8 as total_paise,
+            (c.total_paise - coalesce((select sum(a.amount_paise) from billing.allocation a where a.credit_id = c.id), 0)
+                           - coalesce((select sum(o.amount_paise) from billing.payout o where o.credit_id = c.id), 0))::float8 as remaining, c.status
+       from billing.credit c where c.billing_account_id = $1 order by c.source_event_id`,
     [billingAccountId],
   );
   return result.rows.map((r) => ({
     id: r.id, sourceEventId: r.source_event_id, policyNumber: r.policy_number, kind: r.kind, effectiveDate: r.effective_date,
-    premiumPaise: r.premium_paise, taxPaise: r.tax_paise, totalPaise: r.total_paise, status: r.status,
+    premiumPaise: r.premium_paise, taxPaise: r.tax_paise, totalPaise: r.total_paise, remainingPaise: r.remaining, status: r.status,
   }));
 }
 
 interface InvoiceRow {
   id: string; number: string; billing_account_id: string; invoice_date: string; due_date: string;
-  premium_paise: number; tax_paise: number; fee_paise: number; total_paise: number; status: Invoice['status'];
+  premium_paise: number; tax_paise: number; fee_paise: number; total_paise: number; paid_paise: number; status: Invoice['status'];
 }
 
 const INVOICE_COLUMNS = `id, number, billing_account_id, ${DATE('invoice_date')} as invoice_date, ${DATE('due_date')} as due_date, premium_paise::float8 as premium_paise,
-  tax_paise::float8 as tax_paise, fee_paise::float8 as fee_paise, total_paise::float8 as total_paise, status`;
+  tax_paise::float8 as tax_paise, fee_paise::float8 as fee_paise, total_paise::float8 as total_paise,
+  (select coalesce(sum(l.paid_paise), 0) from billing.invoice_line l where l.invoice_id = billing.invoice.id)::float8 as paid_paise, status`;
 
 const toInvoice = (r: InvoiceRow): Invoice => ({
   id: r.id, number: r.number, billingAccountId: r.billing_account_id, invoiceDate: r.invoice_date, dueDate: r.due_date,
-  premiumPaise: r.premium_paise, taxPaise: r.tax_paise, feePaise: r.fee_paise, totalPaise: r.total_paise, status: r.status,
+  premiumPaise: r.premium_paise, taxPaise: r.tax_paise, feePaise: r.fee_paise, totalPaise: r.total_paise, paidPaise: r.paid_paise,
+  outstandingPaise: r.total_paise - r.paid_paise, status: r.status,
 });
 
 export async function listInvoices(db: Q, billingAccountId: string): Promise<Invoice[]> {
@@ -179,15 +188,15 @@ export async function getInvoice(db: Q, id: string): Promise<(Invoice & { lines:
   if (!isUuid(id)) return null;
   const row = (await db.query<InvoiceRow>(`select ${INVOICE_COLUMNS} from billing.invoice where id = $1`, [id])).rows[0];
   if (!row) return null;
-  const lines = await db.query<{ schedule_item_id: string; policy_number: string; description: string; premium_paise: number; tax_paise: number; fee_paise: number; amount_paise: number }>(
+  const lines = await db.query<{ schedule_item_id: string; policy_number: string; description: string; premium_paise: number; tax_paise: number; fee_paise: number; amount_paise: number; paid_paise: number }>(
     `select l.schedule_item_id, l.policy_number, l.description, l.premium_paise::float8 as premium_paise, l.tax_paise::float8 as tax_paise,
-            l.fee_paise::float8 as fee_paise, l.amount_paise::float8 as amount_paise
+            l.fee_paise::float8 as fee_paise, l.amount_paise::float8 as amount_paise, l.paid_paise::float8 as paid_paise
        from billing.invoice_line l join billing.schedule_item s on s.id = l.schedule_item_id where l.invoice_id = $1 order by s.source_event_id, s.sequence`,
     [id],
   );
   return {
     ...toInvoice(row),
-    lines: lines.rows.map((l) => ({ scheduleItemId: l.schedule_item_id, policyNumber: l.policy_number, description: l.description, premiumPaise: l.premium_paise, taxPaise: l.tax_paise, feePaise: l.fee_paise, amountPaise: l.amount_paise })),
+    lines: lines.rows.map((l) => ({ scheduleItemId: l.schedule_item_id, policyNumber: l.policy_number, description: l.description, premiumPaise: l.premium_paise, taxPaise: l.tax_paise, feePaise: l.fee_paise, amountPaise: l.amount_paise, paidPaise: l.paid_paise })),
   };
 }
 
@@ -269,6 +278,10 @@ async function handleMoneyEvent(tx: Q, config: BillingConfigCatalogue, event: Ou
     }
     items = schedule.length;
   } else {
+    // The cover has ended: payments that would fall due from the effective date, and are not invoiced yet, are cancelled.
+    if (kind === 'cancellation') {
+      await tx.query("update billing.schedule_item set status = 'void' where billing_account_id = $1 and policy_number = $2 and status = 'scheduled' and due_date >= $3::date", [account.id, policyNumber, effectiveDate]);
+    }
     await tx.query(
       `insert into billing.credit (billing_account_id, source_event_id, policy_number, kind, effective_date, premium_paise, tax_paise, total_paise)
        values ($1, $2, $3, $4, $5::date, $6, $7, $8)`,
@@ -351,6 +364,10 @@ export async function generateInvoices(db: PGlite, config: BillingConfigCatalogu
     });
     created.push(id);
   }
+
+  // Cash that was waiting (a customer who paid ahead) is put against the new invoices.
+  const accounts = new Set([...groups.keys()].map((key) => key.split('|')[0] as string));
+  for (const billingAccountId of accounts) await db.transaction((tx) => allocateUnapplied(tx, billingAccountId, actor));
 
   const result: Invoice[] = [];
   for (const id of created) {
