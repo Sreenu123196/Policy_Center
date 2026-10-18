@@ -1,5 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { ValidationError, tidy, validateNewContact, type Contact, type ContactKind, type NewContact } from './contact.js';
+import { isUuid, ValidationError } from '../platform/index.js';
+import { tidy, validateNewContact, type Contact, type ContactKind, type NewContact } from './contact.js';
 import { maskAadhaar, maskPan, normalisePhone } from './identifiers.js';
 
 interface ContactRow {
@@ -84,6 +85,7 @@ export async function createContact(db: PGlite, input: NewContact, actor: string
 
 // Finds a contact by id, or returns null if there is none.
 export async function getContact(db: PGlite, id: string): Promise<Contact | null> {
+  if (!isUuid(id)) return null; // a malformed id cannot match anything
   const result = await db.query<ContactRow>(`${SELECT_CONTACT} where id = $1`, [id]);
   const row = result.rows[0];
   return row ? toContact(row) : null;

@@ -113,6 +113,7 @@ Commands
 Code layout
 - `src/<module>/` for each module: contacts, policy, billing, claims, platform. Tests sit next to the code as `*.test.ts`.
 - Each module's `index.ts` is its public door. Another module may import only from `../<module>/index.js`, never from deeper files, and never read another module's tables. Modules talk through that API or through events (the outbox).
+- References between modules (a contact id, a producer code) are stored WITHOUT a database foreign key and checked through the other module's public API when written. Foreign keys are only used inside one module's own schema.
 - `db/migrations/` holds numbered plain SQL files. Never edit one that has been applied; add a new file. `config/` (step C4) will hold versioned configuration.
 - Database: PGlite (PostgreSQL inside Node) stands in for PostgreSQL in Docker. See PROGRESS.md, Decisions. Keep all connection code in `src/platform/database.ts` so switching is a one-file change.
 - In imports, write our own files with the `.js` ending (`./modules.js`), even though the source is `.ts`.

@@ -39,17 +39,6 @@ export interface Contact {
   createdAt: string;
 }
 
-// Carries every problem found, so a screen can show them all at once instead of one at a time.
-export class ValidationError extends Error {
-  readonly errors: string[];
-
-  constructor(errors: string[]) {
-    super(errors.join('; '));
-    this.name = 'ValidationError';
-    this.errors = errors;
-  }
-}
-
 const clean = (value: string | undefined): string | undefined => {
   const trimmed = value?.trim();
   return trimmed ? trimmed : undefined;

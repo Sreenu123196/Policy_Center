@@ -1,8 +1,8 @@
 import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createDatabase, runMigrations } from '../platform/index.js';
-import { ValidationError, type NewContact } from './contact.js';
+import { createDatabase, runMigrations, ValidationError } from '../platform/index.js';
+import type { NewContact } from './contact.js';
 import { createContact, getContact } from './repository.js';
 
 const realMigrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
@@ -74,8 +74,9 @@ describe('contacts (document section 16)', () => {
     expect(created.aadhaarMasked).toBeNull();
   });
 
-  it('returns null for an id that does not exist', async () => {
+  it('returns null for an id that does not exist, or that is not even shaped like an id', async () => {
     expect(await getContact(db, '00000000-0000-0000-0000-000000000000')).toBeNull();
+    expect(await getContact(db, 'not-an-id')).toBeNull();
   });
 
   it('refuses bad input and says what is wrong in plain words', async () => {

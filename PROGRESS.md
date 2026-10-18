@@ -20,7 +20,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | B3 | PostgreSQL and SQL migrations | Done, using PGlite instead of Docker (see Decisions) |
 | B4 | Technical rules in CLAUDE.md, notes files | Done (done before B3, which needs a decision) |
 | C1 | Contacts: people and companies, PIN code, masked identifiers | Done (27 tests pass) |
-| C2 to C4 | Accounts, users and audit, typelists | Next: C2 |
+| C2 | Accounts and producer codes | Done (40 tests pass) |
+| C3, C4 | Users, roles, permissions and audit log; typelists and configuration | Next: C3 |
 | D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Not started |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |

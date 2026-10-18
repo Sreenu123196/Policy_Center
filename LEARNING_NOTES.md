@@ -75,5 +75,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Dates are read back as plain text `yyyy-mm-dd` so a time zone cannot shift a birth date.
 - Tests use obviously made-up people and numbers only.
 
+## C2. Accounts and producer codes (sections 5 and 13)
+- An **Account** is the customer relationship: an account number, a status, the **producer of record** and contacts with roles (named insured, driver, financier, billing contact). Every account has exactly one named insured. The named insured can be a person or a company.
+- A **producer** is an agent or broker. A **producer organisation** (an agency) can hold several **producer codes**. The code decides what an agent can see, and later who earns the commission. Producers belong to Platform because users will belong to them (C3). Accounts belong to Policy.
+- **No foreign keys between modules.** The account stores a contact id and a producer code as plain values and checks them through the other module's public door. Foreign keys are used only inside one module.
+- The **account number** comes from a database sequence (`AC-0000001`), so two accounts never share one.
+- A **partial unique index** (`WHERE role = 'named_insured'`) makes a second named insured impossible. The code gives a friendly message; the index is the safety net.
+- **Producer code security:** the visibility filter is part of the query. An account the viewer may not see is reported as "not found", so its existence is not revealed. `'all'` means head office. In C3 the visibility will be worked out from the signed-in user.
+- Opening an account saves the account and its named insured in **one transaction**.
+- `ValidationError` moved to Platform because a second module now needs it. A malformed id returns "not found" rather than a database error.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.
