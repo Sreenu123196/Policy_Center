@@ -189,6 +189,20 @@ function validateWorkersComp(p, add) {
   if (!(Number.isFinite(experienceMod) && experienceMod >= 0.5 && experienceMod <= 2)) add('line.experienceMod', 'Experience modification must be between 0.50 and 2.00');
 }
 
+function validateUmbrella(p, add) {
+  const pm = PRODUCTS.Umbrella;
+  const { businessName, numberOfVehicles, numberOfLocations, claimsLast5Years } = p.line;
+  if (blank(businessName)) add('line.businessName', 'Business name is required');
+  if (!isInt(numberOfVehicles, 0, 10000)) add('line.numberOfVehicles', 'Number of vehicles must be 0 or more');
+  if (!isInt(numberOfLocations, 1, 10000)) add('line.numberOfLocations', 'Number of locations must be at least 1');
+  if (!isInt(claimsLast5Years, 0, 50)) add('line.claimsLast5Years', 'Liability claims in the last 5 years must be 0 to 50');
+  for (const [key, min] of Object.entries(pm.underlyingMinimums)) {
+    const label = { underlyingAutoLimit: 'Underlying auto liability', underlyingGLLimit: 'Underlying general liability', underlyingEmployersLimit: "Underlying employers' liability" }[key];
+    const value = Number(p.line[key]);
+    if (!Number.isFinite(value) || value < min) add(`line.${key}`, `${label} must be at least $${min.toLocaleString('en-US')}`);
+  }
+}
+
 function validatePeriod(product, p, { jobType, today }) {
   const e = [];
   const add = (path, message) => e.push({ path, message });
@@ -206,7 +220,8 @@ function validatePeriod(product, p, { jobType, today }) {
   else if (product === 'Businessowners') {
     validateCommercialProperty(p, add);
     validateGeneralLiability(p, add);
-  } else validateHomeowners(p, add);
+  } else if (product === 'Umbrella') validateUmbrella(p, add);
+  else validateHomeowners(p, add);
   return e.filter((x, i) => e.findIndex((y) => y.path === x.path && y.message === x.message) === i);
 }
 

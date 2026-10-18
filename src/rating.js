@@ -619,6 +619,36 @@ function rateBusinessowners(period, ctx) {
   return result;
 }
 
+// ---------------------------------------------------------------- Umbrella
+
+function rateUmbrella(period, ctx) {
+  const book = selectRateBook('Umbrella', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.Umbrella;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const termF = round4(product.termMonths / 12);
+  const line = period.line;
+  const limit = line.lineCoverages.UMBExcessCov.terms.limit;
+  const costs = [];
+  const ws = new Worksheet(`Umbrella limit ${usd(limit)}`, t.limitRates[limit])
+    .x(`State factor (${state})`, sf)
+    .x(`Vehicles: ${line.numberOfVehicles}`, band(t.vehicleFactors, line.numberOfVehicles))
+    .x(`Locations: ${line.numberOfLocations}`, band(t.locationFactors, line.numberOfLocations))
+    .x(`Liability claims in 5 years: ${line.claimsLast5Years}`, band(t.experienceFactors, line.claimsLast5Years))
+    .x(`Rate level (book ${book.version})`, book.rateLevel)
+    .x(`Term factor (${product.termMonths} months)`, termF);
+  costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'UMBExcessCov', coverageName: 'Umbrella liability', termValue: limit }, ws));
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  if (period.paymentPlan === 'PaidInFull') {
+    const pct = t.discounts.paidInFull;
+    const d = new Worksheet('Coverage premium subtotal', subtotal).x(`Paid-in-full discount (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: 'PaidInFullDiscount', coverageName: 'Paid-in-full discount' }, d));
+  }
+  return finish(book, costs, state, ctx);
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
@@ -627,6 +657,7 @@ function rate(product, period, ctx) {
   if (product === 'CommercialProperty') return rateCommercialProperty(period, ctx);
   if (product === 'WorkersComp') return rateWorkersComp(period, ctx);
   if (product === 'Businessowners') return rateBusinessowners(period, ctx);
+  if (product === 'Umbrella') return rateUmbrella(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

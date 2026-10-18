@@ -388,7 +388,9 @@ class PolicyCenter {
       insured: { name: this.accountName(account), address: clone(account.address) },
       line: null,
     };
-    if (product === 'Businessowners') {
+    if (product === 'Umbrella') {
+      period.line = { businessName: '', claimsLast5Years: 0, numberOfVehicles: 0, numberOfLocations: 1, underlyingAutoLimit: '500000', underlyingGLLimit: '1000000', underlyingEmployersLimit: '500000', lineCoverages: {} };
+    } else if (product === 'Businessowners') {
       period.line = { businessName: '', claimsLast5Years: 0, locations: [], exposures: [], lineCoverages: {} };
     } else if (product === 'WorkersComp') {
       period.line = { businessName: '', experienceMod: 1, classes: [], lineCoverages: {} };
@@ -451,6 +453,21 @@ class PolicyCenter {
       };
     }
 
+    if (product === 'Umbrella') {
+      const pm = PRODUCTS.Umbrella;
+      const ctx = { state: period.state };
+      const pick = (v, options, fallback) => (options.some((o) => o.value === String(v)) ? String(v) : fallback);
+      return {
+        businessName: str(line.businessName),
+        claimsLast5Years: int(line.claimsLast5Years) ?? 0,
+        numberOfVehicles: int(line.numberOfVehicles) ?? 0,
+        numberOfLocations: int(line.numberOfLocations) ?? 1,
+        underlyingAutoLimit: pick(line.underlyingAutoLimit, pm.underlyingOptions.underlyingAutoLimit, '500000'),
+        underlyingGLLimit: pick(line.underlyingGLLimit, pm.underlyingOptions.underlyingGLLimit, '1000000'),
+        underlyingEmployersLimit: pick(line.underlyingEmployersLimit, pm.underlyingOptions.underlyingEmployersLimit, '500000'),
+        lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+      };
+    }
     if (product === 'Businessowners') {
       const pm = PRODUCTS.Businessowners;
       const ctx = { state: period.state };

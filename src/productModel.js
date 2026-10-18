@@ -304,7 +304,32 @@ const BUSINESSOWNERS = {
   vehicleCoverages: [],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP, Businessowners: BUSINESSOWNERS };
+const UMBRELLA = {
+  code: 'Umbrella',
+  name: 'Umbrella (excess liability)',
+  prefix: 'UM',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  // Minimum underlying limits the umbrella sits above.
+  underlyingOptions: {
+    underlyingAutoLimit: moneyOpts([500000, 1000000]),
+    underlyingGLLimit: moneyOpts([1000000, 2000000]),
+    underlyingEmployersLimit: moneyOpts([500000, 1000000]),
+  },
+  underlyingMinimums: { underlyingAutoLimit: 500000, underlyingGLLimit: 1000000, underlyingEmployersLimit: 500000 },
+  lineCoverages: [
+    {
+      code: 'UMBExcessCov', name: 'Umbrella limit (each occurrence / aggregate)', category: 'Liability', existence: 'Required',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([1000000, 2000000, 5000000, 10000000]), default: '1000000' }],
+    },
+  ],
+  vehicleCoverages: [],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP, Businessowners: BUSINESSOWNERS, Umbrella: UMBRELLA };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

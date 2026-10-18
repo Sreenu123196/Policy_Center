@@ -396,6 +396,12 @@ function coverageRows(defs, map) {
 
 function periodSummary(productCode, period) {
   const pm = product(productCode);
+  if (productCode === 'Umbrella') {
+    const { lineCoverages, numberOfVehicles, numberOfLocations, claimsLast5Years, underlyingAutoLimit, underlyingGLLimit, underlyingEmployersLimit } = period.line;
+    return `<h3>Underlying insurance</h3>${table(['Policy', 'Limit'], [['Auto liability', usd0(underlyingAutoLimit)], ['General liability', usd0(underlyingGLLimit)], ["Employers' liability", usd0(underlyingEmployersLimit)]])}
+      <h3>Coverages</h3>${table(['Coverage', 'Limit'], coverageRows(pm.lineCoverages, lineCoverages))}
+      <div class="muted">Vehicles: ${esc(numberOfVehicles)} · locations: ${esc(numberOfLocations)} · liability claims in 5 years: ${esc(claimsLast5Years)}</div>`;
+  }
   if (productCode === 'Businessowners') {
     const { locations, exposures, lineCoverages, claimsLast5Years } = period.line;
     return `<h3>Locations</h3>${table(['Location', 'ZIP', 'Construction', 'Occupancy', 'Protection', 'Building', 'Contents'], locations.map((l) => [esc(l.description || l.address.line1), esc(l.address.zip), esc(l.construction), esc(l.occupancy), esc(l.protectionClass), usd0(l.buildingValue), usd0(l.contentsValue)]))}
@@ -507,6 +513,7 @@ const isEditable = (job) => OPEN.includes(job.status) && EDITABLE_TYPES.includes
 
 function jobSteps(job) {
   if (!EDITABLE_TYPES.includes(job.type)) return [['summary', 'Summary']];
+  if (job.product === 'Umbrella') return [['info', 'Policy info'], ['underlying', 'Underlying insurance'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'Businessowners') return [['info', 'Policy info'], ['locations', 'Locations'], ['exposures', 'Classes of business'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'WorkersComp') return [['info', 'Policy info'], ['classes', 'Classifications'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'CommercialProperty') return [['info', 'Policy info'], ['locations', 'Locations'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
@@ -561,7 +568,7 @@ const STEPS = {
     return `<h2>Policy info</h2>
       <div class="form-grid">
         ${field('Named insured', `<input value="${esc(p.insured.name)}" disabled>`)}
-        ${['CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'].includes(job.product) ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
+        ${['CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'].includes(job.product) ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
         ${field('Base state', `<input value="${esc(S.meta.states[p.state])}" disabled>`)}
         ${field('Producer code', `<input value="${esc(p.producerCode)}" disabled>`)}
         ${field('Term', `<input value="${pm.termMonths} months" disabled>`)}
@@ -615,6 +622,22 @@ const STEPS = {
           ${editable ? `<div style="margin-top:10px"><button class="btn small danger" data-action="remove-class" data-index="${i}">Remove classification</button></div>` : ''}
         </fieldset>`;
       }).join('')}`;
+  },
+
+  underlying(job, draft, editable) {
+    const pm = product('Umbrella');
+    const l = draft.line;
+    const pick = (field_, code, label) => field(label, `<select data-bind="line.${field_}" ${dis(editable)}>${pm.underlyingOptions[field_].map((o) => `<option value="${o.value}" ${sel(o.value, l[field_])}>${o.label}</option>`).join('')}</select>`);
+    return `<h2>Underlying insurance</h2>
+      <div class="muted" style="margin-bottom:10px">The umbrella sits above these policies. Each limit must meet the minimum shown on the form.</div>
+      <div class="form-grid">
+        ${pick('underlyingAutoLimit', 'auto', 'Auto liability limit (minimum $500,000)')}
+        ${pick('underlyingGLLimit', 'gl', 'General liability limit (minimum $1,000,000)')}
+        ${pick('underlyingEmployersLimit', 'el', "Employers' liability limit (minimum $500,000)")}
+        ${field('Vehicles on the underlying auto policy', `<input type="number" min="0" data-type="number" data-bind="line.numberOfVehicles" value="${esc(l.numberOfVehicles)}" ${dis(editable)}>`)}
+        ${field('Locations', `<input type="number" min="1" data-type="number" data-bind="line.numberOfLocations" value="${esc(l.numberOfLocations)}" ${dis(editable)}>`)}
+        ${field('Liability claims in the last 5 years', `<input type="number" min="0" data-type="number" data-bind="line.claimsLast5Years" value="${esc(l.claimsLast5Years)}" ${dis(editable)}>`)}
+      </div>`;
   },
 
   locations(job, draft, editable) {
@@ -746,7 +769,7 @@ const STEPS = {
     };
     const group = (title, inner) => (inner.trim() ? `<div class="cov-group"><div class="cov-title">${esc(title)}</div>${inner}</div>` : '');
 
-    if (['GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'].includes(job.product)) {
+    if (['GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'].includes(job.product)) {
       const { lineCoverages } = draft.line;
       return `<h2>Coverages</h2>${group('Policy-level coverages', pm.lineCoverages.map((d) => row(d, lineCoverages[d.code], `line.lineCoverages.${d.code}`)).join(''))}`;
     }

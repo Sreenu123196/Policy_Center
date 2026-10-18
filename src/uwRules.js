@@ -173,13 +173,26 @@ function businessownersIssues(p) {
   return out;
 }
 
+function umbrellaIssues(p) {
+  const out = [];
+  const { claimsLast5Years, numberOfVehicles, lineCoverages } = p.line;
+  if (claimsLast5Years >= 4) out.push(issue('UMB_LOSS_HISTORY', 'Liability loss history', `${claimsLast5Years} liability claims in 5 years`, 'BlocksQuote', 2, claimsLast5Years));
+  else if (claimsLast5Years >= 2) out.push(issue('UMB_LOSS_HISTORY', 'Liability loss history', `${claimsLast5Years} liability claims in 5 years`, 'BlocksQuote', 1, claimsLast5Years));
+  if (numberOfVehicles > 20) out.push(issue('UMB_FLEET', 'Large fleet', `${numberOfVehicles} vehicles on the underlying auto policy; UW Manager approval`, 'BlocksBind', 2, numberOfVehicles));
+  if (lineCoverages.UMBExcessCov && lineCoverages.UMBExcessCov.terms.limit === '10000000') {
+    out.push(issue('UMB_HIGH_LIMIT', 'High umbrella limit', 'A $10,000,000 umbrella limit needs UW Manager approval', 'BlocksBind', 2, 10000000));
+  }
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
     : product === 'CommercialAuto' ? commercialAutoIssues(period)
     : product === 'GeneralLiability' ? generalLiabilityIssues(period)
     : product === 'CommercialProperty' ? commercialPropertyIssues(period)
     : product === 'WorkersComp' ? workersCompIssues(period)
-    : product === 'Businessowners' ? businessownersIssues(period) : homeownersIssues(period);
+    : product === 'Businessowners' ? businessownersIssues(period)
+    : product === 'Umbrella' ? umbrellaIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

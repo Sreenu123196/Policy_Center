@@ -194,6 +194,19 @@ const BOP_TABLES = {
   policyFee: 50,
 };
 
+// Umbrella: a premium per umbrella limit, adjusted for fleet size, locations, claims and state.
+// Demonstration values, not filed rates.
+const UMB_TABLES = {
+  limitRates: { 1000000: 320, 2000000: 480, 5000000: 820, 10000000: 1200 },
+  vehicleFactors: [{ max: 0, f: 1.0 }, { max: 5, f: 1.25 }, { max: 20, f: 1.6 }, { f: 2.2 }],
+  locationFactors: [{ max: 1, f: 1.0 }, { max: 5, f: 1.15 }, { f: 1.35 }],
+  experienceFactors: [{ max: 0, f: 1.0 }, { max: 1, f: 1.2 }, { max: 2, f: 1.5 }, { f: 1.9 }],
+  stateFactors: { CA: 1.25, FL: 1.4, IL: 1.05, NY: 1.35, OH: 0.9, TX: 1.1 },
+  discounts: { paidInFull: 0.05 },
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 50,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
@@ -205,6 +218,7 @@ const RATE_BOOKS = [
   { code: 'CP-STD', product: 'CommercialProperty', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial property standard rate book', tables: CP_TABLES },
   { code: 'WC-STD', product: 'WorkersComp', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: "Workers' compensation standard rate book", tables: WC_TABLES },
   { code: 'BP-STD', product: 'Businessowners', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Businessowners standard rate book', tables: BOP_TABLES },
+  { code: 'UM-STD', product: 'Umbrella', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Umbrella standard rate book', tables: UMB_TABLES },
 ];
 
 module.exports = { RATE_BOOKS };
