@@ -17,16 +17,24 @@ export interface BindDependencies {
   underwriting?: UnderwritingDependencies; // when given, issues that block the bind or the issuance stop it
 }
 
+// The premium transaction of a bound version, as small numbers for the endorsement schedule.
+async function transactionOf(db: PGlite, branchId: string): Promise<{ premium: number; total: number } | undefined> {
+  const result = await db.query<{ premium: number; total: number }>('select premium_paise::float8 as premium, total_paise::float8 as total from policy.premium_transaction where branch_id = $1', [branchId]);
+  return result.rows[0];
+}
+
 const todayText = (): string => new Date().toISOString().slice(0, 10);
 
 // ---------------------------------------------------------------- binding
 
 // Binding accepts the risk: the chosen quoted option becomes a numbered, never-edited policy version (document sections
 // 5 and 8). Only this function sets a branch to bound. The other options of the job are withdrawn. The job goes
-// quoted, binding, bound in one transaction, and a PolicyBound event is written for billing.
-export async function bindSubmission(
+// quoted, binding, bound in one transaction. A premium transaction (what this version adds or removes compared with
+// the version it was based on) is saved, and a PolicyBound event is written for billing. Works for a submission
+// (version 1) and for a policy change (the next version).
+export async function bindJob(
   db: PGlite,
-  deps: Pick<BindDependencies, 'underwriting'>,
+  deps: BindDependencies,
   jobId: string,
   input: { branchId: string },
   actor: string,
@@ -34,10 +42,23 @@ export async function bindSubmission(
 ): Promise<{ job: Job; branch: Branch; quote: Quote }> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
+  if (job.type !== 'submission' && job.type !== 'policy_change') throw new ValidationError([`A ${job.type} job cannot be bound yet`]);
   if (job.status !== 'quoted') throw new ValidationError([`Only a quoted job can be bound (this one is ${job.status})`]);
   const chosen = await getBranch(db, input.branchId);
   if (chosen === null || chosen.jobId !== jobId) throw new ValidationError(['The branch must be an option of this job']);
   if (chosen.status !== 'quoted') throw new ValidationError([`Only a quoted option can be bound (this one is ${chosen.status})`]);
+
+  // Another job may have bound first. Then this one must be rebased onto the new version (step E2) before it can bind.
+  const latest = (
+    await db.query<{ id: string; version: number }>(
+      "select id, version from policy.policy_period where policy_id = $1 and term_number = $2 and status = 'bound' order by version desc limit 1",
+      [chosen.policyId, chosen.termNumber],
+    )
+  ).rows[0];
+  if (latest && latest.id !== chosen.basedOnId) {
+    throw new ValidationError([`Version ${latest.version} was bound after this job started; it must be rebased onto it before it can bind (step E2)`]);
+  }
+  const base = chosen.basedOnId === null ? null : await getLatestQuote(db, chosen.basedOnId);
 
   const quote = await getLatestQuote(db, chosen.id);
   if (quote === null) throw new ValidationError(['The option has no quote']);
@@ -62,6 +83,18 @@ export async function bindSubmission(
     await recordAudit(tx, { actor, action: 'branch.bind', entityType: 'policy_period', entityId: chosen.id, details: { version, quoteId: quote.id } });
     await moveJob(tx, jobId, 'bound', actor);
     const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
+    const transaction = {
+      kind: base === null ? 'new_business' : 'change',
+      effectiveDate: job.effectiveDate ?? chosen.periodStart,
+      premiumPaise: quote.premiumPaise - (base?.premiumPaise ?? 0),
+      taxPaise: quote.taxPaise - (base?.taxPaise ?? 0),
+      totalPaise: quote.totalPaise - (base?.totalPaise ?? 0),
+    };
+    await tx.query(
+      `insert into policy.premium_transaction (policy_id, branch_id, based_on_id, version, kind, effective_date, premium_paise, tax_paise, total_paise, created_by)
+       values ($1, $2, $3, $4, $5, $6::date, $7, $8, $9, $10)`,
+      [chosen.policyId, chosen.id, chosen.basedOnId, version, transaction.kind, transaction.effectiveDate, transaction.premiumPaise, transaction.taxPaise, transaction.totalPaise, actor],
+    );
     await recordEvent(tx, {
       type: 'PolicyBound',
       aggregateType: 'policy',
@@ -76,6 +109,7 @@ export async function bindSubmission(
         premiumPaise: quote.premiumPaise,
         taxPaise: quote.taxPaise,
         totalPaise: quote.totalPaise,
+        transaction,
       },
     });
   });
@@ -85,6 +119,8 @@ export async function bindSubmission(
   if (savedJob === null || savedBranch === null) throw new Error('The bound job could not be read back');
   return { job: savedJob, branch: savedBranch, quote };
 }
+
+export const bindSubmission = bindJob;
 
 // ---------------------------------------------------------------- documents
 
@@ -208,7 +244,7 @@ async function buildScheduleData(db: PGlite, deps: BindDependencies, branch: Bra
 // ---------------------------------------------------------------- issuing
 
 // Issuing makes the bound policy official: the job becomes issued and the policy schedule is produced and stored.
-export async function issueSubmission(
+export async function issueJob(
   db: PGlite,
   deps: BindDependencies,
   jobId: string,
@@ -226,7 +262,13 @@ export async function issueSubmission(
   const today = options.today ?? todayText();
   if (deps.underwriting) await checkUnderwriting(db, deps.underwriting, branch.id, 'issuance', actor, { today });
 
+  const isChange = job.type === 'policy_change';
+  const kind = isChange ? 'endorsement_schedule' : 'policy_schedule';
   const data = await buildScheduleData(db, deps, branch, job.jobNumber, quote, today);
+  if (isChange) {
+    const t = await transactionOf(db, branch.id);
+    data.change = { effectiveDate: job.effectiveDate ?? branch.periodStart, premiumChangePaise: t?.premium ?? 0, totalChangePaise: t?.total ?? 0 };
+  }
   const content = await renderSchedulePdf(data);
   const sha256 = createHash('sha256').update(content).digest('hex');
   const metadata = { policyNumber: data.policyNumber, jobNumber: data.jobNumber, version: data.version, formCodes: [] as string[], conditions: data.conditions };
@@ -235,11 +277,11 @@ export async function issueSubmission(
     await moveJob(tx, jobId, 'issued', actor);
     const inserted = await tx.query<{ id: string }>(
       `insert into policy.document (policy_id, job_id, branch_id, kind, content_type, content, sha256, metadata, created_by)
-       values ($1, $2, $3, 'policy_schedule', 'application/pdf', $4, $5, $6::jsonb, $7) returning id`,
-      [branch.policyId, jobId, branch.id, content, sha256, JSON.stringify(metadata), actor],
+       values ($1, $2, $3, $4, 'application/pdf', $5, $6, $7::jsonb, $8) returning id`,
+      [branch.policyId, jobId, branch.id, kind, content, sha256, JSON.stringify(metadata), actor],
     );
     const id = inserted.rows[0]?.id ?? '';
-    await recordAudit(tx, { actor, action: 'document.create', entityType: 'policy', entityId: branch.policyId, details: { documentId: id, kind: 'policy_schedule', version: data.version } });
+    await recordAudit(tx, { actor, action: 'document.create', entityType: 'policy', entityId: branch.policyId, details: { documentId: id, kind, version: data.version } });
     await recordEvent(tx, {
       type: 'PolicyIssued',
       aggregateType: 'policy',
@@ -254,3 +296,5 @@ export async function issueSubmission(
   if (savedJob === null || document === undefined) throw new Error('The issued job could not be read back');
   return { job: savedJob, document };
 }
+
+export const issueSubmission = issueJob;

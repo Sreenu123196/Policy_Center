@@ -27,6 +27,7 @@ export interface Job {
   policyId: string;
   type: JobType;
   status: JobStatus;
+  effectiveDate: string | null; // for a policy change: the day the change starts
   createdBy: string;
   createdAt: string;
 }

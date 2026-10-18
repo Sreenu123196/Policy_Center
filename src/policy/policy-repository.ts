@@ -35,6 +35,7 @@ interface JobRow {
   policy_id: string;
   type: JobType;
   status: JobStatus;
+  effective_date: string | null;
   created_by: string;
   created_at: Date;
 }
@@ -56,7 +57,7 @@ interface BranchRow {
 }
 
 const POLICY_COLUMNS = 'id, policy_number, account_id, product_code, created_by, created_at';
-const JOB_COLUMNS = 'id, job_number, policy_id, type, status, created_by, created_at';
+const JOB_COLUMNS = "id, job_number, policy_id, type, status, to_char(effective_date, 'YYYY-MM-DD') as effective_date, created_by, created_at";
 // Dates are read as text (yyyy-mm-dd), so a time zone can never shift a date by a day.
 const BRANCH_COLUMNS = `id, policy_id, job_id, term_number, label, version, based_on_id, status,
   to_char(period_start, 'YYYY-MM-DD') as period_start, to_char(period_end, 'YYYY-MM-DD') as period_end,
@@ -77,6 +78,7 @@ const toJob = (row: JobRow): Job => ({
   policyId: row.policy_id,
   type: row.type,
   status: row.status,
+  effectiveDate: row.effective_date,
   createdBy: row.created_by,
   createdAt: row.created_at.toISOString(),
 });
@@ -240,7 +242,7 @@ export async function createBranch(
 // ---------------------------------------------------------------- effective-dated rows
 
 // The branch must exist and still be open for editing. A bound version is never edited (document section 5).
-async function openBranch(db: PGlite, branchId: string): Promise<Branch> {
+export async function openBranch(db: PGlite, branchId: string): Promise<Branch> {
   const branch = await getBranch(db, branchId);
   if (branch === null) throw new ValidationError(['The branch does not exist']);
   if (branch.status === 'bound') throw new ValidationError(['A bound policy version cannot be changed']);

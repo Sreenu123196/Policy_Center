@@ -7,7 +7,7 @@ export { runMigrations } from './migrate.js';
 export { ValidationError } from './validation-error.js';
 export { PermissionError } from './permission-error.js';
 export { isUuid } from './ids.js';
-export { addDays, addYears, isRealDate } from './dates.js';
+export { addDays, addYears, daysBetween, isRealDate } from './dates.js';
 export { PERMISSIONS, isPermission } from './permissions.js';
 export type { Permission } from './permissions.js';
 export { listAuditEntries, recordAudit } from './audit.js';

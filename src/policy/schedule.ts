@@ -23,6 +23,7 @@ export interface ScheduleData {
   taxPaise: number;
   totalPaise: number;
   conditions: string[]; // conditions attached to underwriting approvals
+  change?: { effectiveDate: string; premiumChangePaise: number; totalChangePaise: number }; // set for an endorsement
 }
 
 // Whole paise to rupees with Indian digit grouping: 123456789 paise is Rs 12,34,567.89.
@@ -41,7 +42,7 @@ export const formatDate = (date: string): string => `${date.slice(8, 10)}-${date
 
 export function buildScheduleLines(data: ScheduleData): string[] {
   const lines = [
-    'Policy schedule',
+    data.change ? 'Endorsement schedule' : 'Policy schedule',
     data.productName,
     '',
     `Policy number: ${data.policyNumber}`,
@@ -65,16 +66,19 @@ export function buildScheduleLines(data: ScheduleData): string[] {
     `Total payable: ${formatRupees(data.totalPaise)}`,
     `Rate book: ${data.rateBook}`,
   ];
+  if (data.change) {
+    lines.splice(8, 0, `Change effective from: ${formatDate(data.change.effectiveDate)}`, `Premium change: ${formatRupees(data.change.premiumChangePaise)} (with tax ${formatRupees(data.change.totalChangePaise)})`);
+  }
   if (data.conditions.length > 0) lines.push('', 'Conditions', ...data.conditions);
   return lines;
 }
 
-const HEADINGS = new Set(['Policy schedule', 'Insured', 'Vehicle', 'Cover and premium', 'Conditions']);
+const HEADINGS = new Set(['Policy schedule', 'Endorsement schedule', 'Insured', 'Vehicle', 'Cover and premium', 'Conditions']);
 
 // Draws the lines on A4 pages and returns the PDF file. The creation date is the issue date, so the same data gives the same file.
 export async function renderSchedulePdf(data: ScheduleData): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Policy schedule ${data.policyNumber}`);
+  pdf.setTitle(`${data.change ? 'Endorsement' : 'Policy'} schedule ${data.policyNumber}`);
   pdf.setSubject(`Policy ${data.policyNumber}, version ${data.version}, job ${data.jobNumber}`);
   pdf.setProducer('Insurance Suite');
   pdf.setCreator('Insurance Suite');
@@ -93,8 +97,8 @@ export async function renderSchedulePdf(data: ScheduleData): Promise<Uint8Array>
       y = 842 - margin;
     }
     const heading = HEADINGS.has(line);
-    if (line !== '') page.drawText(line, { x: margin, y, size: line === 'Policy schedule' ? 20 : heading ? 13 : 11, font: heading ? bold : regular, color: rgb(0, 0, 0) });
-    y -= line === 'Policy schedule' ? 28 : lineHeight;
+    if (line !== '') page.drawText(line, { x: margin, y, size: line.endsWith(' schedule') ? 20 : heading ? 13 : 11, font: heading ? bold : regular, color: rgb(0, 0, 0) });
+    y -= line.endsWith(' schedule') ? 28 : lineHeight;
   }
   return pdf.save();
 }

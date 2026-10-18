@@ -6,6 +6,8 @@ import { createBranch, createPolicy, getBranch, getBranchAsOf, getJob, nextOptio
 import type { ProductCatalogue } from './product-catalogue.js';
 import { validateSelection } from './product-selection.js';
 import { buildRisk } from './risk.js';
+import { formatDate } from './schedule.js';
+import { combineSlices, cutDates, type PricedSlice } from './slice-rating.js';
 import { checkUnderwriting } from './underwriting.js';
 import type { Quote, QuoteDependencies, QuoteResult, WorksheetLine } from './quote.js';
 
@@ -142,19 +144,44 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
   const productVersion = policy ? deps.catalogue.versionsOf(policy.product_code).find((v) => v.version === branch.productVersion) : undefined;
   if (!policy || !productVersion) throw new ValidationError([`Product version ${branch.productVersion} is not in the product catalogue`]);
 
-  const asOf = await getBranchAsOf(db, branchId, branch.periodStart);
-  if (asOf === null) throw new ValidationError(['The branch does not exist']);
-
-  // Facts about the risk come from the branch and from the account's named insured.
-  const { facts, selection, errors } = await buildRisk(db, policy.account_id, asOf);
-  errors.push(...validateSelection(productVersion, facts, selection));
-  if (errors.length > 0) throw new ValidationError(errors);
+  // The period is cut at every date where anything changes (document section 6); each slice is checked and priced.
+  const rowDates = await db.query<{ d: string }>(
+    `select to_char(d, 'YYYY-MM-DD') as d from (
+       select eff_from as d from policy.coverable where branch_id = $1 union select eff_to from policy.coverable where branch_id = $1
+       union select eff_from from policy.coverage where branch_id = $1 union select eff_to from policy.coverage where branch_id = $1) x`,
+    [branchId],
+  );
+  const dates = cutDates(branch.periodStart, branch.periodEnd, rowDates.rows.map((r) => r.d));
+  const many = dates.length > 2;
+  const errors: string[] = [];
+  const priced: PricedSlice[] = [];
+  const note = (from: string, message: string): string => (many ? `From ${formatDate(from)}: ${message}` : message);
+  for (let i = 0; i < dates.length - 1; i++) {
+    const from = dates[i] as string;
+    const to = dates[i + 1] as string;
+    const asOf = await getBranchAsOf(db, branchId, from);
+    if (asOf === null) throw new ValidationError(['The branch does not exist']);
+    // Facts about the risk come from the branch and from the account's named insured.
+    const { facts, selection, errors: problems } = await buildRisk(db, policy.account_id, asOf);
+    problems.push(...validateSelection(productVersion, facts, selection));
+    if (problems.length > 0) {
+      errors.push(...problems.map((m) => note(from, m)));
+      continue;
+    }
+    try {
+      priced.push({ from, to, result: deps.quoter({ branch: asOf, productVersion, facts, selection }) });
+    } catch (error) {
+      if (!(error instanceof ValidationError)) throw error;
+      errors.push(...error.errors.map((m) => note(from, m)));
+    }
+  }
+  if (errors.length > 0) throw new ValidationError([...new Set(errors)]);
 
   // Underwriting rules (document section 10): an issue that blocks the quote stops it until someone with authority approves.
   const today = options.today ?? new Date().toISOString().slice(0, 10);
   if (deps.underwriting) await checkUnderwriting(db, deps.underwriting, branchId, 'quote', actor, { today });
 
-  const result: QuoteResult = deps.quoter({ branch: asOf, productVersion, facts, selection });
+  const result: QuoteResult = combineSlices(priced, branch.periodStart, branch.periodEnd);
   if (![result.premiumPaise, result.taxPaise].every(isMoney)) throw new ValidationError(['The rating returned an invalid price']);
 
   const total = result.premiumPaise + result.taxPaise;

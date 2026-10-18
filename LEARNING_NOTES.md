@@ -170,5 +170,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **The outbox**: the event `PolicyBound` or `PolicyIssued` is written in the same transaction as the change. If the change rolls back, the event never existed. A publisher later reads unpublished events in order and consumers (billing) must handle a repeat. This is how modules talk without reading each other's tables.
 - Underwriting conditions that were approved with conditions are printed on the schedule.
 
+## E1. Policy change in sequence (sections 5, 6 and 9)
+- A **policy change job** copies the **latest bound version** into a new branch. The copy keeps every **fixed id** and records `based_on` (the version it came from). Version 1 is never touched.
+- Every edit has an **effective date** (the job's date unless given). The edit **splits** the slice that spans the date: the days before keep the old values, and from the date to the end of the period (the window) the new values apply. Slices that start later are changed whole. A removal ends the cover from the date. The no-overlap rule of the database still holds after every edit.
+- **Rating by slices**: the period is cut at every date where anything changes. Each slice is priced as a whole year, then **prorated** by `slice days / term days`. Each cost is prorated and rounded to a paise, and the premium is the sum of those costs, so the numbers add up exactly. A change that alters nothing prices to exactly the old premium.
+- Every slice is checked against the product, and a problem is reported with its date ("From 01-01-2027: ...").
+- On bind, the **transaction** is the new premium minus the premium of the version it was based on: a charge when positive, a **refund when negative**. Version 1 has a `new_business` transaction. Billing will receive only the difference, in the `PolicyBound` event. Transactions cannot be changed.
+- **Another job may bind first.** If the policy has a newer version than the one this job started from, binding is refused until the job is rebased (E2). This is the beginning of **preemption**.
+- The change is **issued** with an **endorsement schedule** that shows the effective date and the premium change.
+- Worked example: zero depreciation added from 1 January, 78 of 365 days after the start. Old cover costs 1,574,600 for the year; zero depreciation costs 240,000 for the year, so for 287 days it costs 188,712. The transaction is +188,712 premium and +33,968 tax.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

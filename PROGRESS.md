@@ -29,7 +29,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D4 | Rating engine: rate books, routines, worksheet, golden tests | Done (174 tests pass) |
 | D5 | Underwriting rules, issue types, authority and referral | Done (196 tests pass) |
 | D6 | Bind and issue, policy schedule PDF, outbox | Done (216 tests pass) |
-| E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Next: E1 |
+| E1 | Policy change in sequence: slices, prorating, transactions | Done (239 tests pass) |
+| E2 to E4 | Out-of-sequence and preemption, cancellation, renewal | Next: E2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -38,6 +39,15 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from E1
+- Out-of-sequence changes, merging, conflicts and rebasing a job onto a newer version: step E2. E1 only refuses to bind a change that started from an older version, with a message that points to E2.
+- Underwriting rules look at the risk on the period start date only; a high insured value that starts mid-term is not seen yet. Checking every slice is a small extension.
+- Rating tax is prorated per slice from the whole-term tax of each slice; a rate book with fees or minimum total premium would need a rule for prorating them (section 9).
+- Edits available: change terms of a coverage, change attributes of a coverable, remove a coverage, add a coverage or coverable from a date (D2 functions). Removing a coverable (for example replacing the car), changing the term length and edits to the account (address) are not built.
+- The change job has one effective date; separate edits may use other dates. The transaction uses the job's date as its effective date.
+- Billing does not exist yet: transactions are saved and sent in the `PolicyBound` event; invoices come in F1.
+- A bound change can be followed by another change job; the `based_on` chain is kept, and a policy can have only one term (renewal is E4).
 
 ## Deferred from D6
 - The roadmap's Part D is complete. A submission is bound and issued in two calls; a separate "bind-only, issue later" Issuance job type (document section 8) is not built, because the same submission job is issued.

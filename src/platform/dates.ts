@@ -28,3 +28,10 @@ export function addDays(text: string, days: number): string {
   moved.setUTCDate(moved.getUTCDate() + days);
   return moved.toISOString().slice(0, 10);
 }
+
+// How many days from one date to another, counting the first and not the last (the same rule as an effective range).
+export function daysBetween(from: string, to: string): number {
+  assertRealDate(from);
+  assertRealDate(to);
+  return Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+}

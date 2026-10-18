@@ -166,6 +166,11 @@ Binding, issuing, documents and events (document sections 8, 11, 17)
 - Documents (`policy.document`) are stored with a SHA-256 and metadata and are never changed or deleted. Money on documents is shown with `formatRupees`, dates with `formatDate` (DD-MM-YYYY).
 - Modules announce changes with `recordEvent(tx, ...)` from Platform, in the same transaction as the change. Payloads hold small facts only. Consumers must cope with seeing an event twice.
 
+Policy change (document sections 6 and 9)
+- A change starts with `startPolicyChange` (copy of the latest bound version, fixed ids kept, `based_on` set). Edits go through `changeCoverage`, `changeCoverable`, `removeCoverage` and `addCoverage/addCoverable` with `effFrom`, never by raw SQL (except in tests that stand in for an edit). They split slices at the effective date and reopen a quoted branch.
+- Quoting always rates by slices (`cutDates`, `combineSlices`); a single slice gives the unchanged price. Prorating is `days / term days`, rounded to a whole paise per cost.
+- `bindJob` writes the premium transaction (new premium minus the premium of the version it was based on) and refuses a job based on an older version. Billing must use transactions, never recompute them.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

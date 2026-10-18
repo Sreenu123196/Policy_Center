@@ -72,3 +72,13 @@ describe('the policy schedule (document section 11)', () => {
     expect(buildScheduleLines(data)).toEqual(buildScheduleLines(data));
   });
 });
+
+describe('the endorsement schedule (a policy change)', () => {
+  it('shows the effective date and the premium change instead of a new-policy heading', () => {
+    const text = buildScheduleLines({ ...data, version: 2, change: { effectiveDate: '2027-01-01', premiumChangePaise: 377424, totalChangePaise: 445360 } }).join('\n');
+    expect(text).toContain('Endorsement schedule');
+    expect(text).not.toContain('Policy schedule');
+    expect(text).toContain('Change effective from: 01-01-2027');
+    expect(text).toContain('Premium change: Rs 3,774.24 (with tax Rs 4,453.60)');
+  });
+});
