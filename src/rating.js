@@ -369,10 +369,64 @@ function rateCommercialAuto(period, ctx) {
   return result;
 }
 
+// ---------------------------------------------------------------- General Liability
+
+function rateGeneralLiability(period, ctx) {
+  const book = selectRateBook('GeneralLiability', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.GeneralLiability;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const terr = territoryOf(period.insured.address.zip);
+  const termF = round4(product.termMonths / 12);
+  const claims = period.line.claimsLast5Years || 0;
+  const expF = band(t.experienceFactors, claims);
+  const costs = [];
+
+  period.line.exposures.forEach((x, i) => {
+    const cls = product.classes.find((c) => c.code === x.classCode);
+    const rate = t.classRates[x.classCode];
+    const coverable = `Class ${i + 1}: ${cls.name}`;
+    const limit = period.line.lineCoverages.GLPremOpsCov.terms.limit;
+    const ws = new Worksheet(`Exposure $${Number(x.amount).toLocaleString('en-US')} ${x.base.toLowerCase()} at $${rate} per $1,000`, (x.amount / 1000) * rate)
+      .x(`State factor, liability (${state})`, sf)
+      .x(`Territory ${terr} (ZIP ${period.insured.address.zip})`, t.territoryFactors[terr])
+      .x(`Limit ${limit}`, t.limitFactors.GLPremOpsCov[limit])
+      .x(`Liability claims in 5 years: ${claims}`, expF)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverableId: x.id, coverable, coverageCode: 'GLPremOpsCov', coverageName: 'Premises and operations', termValue: limit }, ws));
+  });
+
+  for (const def of product.lineCoverages) {
+    if (def.code !== 'GLMedPayCov') continue;
+    const cov = period.line.lineCoverages[def.code];
+    if (!cov || !cov.selected) continue;
+    const limit = cov.terms.limit;
+    const ws = new Worksheet(`Flat charge (medical expense ${usd(limit)})`, t.medPayCharges.GLMedPayCov[limit])
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
+  }
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  const discounts = [];
+  if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  for (const [code, name, pct] of discounts) {
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: code, coverageName: name }, ws));
+  }
+
+  const result = finish(book, costs, state, ctx);
+  result.claimExperience = { claimsLast5Years: claims, factor: expF };
+  return result;
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
   if (product === 'CommercialAuto') return rateCommercialAuto(period, ctx);
+  if (product === 'GeneralLiability') return rateGeneralLiability(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

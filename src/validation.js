@@ -135,6 +135,22 @@ function validateCommercialAuto(p, add) {
   });
 }
 
+function validateGeneralLiability(p, add) {
+  const pm = PRODUCTS.GeneralLiability;
+  const { businessName, exposures, claimsLast5Years } = p.line;
+  if (blank(businessName)) add('line.businessName', 'Business name is required');
+  if (!exposures.length) add('line.exposures', 'At least one class of business is required');
+  if (exposures.length > 30) add('line.exposures', 'A general liability policy can have at most 30 classes of business');
+  exposures.forEach((x, i) => {
+    const at = (f) => `line.exposures.${i}.${f}`;
+    const what = `Class ${i + 1}`;
+    const cls = pm.classes.find((c) => c.code === x.classCode);
+    if (!cls) add(at('classCode'), `${what}: choose a class of business`);
+    if (!isInt(x.amount, 1, 1000000000)) add(at('amount'), `${what}: enter the annual ${cls ? cls.base.toLowerCase() : 'exposure'} amount`);
+  });
+  if (!isInt(claimsLast5Years, 0, 50)) add('line.claimsLast5Years', 'Liability claims in the last 5 years must be 0 to 50');
+}
+
 function validatePeriod(product, p, { jobType, today }) {
   const e = [];
   const add = (path, message) => e.push({ path, message });
@@ -146,6 +162,7 @@ function validatePeriod(product, p, { jobType, today }) {
   if (!PRODUCTS[product].paymentPlans.some((pl) => pl.code === p.paymentPlan)) add('paymentPlan', 'Payment plan is required');
   if (product === 'PersonalAuto') validatePersonalAuto(p, add);
   else if (product === 'CommercialAuto') validateCommercialAuto(p, add);
+  else if (product === 'GeneralLiability') validateGeneralLiability(p, add);
   else validateHomeowners(p, add);
   return e;
 }

@@ -101,9 +101,27 @@ function commercialAutoIssues(p) {
   return out;
 }
 
+function generalLiabilityIssues(p) {
+  const out = [];
+  const { exposures, lineCoverages, claimsLast5Years } = p.line;
+  if (claimsLast5Years >= 4) out.push(issue('GL_LOSS_HISTORY', 'Liability loss history', `${claimsLast5Years} liability claims in 5 years`, 'BlocksQuote', 2, claimsLast5Years));
+  else if (claimsLast5Years >= 2) out.push(issue('GL_LOSS_HISTORY', 'Liability loss history', `${claimsLast5Years} liability claims in 5 years`, 'BlocksQuote', 1, claimsLast5Years));
+  exposures.forEach((x, i) => {
+    const what = `Class ${i + 1} (${x.classCode})`;
+    if (x.amount > 5000000) out.push(issue('GL_LARGE_EXPOSURE', 'Large exposure', `${what} exposure is $${Number(x.amount).toLocaleString('en-US')}; over $5M needs UW Manager`, 'BlocksBind', 2, x.amount, x.id));
+    if (x.classCode === '91340' && x.amount > 1000000) out.push(issue('GL_HIGH_RISK_TRADE', 'High-risk trade payroll', `${what} has payroll over $1M in carpentry; underwriter review`, 'BlocksBind', 1, x.amount, x.id));
+    if (x.classCode === '16501') out.push(issue('GL_LIQUOR_SERVICE', 'Liquor service', `${what} serves alcohol; underwriter review for liquor liability`, 'BlocksBind', 1, 1, x.id));
+  });
+  if (lineCoverages.GLPremOpsCov && lineCoverages.GLPremOpsCov.terms.limit === '2000000/4000000') {
+    out.push(issue('GL_HIGH_LIMIT', 'High liability limit', 'A $2M / $4M limit needs UW Manager approval', 'BlocksBind', 2, 4000000));
+  }
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
-    : product === 'CommercialAuto' ? commercialAutoIssues(period) : homeownersIssues(period);
+    : product === 'CommercialAuto' ? commercialAutoIssues(period)
+    : product === 'GeneralLiability' ? generalLiabilityIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

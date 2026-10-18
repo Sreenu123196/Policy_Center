@@ -126,6 +126,20 @@ const CA_TABLES = {
   policyFee: 50,
 };
 
+// General liability: rate per $1,000 of each class's exposure, then factors for limit, state,
+// territory and the account's liability claims in 5 years. Demonstration values, not filed rates.
+const GL_TABLES = {
+  classRates: { '91340': 9.5, '98482': 7.2, '46820': 0.6, '60010': 0.9, '16500': 2.4, '16501': 4.6 },
+  limitFactors: { GLPremOpsCov: { '1000000/2000000': 1.0, '2000000/4000000': 1.35 } },
+  medPayCharges: { GLMedPayCov: { 1000: 40, 5000: 70, 10000: 110 } },
+  stateFactors: { CA: 1.25, FL: 1.4, IL: 1.05, NY: 1.45, OH: 0.9, TX: 1.1 },
+  territoryFactors: { 1: 0.92, 2: 0.97, 3: 1.0, 4: 1.06, 5: 1.14 },
+  experienceFactors: [{ max: 0, f: 1.0 }, { max: 1, f: 1.2 }, { max: 2, f: 1.5 }, { f: 1.9 }],
+  discounts: { paidInFull: 0.05 },
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 50,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
@@ -133,6 +147,7 @@ const RATE_BOOKS = [
   { code: 'HO-STD', product: 'Homeowners', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.06, description: '+6.0% overall rate level change (reinsurance cost increase)', tables: HO_TABLES },
   { code: 'HO-STD', product: 'Homeowners', version: '2027.2', effectiveDate: '2027-07-01', status: 'Draft', rateLevel: 1.08, description: 'Proposed +8% (pending regulatory approval, not used for rating)', tables: HO_TABLES },
   { code: 'CA-STD', product: 'CommercialAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial auto standard rate book', tables: CA_TABLES },
+  { code: 'GL-STD', product: 'GeneralLiability', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'General liability standard rate book', tables: GL_TABLES },
 ];
 
 module.exports = { RATE_BOOKS };
