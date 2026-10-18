@@ -816,7 +816,7 @@ async function pageSales() {
         policyLink({ policyNumber: r.policyNumber, policyId: r.policyId }), esc(r.insured), badge(r.status), money(r.premium), esc(r.expirationDate),
         r.daysToExpiry, esc(r.salesperson.name),
         r.lastFollowUp ? `${esc(r.lastFollowUp.date)} · ${esc(r.lastFollowUp.channel)} · ${esc(r.lastFollowUp.result)}` : '<span class="muted">None yet</span>',
-        `<div class="toolbar"><button class="btn small primary" data-action="log-followup" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">Log follow-up</button><button class="btn small" data-action="followup-history" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">History</button>${['whatsapp', 'email'].map((ch) => `<button class="btn small" data-action="contact-policy" data-channel="${ch}" data-account="${esc(r.accountId)}" data-policy="${esc(r.policyId)}" data-status="${esc(r.status)}">${ch === 'whatsapp' ? 'WhatsApp' : 'Email'}</button>`).join('')}</div>`,
+        `<div class="toolbar"><button class="btn small primary" data-action="log-followup" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">Log follow-up</button><button class="btn small" data-action="followup-history" data-id="${esc(r.policyId)}" data-number="${esc(r.policyNumber)}">History</button>${['whatsapp', 'email'].map((ch) => `<button class="btn small success" data-action="contact-policy" data-channel="${ch}" data-account="${esc(r.accountId)}" data-policy="${esc(r.policyId)}" data-status="${esc(r.status)}">${ch === 'whatsapp' ? 'WhatsApp' : 'Email'}</button>`).join('')}</div>`,
       ]), 'No lapsing or lapsed policies for you');
   } else {
     const rows = await api('GET', '/sales/followups');
