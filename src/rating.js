@@ -297,9 +297,82 @@ function rateHomeowners(period, ctx) {
   return result;
 }
 
+// ---------------------------------------------------------------- Commercial Auto
+
+function rateCommercialAuto(period, ctx) {
+  const book = selectRateBook('CommercialAuto', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.CommercialAuto;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const termF = round4(product.termMonths / 12);
+  const effYear = D.yearOf(period.effectiveDate);
+  const drivers = period.line.drivers;
+  const accidents = drivers.reduce((s, d) => s + (d.accidents || 0), 0);
+  const perDriver = drivers.length ? accidents / drivers.length : 0;
+  const fleetF = band(t.fleetRiskBands, perDriver);
+  const costs = [];
+
+  period.line.vehicles.forEach((v, i) => {
+    const coverable = `Vehicle ${i + 1}: ${v.year} ${v.make} ${v.model}`;
+    const terr = territoryOf(v.garagingZip);
+    const vehAge = Math.max(0, effYear - v.year);
+    const base = { type: 'Coverage', coverableId: v.id, coverable };
+
+    for (const def of product.lineCoverages) {
+      const cov = period.line.lineCoverages[def.code];
+      if (!cov || !cov.selected) continue;
+      const limit = cov.terms.limit;
+      const ws = new Worksheet('Annual base rate', t.baseRates[def.code])
+        .x(`State factor, liability (${state})`, sf.liability)
+        .x(`Territory ${terr} (ZIP ${v.garagingZip})`, t.territoryFactors[terr])
+        .x(`Limit ${usd(limit)}`, t.limitFactors[def.code][limit])
+        .x(`Use: ${v.usage}`, t.usageFactors[v.usage])
+        .x(`Radius: ${v.radius}`, t.radiusFactors[v.radius])
+        .x(`Fleet driving record (${perDriver.toFixed(2)} accidents per driver)`, fleetF)
+        .x(`Rate level (book ${book.version})`, book.rateLevel)
+        .x(`Term factor (${product.termMonths} months)`, termF);
+      costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
+    }
+
+    for (const def of product.vehicleCoverages) {
+      const cov = v.coverages[def.code];
+      if (!cov || !cov.selected) continue;
+      const deductible = cov.terms.deductible;
+      const ws = new Worksheet('Annual base rate', t.baseRates[def.code])
+        .x(`State factor, physical damage (${state})`, sf.physical)
+        .x(`Territory ${terr} (ZIP ${v.garagingZip})`, t.territoryFactors[terr])
+        .x(`Deductible ${usd(deductible)}`, t.deductibleFactors[def.code][deductible])
+        .x(`Vehicle age ${vehAge} yrs`, band(t.vehicleAgeFactors, vehAge))
+        .x(`Stated value ${usd(v.marketValue)}`, band(t.vehicleValueFactors, v.marketValue || 0))
+        .x(`Use: ${v.usage}`, t.usageFactors[v.usage])
+        .x(`Radius: ${v.radius}`, t.radiusFactors[v.radius])
+        .x(`Fleet driving record (${perDriver.toFixed(2)} accidents per driver)`, fleetF)
+        .x(`Rate level (book ${book.version})`, book.rateLevel)
+        .x(`Term factor (${product.termMonths} months)`, termF);
+      costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: deductible }, ws));
+    }
+  });
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  const discounts = [];
+  if (period.line.vehicles.length >= 10) discounts.push(['FleetDiscount10', 'Fleet discount (10+ vehicles)', t.discounts.fleet10]);
+  else if (period.line.vehicles.length >= 5) discounts.push(['FleetDiscount5', 'Fleet discount (5+ vehicles)', t.discounts.fleet5]);
+  if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  for (const [code, name, pct] of discounts) {
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: code, coverageName: name }, ws));
+  }
+
+  const result = finish(book, costs, state, ctx);
+  result.fleetExperience = { accidentsPerDriver: round2(perDriver), factor: fleetF };
+  return result;
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
+  if (product === 'CommercialAuto') return rateCommercialAuto(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

@@ -98,6 +98,43 @@ function validateHomeowners(p, add) {
   }
 }
 
+function validateCommercialAuto(p, add) {
+  const pm = PRODUCTS.CommercialAuto;
+  const { businessName, drivers, vehicles } = p.line;
+  const effYear = D.yearOf(p.effectiveDate);
+  if (blank(businessName)) add('line.businessName', 'Business name is required');
+  if (!drivers.length) add('line.drivers', 'At least one driver is required');
+  if (!vehicles.length) add('line.vehicles', 'At least one vehicle is required');
+  if (vehicles.length > 50) add('line.vehicles', 'A commercial auto policy can have at most 50 vehicles');
+
+  drivers.forEach((d, i) => {
+    const at = (f) => `line.drivers.${i}.${f}`;
+    const who = `Driver ${i + 1}`;
+    if (blank(d.firstName)) add(at('firstName'), `${who}: first name is required`);
+    if (blank(d.lastName)) add(at('lastName'), `${who}: last name is required`);
+    if (!D.isDate(d.dob)) add(at('dob'), `${who}: date of birth is required`);
+    else if (D.ageOn(d.dob, p.effectiveDate) < 18) add(at('dob'), `${who}: drivers must be at least 18`);
+    if (blank(d.licenseNumber)) add(at('licenseNumber'), `${who}: license number is required`);
+    if (!STATES[d.licenseState]) add(at('licenseState'), `${who}: license state is required`);
+    if (!isInt(d.yearsLicensed, 0, 70)) add(at('yearsLicensed'), `${who}: years licensed must be 0 to 70`);
+    if (!isInt(d.accidents, 0, 20)) add(at('accidents'), `${who}: accidents must be 0 to 20`);
+    if (!isInt(d.violations, 0, 20)) add(at('violations'), `${who}: violations must be 0 to 20`);
+  });
+
+  vehicles.forEach((v, i) => {
+    const at = (f) => `line.vehicles.${i}.${f}`;
+    const what = `Vehicle ${i + 1}`;
+    if (!isInt(v.year, effYear - 30, effYear + 1)) add(at('year'), `${what}: model year must be within 30 years of the effective date`);
+    if (blank(v.make)) add(at('make'), `${what}: make is required`);
+    if (blank(v.model)) add(at('model'), `${what}: model is required`);
+    if (!VIN.test(v.vin || '')) add(at('vin'), `${what}: VIN must be 17 characters (no I, O or Q)`);
+    if (!pm.usages.includes(v.usage)) add(at('usage'), `${what}: choose a use`);
+    if (!pm.radiusClasses.includes(v.radius)) add(at('radius'), `${what}: choose a radius of operation`);
+    if (!isInt(v.marketValue, 1, 5000000)) add(at('marketValue'), `${what}: stated value is required`);
+    if (!ZIP.test(v.garagingZip || '')) add(at('garagingZip'), `${what}: garaging ZIP must be 5 digits`);
+  });
+}
+
 function validatePeriod(product, p, { jobType, today }) {
   const e = [];
   const add = (path, message) => e.push({ path, message });
@@ -108,6 +145,7 @@ function validatePeriod(product, p, { jobType, today }) {
   if (jobType === 'Submission' && p.effectiveDate > D.addDays(today, 120)) add('effectiveDate', 'Effective date cannot be more than 120 days in the future');
   if (!PRODUCTS[product].paymentPlans.some((pl) => pl.code === p.paymentPlan)) add('paymentPlan', 'Payment plan is required');
   if (product === 'PersonalAuto') validatePersonalAuto(p, add);
+  else if (product === 'CommercialAuto') validateCommercialAuto(p, add);
   else validateHomeowners(p, add);
   return e;
 }

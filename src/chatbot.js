@@ -85,7 +85,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
       },
@@ -98,7 +98,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
         sort: { type: 'string', enum: ['premium_desc', 'premium_asc', 'expiration_asc', 'effective_desc'] },
@@ -146,7 +146,7 @@ const TOOLS = [
       properties: {
         from: { type: 'string', description: 'Start date, yyyy-mm-dd' },
         to: { type: 'string', description: 'End date, yyyy-mm-dd' },
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto'] },
       },
       required: ['from', 'to'],
       additionalProperties: false,
@@ -155,7 +155,7 @@ const TOOLS = [
   {
     name: 'get_product_rules',
     description: 'Reference information: the product model (coverages, limits, forms, payment plans), underwriting rules and authority levels, cancellation reasons and methods, and the rate books.',
-    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
   },
 ];
 
@@ -169,6 +169,16 @@ const UW_RULES = {
     'Business use: blocks bind, Underwriter',
     'Over 30,000 annual miles: blocks bind, Underwriter',
     'Vehicle value over $100,000: blocks bind, UW Manager',
+    'Vehicle over 20 years old with Collision: blocks bind, Underwriter',
+  ],
+  CommercialAuto: [
+    'Driver under 21: blocks bind, Underwriter approval',
+    '2 at-fault accidents in 3 years per driver: blocks quote, Underwriter; 3+: blocks quote, UW Manager',
+    'Fleet averaging 0.5 or more at-fault accidents per driver: blocks quote, UW Manager',
+    'More than 25 vehicles: blocks quote, UW Manager',
+    'Liability limit of $2,000,000: blocks bind, UW Manager',
+    'Heavy truck: blocks bind, Underwriter',
+    'Radius over 200 miles: blocks bind, Underwriter',
     'Vehicle over 20 years old with Collision: blocks bind, Underwriter',
   ],
   Homeowners: [
@@ -229,6 +239,16 @@ function toolLabel(name, input = {}) {
 }
 
 function compactPeriod(product, period) {
+  if (product === 'CommercialAuto') {
+    const sel = (m) => Object.entries(m || {}).filter(([, c]) => c.selected).map(([code, c]) => `${code}${Object.keys(c.terms).length ? ' ' + Object.values(c.terms).join('/') : ''}`);
+    return {
+      businessName: period.line.businessName,
+      paymentPlan: period.paymentPlan,
+      drivers: period.line.drivers.map((d) => ({ name: `${d.firstName} ${d.lastName}`, yearsLicensed: d.yearsLicensed, accidents: d.accidents, violations: d.violations })),
+      vehicles: period.line.vehicles.map((v) => ({ vehicle: `${v.year} ${v.make} ${v.model}`, vin: v.vin, usage: v.usage, radius: v.radius, statedValue: v.marketValue, coverages: sel(v.coverages) })),
+      policyCoverages: sel(period.line.lineCoverages),
+    };
+  }
   if (product === 'PersonalAuto') {
     const sel = (m) => Object.entries(m || {}).filter(([, c]) => c.selected).map(([code, c]) => `${code}${Object.keys(c.terms).length ? ' ' + Object.values(c.terms).join('/') : ''}`);
     return {

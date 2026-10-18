@@ -32,7 +32,7 @@ users and roles.
 
 | PolicyCenter concept | Where | Notes |
 |---|---|---|
-| Product model (APD / Product Designer) | `src/productModel.js` | PA: line coverages + per-vehicle coverages, PIP only in FL/NY. HO: HO-3, HO-5, HO-4, HO-6 forms, Section I/II, deductibles, endorsements. Availability by state and form. |
+| Product model (APD / Product Designer) | `src/productModel.js` | Commercial Auto (CA): fleet of vehicles with use and radius of operation, combined single liability limit, collision and comprehensive, fleet discounts at 5 and 10 vehicles. PA: line coverages + per-vehicle coverages, PIP only in FL/NY. HO: HO-3, HO-5, HO-4, HO-6 forms, Section I/II, deductibles, endorsements. Availability by state and form. |
 | Rating Management | `src/rateBooks.js`, `src/rating.js` | Effective-dated rate books (2026.1, 2027.1, plus a Draft 2027.2 that is never used). Each cost has a factor-by-factor worksheet. |
 | Validation rules | `src/validation.js` | Block the quote: VIN format, driver age, Collision requires Comprehensive, UM ≤ BI, Cov C ≤ Cov A, and others. |
 | UW rules / UW issues | `src/uwRules.js` | BlocksQuote / BlocksBind, approval level, issues that can't be approved (declines). An approval stays valid on re-quote unless the risk gets worse. |

@@ -74,8 +74,36 @@ function homeownersIssues(p) {
   return out;
 }
 
+function commercialAutoIssues(p) {
+  const out = [];
+  const { drivers, vehicles, lineCoverages } = p.line;
+  const effYear = D.yearOf(p.effectiveDate);
+  for (const d of drivers) {
+    const who = `${d.firstName} ${d.lastName}`;
+    const age = D.ageOn(d.dob, p.effectiveDate);
+    if (age < 21) out.push(issue('CA_YOUNG_DRIVER', 'Young driver', `${who} is ${age}; drivers under 21 need underwriter review`, 'BlocksBind', 1, 21 - age, d.id));
+    if (d.accidents >= 3) out.push(issue('CA_DRIVER_ACCIDENTS', 'Driver accident history', `${who} has ${d.accidents} at-fault accidents in 3 years`, 'BlocksQuote', 2, d.accidents, d.id));
+    else if (d.accidents === 2) out.push(issue('CA_DRIVER_ACCIDENTS', 'Driver accident history', `${who} has 2 at-fault accidents in 3 years`, 'BlocksQuote', 1, 2, d.id));
+    if (d.violations >= 4) out.push(issue('CA_MAJOR_VIOLATIONS', 'Excessive violations', `${who} has ${d.violations} violations in 3 years; outside appetite`, 'BlocksQuote', null, d.violations, d.id));
+  }
+  const perDriver = drivers.length ? drivers.reduce((s, d) => s + (d.accidents || 0), 0) / drivers.length : 0;
+  if (perDriver >= 0.5) out.push(issue('CA_FLEET_LOSSES', 'Fleet loss history', `Fleet averages ${perDriver.toFixed(2)} at-fault accidents per driver in 3 years`, 'BlocksQuote', 2, perDriver));
+  if (vehicles.length > 25) out.push(issue('CA_LARGE_FLEET', 'Large fleet', `${vehicles.length} vehicles on one commercial auto policy`, 'BlocksQuote', 2, vehicles.length));
+  if (lineCoverages.CAAutoLiabilityCov && lineCoverages.CAAutoLiabilityCov.terms.limit === '2000000') {
+    out.push(issue('CA_HIGH_LIMIT', 'High liability limit', 'A $2,000,000 liability limit needs UW Manager approval', 'BlocksBind', 2, 2000000));
+  }
+  vehicles.forEach((v, i) => {
+    const what = `Vehicle ${i + 1} (${v.year} ${v.make} ${v.model})`;
+    if (v.usage === 'Heavy') out.push(issue('CA_HEAVY_VEHICLE', 'Heavy truck', `${what} is a heavy truck; underwriter review`, 'BlocksBind', 1, 1, v.id));
+    if (v.radius === 'Long') out.push(issue('CA_LONG_RADIUS', 'Long-radius operation', `${what} operates more than 200 miles from base`, 'BlocksBind', 1, 1, v.id));
+    if (effYear - v.year > 20 && v.coverages.CACollisionCov?.selected) out.push(issue('CA_OLD_VEHICLE_COLLISION', 'Collision on older vehicle', `${what} is over 20 years old with Collision`, 'BlocksBind', 1, effYear - v.year, v.id));
+  });
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
-  const issues = product === 'PersonalAuto' ? personalAutoIssues(period) : homeownersIssues(period);
+  const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
+    : product === 'CommercialAuto' ? commercialAutoIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

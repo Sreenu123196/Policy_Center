@@ -396,7 +396,7 @@ function coverageRows(defs, map) {
 
 function periodSummary(productCode, period) {
   const pm = product(productCode);
-  if (productCode === 'PersonalAuto') {
+  if (productCode === 'PersonalAuto' || productCode === 'CommercialAuto') {
     const { drivers, vehicles, lineCoverages } = period.line;
     return `<h3>Drivers</h3>${table(['Name', 'Date of birth', 'License', 'Years licensed', 'Accidents', 'Violations', 'Good student'], drivers.map((d) => [
       esc(`${d.firstName} ${d.lastName}`), esc(d.dob), esc(`${d.licenseState} ${d.licenseNumber}`), d.yearsLicensed, d.accidents, d.violations, d.goodStudent ? 'Yes' : 'No',
@@ -482,7 +482,7 @@ const isEditable = (job) => OPEN.includes(job.status) && EDITABLE_TYPES.includes
 
 function jobSteps(job) {
   if (!EDITABLE_TYPES.includes(job.type)) return [['summary', 'Summary']];
-  if (job.product === 'PersonalAuto') return [['info', 'Policy info'], ['drivers', 'Drivers'], ['vehicles', 'Vehicles'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
+  if (job.product === 'PersonalAuto' || job.product === 'CommercialAuto') return [['info', 'Policy info'], ['drivers', 'Drivers'], ['vehicles', 'Vehicles'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   return [['info', 'Policy info'], ['dwelling', 'Dwelling'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
 }
 
@@ -532,6 +532,7 @@ const STEPS = {
     return `<h2>Policy info</h2>
       <div class="form-grid">
         ${field('Named insured', `<input value="${esc(p.insured.name)}" disabled>`)}
+        ${job.product === 'CommercialAuto' ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
         ${field('Base state', `<input value="${esc(S.meta.states[p.state])}" disabled>`)}
         ${field('Producer code', `<input value="${esc(p.producerCode)}" disabled>`)}
         ${field('Term', `<input value="${pm.termMonths} months" disabled>`)}
@@ -579,9 +580,10 @@ const STEPS = {
             ${field('Make', `<input data-bind="${b('make')}" value="${esc(v.make)}" ${dis(editable)}>`)}
             ${field('Model', `<input data-bind="${b('model')}" value="${esc(v.model)}" ${dis(editable)}>`)}
             ${field('VIN', `<input data-bind="${b('vin')}" value="${esc(v.vin)}" maxlength="17" ${dis(editable)}>`)}
-            ${field('Primary use', `<select data-bind="${b('usage')}" ${dis(editable)}>${product('PersonalAuto').usages.map((x) => `<option ${sel(x, v.usage)}>${x}</option>`).join('')}</select>`)}
-            ${field('Annual miles', `<input type="number" min="0" data-type="number" data-bind="${b('annualMiles')}" value="${esc(v.annualMiles)}" ${dis(editable)}>`)}
-            ${field('Market value ($)', `<input type="number" min="0" data-type="number" data-bind="${b('marketValue')}" value="${esc(v.marketValue)}" ${dis(editable)}>`)}
+            ${field('Primary use', `<select data-bind="${b('usage')}" ${dis(editable)}>${product(job.product).usages.map((x) => `<option ${sel(x, v.usage)}>${x}</option>`).join('')}</select>`)}
+            ${job.product === 'CommercialAuto' ? field('Radius of operation', `<select data-bind="${b('radius')}" ${dis(editable)}>${product('CommercialAuto').radiusClasses.map((x) => `<option ${sel(x, v.radius)}>${x}</option>`).join('')}</select>`) : ''}
+            ${job.product === 'PersonalAuto' ? field('Annual miles', `<input type="number" min="0" data-type="number" data-bind="${b('annualMiles')}" value="${esc(v.annualMiles)}" ${dis(editable)}>`) : ''}
+            ${field(job.product === 'CommercialAuto' ? 'Stated value ($)' : 'Market value ($)', `<input type="number" min="0" data-type="number" data-bind="${b('marketValue')}" value="${esc(v.marketValue)}" ${dis(editable)}>`)}
             ${field('Garaging ZIP', `<input data-bind="${b('garagingZip')}" value="${esc(v.garagingZip)}" maxlength="5" ${dis(editable)}>`)}
           </div>
           ${editable ? `<div style="margin-top:10px"><button class="btn small danger" data-action="remove-vehicle" data-index="${i}">Remove vehicle</button></div>` : ''}
@@ -649,7 +651,7 @@ const STEPS = {
     };
     const group = (title, inner) => (inner.trim() ? `<div class="cov-group"><div class="cov-title">${esc(title)}</div>${inner}</div>` : '');
 
-    if (job.product === 'PersonalAuto') {
+    if (job.product === 'PersonalAuto' || job.product === 'CommercialAuto') {
       const { lineCoverages, vehicles } = draft.line;
       return `<h2>Coverages</h2>
         ${group('Policy-level coverages', pm.lineCoverages.map((d) => row(d, lineCoverages[d.code], `line.lineCoverages.${d.code}`)).join(''))}
@@ -1084,7 +1086,7 @@ const ACTIONS = {
   },
   'add-driver': async () => { S.jv.draft.line.drivers.push({ firstName: '', lastName: '', dob: '', licenseNumber: '', licenseState: S.jv.job.period.state, yearsLicensed: null, accidents: 0, violations: 0 }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-driver': async (d) => { S.jv.draft.line.drivers.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
-  'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: 'Commute', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
+  'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-vehicle': async (d) => { S.jv.draft.line.vehicles.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
 
   'policy-tab': (d) => { S.policyTab = d.tab; renderPolicy(); },

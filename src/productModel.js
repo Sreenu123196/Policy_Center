@@ -138,7 +138,40 @@ const HOMEOWNERS = {
   ],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS };
+const COMMERCIAL_AUTO = {
+  code: 'CommercialAuto',
+  name: 'Commercial Auto',
+  prefix: 'CA',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  usages: ['Light', 'Service', 'Delivery', 'Heavy'],
+  radiusClasses: ['Local', 'Intermediate', 'Long'],
+  lineCoverages: [
+    {
+      code: 'CAAutoLiabilityCov', name: 'Auto Liability (combined single limit)', category: 'Liability', existence: 'Required',
+      terms: [{ code: 'limit', name: 'Limit per accident', type: 'option', options: moneyOpts([500000, 1000000, 2000000]), default: '1000000' }],
+    },
+    {
+      code: 'CAUninsuredMotoristCov', name: 'Uninsured / Underinsured Motorist', category: 'Liability', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'limit', name: 'Limit per accident', type: 'option', options: moneyOpts([500000, 1000000]), default: '500000' }],
+    },
+  ],
+  vehicleCoverages: [
+    {
+      code: 'CACollisionCov', name: 'Collision', category: 'Physical Damage', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([500, 1000, 2500]), default: '1000' }],
+    },
+    {
+      code: 'CAComprehensiveCov', name: 'Comprehensive (Other Than Collision)', category: 'Physical Damage', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([250, 500, 1000]), default: '500' }],
+    },
+  ],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

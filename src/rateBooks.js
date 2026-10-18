@@ -91,12 +91,48 @@ const HO_TABLES = {
   policyFee: 15,
 };
 
+// Commercial auto: annual base rates per vehicle, then factors for state, use, radius, deductible,
+// value and the fleet's driving record. Demonstration values, not filed rates.
+const CA_TABLES = {
+  baseRates: { CAAutoLiabilityCov: 1450, CAUninsuredMotoristCov: 160, CACollisionCov: 1150, CAComprehensiveCov: 360 },
+  stateFactors: {
+    CA: { liability: 1.2, physical: 1.12 },
+    FL: { liability: 1.35, physical: 1.15 },
+    IL: { liability: 1.0, physical: 0.98 },
+    NY: { liability: 1.3, physical: 1.2 },
+    OH: { liability: 0.85, physical: 0.9 },
+    TX: { liability: 1.08, physical: 1.1 },
+  },
+  territoryFactors: { 1: 0.92, 2: 0.97, 3: 1.0, 4: 1.06, 5: 1.14 },
+  limitFactors: {
+    CAAutoLiabilityCov: { 500000: 1.0, 1000000: 1.32, 2000000: 1.65 },
+    CAUninsuredMotoristCov: { 500000: 1.0, 1000000: 1.25 },
+  },
+  deductibleFactors: {
+    CACollisionCov: { 500: 1.0, 1000: 0.85, 2500: 0.7 },
+    CAComprehensiveCov: { 250: 1.12, 500: 1.0, 1000: 0.85 },
+  },
+  usageFactors: { Light: 1.0, Service: 1.15, Delivery: 1.3, Heavy: 1.6 },
+  radiusFactors: { Local: 1.0, Intermediate: 1.25, Long: 1.55 },
+  // Fleet average of at-fault accidents per driver over 3 years.
+  fleetRiskBands: [{ max: 0.1, f: 1.0 }, { max: 0.3, f: 1.2 }, { f: 1.45 }],
+  vehicleAgeFactors: [{ max: 2, f: 1.25 }, { max: 5, f: 1.1 }, { max: 10, f: 1.0 }, { max: 15, f: 0.82 }, { f: 0.65 }],
+  vehicleValueFactors: [
+    { max: 10000, f: 0.6 }, { max: 20000, f: 0.85 }, { max: 35000, f: 1.0 },
+    { max: 50000, f: 1.25 }, { max: 80000, f: 1.6 }, { f: 2.1 },
+  ],
+  discounts: { fleet5: 0.08, fleet10: 0.12, paidInFull: 0.05 },
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 50,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
   { code: 'HO-STD', product: 'Homeowners', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Homeowners standard rate book', tables: HO_TABLES },
   { code: 'HO-STD', product: 'Homeowners', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.06, description: '+6.0% overall rate level change (reinsurance cost increase)', tables: HO_TABLES },
   { code: 'HO-STD', product: 'Homeowners', version: '2027.2', effectiveDate: '2027-07-01', status: 'Draft', rateLevel: 1.08, description: 'Proposed +8% (pending regulatory approval, not used for rating)', tables: HO_TABLES },
+  { code: 'CA-STD', product: 'CommercialAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial auto standard rate book', tables: CA_TABLES },
 ];
 
 module.exports = { RATE_BOOKS };
