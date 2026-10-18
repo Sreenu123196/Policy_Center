@@ -137,11 +137,24 @@ function commercialPropertyIssues(p) {
   return out;
 }
 
+function workersCompIssues(p) {
+  const out = [];
+  const { classes, experienceMod } = p.line;
+  if (experienceMod > 1.5) out.push(issue('WC_HIGH_MOD', 'High experience modification', `Experience modification ${experienceMod} is above 1.5`, 'BlocksQuote', 2, experienceMod));
+  else if (experienceMod > 1.25) out.push(issue('WC_HIGH_MOD', 'High experience modification', `Experience modification ${experienceMod} is above 1.25`, 'BlocksQuote', 1, experienceMod));
+  const hazardPayroll = classes.filter((c) => c.classCode === '5403' || c.classCode === '5183').reduce((s, c) => s + c.payroll, 0);
+  if (hazardPayroll > 1000000) out.push(issue('WC_HAZARD_PAYROLL', 'Hazardous payroll', `Carpentry and plumbing payroll is $${Number(hazardPayroll).toLocaleString('en-US')}; underwriter review`, 'BlocksBind', 1, hazardPayroll));
+  const employees = classes.reduce((s, c) => s + (c.employees || 0), 0);
+  if (employees > 200) out.push(issue('WC_LARGE_EMPLOYER', 'Large employer', `${employees} employees; over 200 needs UW Manager approval`, 'BlocksBind', 2, employees));
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
     : product === 'CommercialAuto' ? commercialAutoIssues(period)
     : product === 'GeneralLiability' ? generalLiabilityIssues(period)
-    : product === 'CommercialProperty' ? commercialPropertyIssues(period) : homeownersIssues(period);
+    : product === 'CommercialProperty' ? commercialPropertyIssues(period)
+    : product === 'WorkersComp' ? workersCompIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

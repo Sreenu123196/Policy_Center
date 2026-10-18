@@ -173,6 +173,22 @@ function validateCommercialProperty(p, add) {
   if (!isInt(claimsLast5Years, 0, 50)) add('line.claimsLast5Years', 'Property claims in the last 5 years must be 0 to 50');
 }
 
+function validateWorkersComp(p, add) {
+  const pm = PRODUCTS.WorkersComp;
+  const { businessName, classes, experienceMod } = p.line;
+  if (blank(businessName)) add('line.businessName', 'Business name is required');
+  if (!classes.length) add('line.classes', 'At least one classification is required');
+  if (classes.length > 30) add('line.classes', 'A workers compensation policy can have at most 30 classifications');
+  classes.forEach((c, i) => {
+    const at = (f) => `line.classes.${i}.${f}`;
+    const what = `Classification ${i + 1}`;
+    if (!pm.classes.some((x) => x.code === c.classCode)) add(at('classCode'), `${what}: choose a classification`);
+    if (!isInt(c.payroll, 1, 1000000000)) add(at('payroll'), `${what}: enter the annual payroll`);
+    if (!isInt(c.employees, 1, 10000)) add(at('employees'), `${what}: enter the number of employees`);
+  });
+  if (!(Number.isFinite(experienceMod) && experienceMod >= 0.5 && experienceMod <= 2)) add('line.experienceMod', 'Experience modification must be between 0.50 and 2.00');
+}
+
 function validatePeriod(product, p, { jobType, today }) {
   const e = [];
   const add = (path, message) => e.push({ path, message });
@@ -186,6 +202,7 @@ function validatePeriod(product, p, { jobType, today }) {
   else if (product === 'CommercialAuto') validateCommercialAuto(p, add);
   else if (product === 'GeneralLiability') validateGeneralLiability(p, add);
   else if (product === 'CommercialProperty') validateCommercialProperty(p, add);
+  else if (product === 'WorkersComp') validateWorkersComp(p, add);
   else validateHomeowners(p, add);
   return e;
 }

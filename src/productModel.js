@@ -230,7 +230,36 @@ const COMMERCIAL_PROPERTY = {
   vehicleCoverages: [],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY };
+const WORKERS_COMP = {
+  code: 'WorkersComp',
+  name: "Workers' Compensation",
+  prefix: 'WC',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  // Job classifications. The rate per $100 of payroll is in the rate book.
+  classes: [
+    { code: '8810', name: 'Clerical office', base: 'Payroll' },
+    { code: '8742', name: 'Outside sales', base: 'Payroll' },
+    { code: '9079', name: 'Restaurant', base: 'Payroll' },
+    { code: '5183', name: 'Plumbing', base: 'Payroll' },
+    { code: '5403', name: 'Carpentry', base: 'Payroll' },
+  ],
+  lineCoverages: [
+    {
+      code: 'WCStatutoryCov', name: 'Workers compensation (statutory benefits)', category: 'Statutory', existence: 'Required', terms: [],
+    },
+    {
+      code: 'WCEmployersLiabilityCov', name: "Employers' liability (each accident)", category: 'Liability', existence: 'Required',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([100000, 500000, 1000000]), default: '500000' }],
+    },
+  ],
+  vehicleCoverages: [],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

@@ -159,6 +159,17 @@ const CP_TABLES = {
   policyFee: 50,
 };
 
+// Workers' compensation: rate per $100 of payroll for each classification, then the state factor and
+// the business's experience modification. Demonstration values, not filed rates.
+const WC_TABLES = {
+  classRates: { '8810': 0.12, '8742': 0.45, '9079': 2.6, '5183': 3.9, '5403': 6.8 },
+  employersLiabilityCharges: { 100000: 85, 500000: 130, 1000000: 165 },
+  stateFactors: { CA: 1.3, FL: 1.1, IL: 1.0, NY: 1.25, OH: 0.95, TX: 0.9 },
+  discounts: { paidInFull: 0.05 },
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 50,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
@@ -168,6 +179,7 @@ const RATE_BOOKS = [
   { code: 'CA-STD', product: 'CommercialAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial auto standard rate book', tables: CA_TABLES },
   { code: 'GL-STD', product: 'GeneralLiability', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'General liability standard rate book', tables: GL_TABLES },
   { code: 'CP-STD', product: 'CommercialProperty', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial property standard rate book', tables: CP_TABLES },
+  { code: 'WC-STD', product: 'WorkersComp', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: "Workers' compensation standard rate book", tables: WC_TABLES },
 ];
 
 module.exports = { RATE_BOOKS };

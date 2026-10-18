@@ -484,12 +484,57 @@ function rateCommercialProperty(period, ctx) {
   return finish(book, costs, state, ctx);
 }
 
+// ---------------------------------------------------------------- Workers' Compensation
+
+function rateWorkersComp(period, ctx) {
+  const book = selectRateBook('WorkersComp', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.WorkersComp;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const mod = period.line.experienceMod;
+  const termF = round4(product.termMonths / 12);
+  const costs = [];
+
+  period.line.classes.forEach((c, i) => {
+    const cls = product.classes.find((x) => x.code === c.classCode);
+    const rate = t.classRates[c.classCode];
+    const ws = new Worksheet(`Payroll $${Number(c.payroll).toLocaleString('en-US')} at $${rate} per $100`, (c.payroll / 100) * rate)
+      .x(`State factor (${state})`, sf)
+      .x(`Experience modification ${mod}`, mod)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverableId: c.id, coverable: `Class ${i + 1}: ${cls.name} (${c.classCode})`, coverageCode: 'WCStatutoryCov', coverageName: 'Workers compensation (class premium)' }, ws));
+  });
+
+  const el = period.line.lineCoverages.WCEmployersLiabilityCov;
+  if (el && el.selected) {
+    const limit = el.terms.limit;
+    const ws = new Worksheet(`Employers' liability limit ${usd(limit)}`, t.employersLiabilityCharges[limit])
+      .x(`State factor (${state})`, sf)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'WCEmployersLiabilityCov', coverageName: "Employers' liability", termValue: limit }, ws));
+  }
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  if (period.paymentPlan === 'PaidInFull') {
+    const pct = t.discounts.paidInFull;
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`Paid-in-full discount (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: 'PaidInFullDiscount', coverageName: 'Paid-in-full discount' }, ws));
+  }
+  const result = finish(book, costs, state, ctx);
+  result.experienceMod = mod;
+  return result;
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
   if (product === 'CommercialAuto') return rateCommercialAuto(period, ctx);
   if (product === 'GeneralLiability') return rateGeneralLiability(period, ctx);
   if (product === 'CommercialProperty') return rateCommercialProperty(period, ctx);
+  if (product === 'WorkersComp') return rateWorkersComp(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

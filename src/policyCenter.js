@@ -388,7 +388,9 @@ class PolicyCenter {
       insured: { name: this.accountName(account), address: clone(account.address) },
       line: null,
     };
-    if (product === 'CommercialProperty') {
+    if (product === 'WorkersComp') {
+      period.line = { businessName: '', experienceMod: 1, classes: [], lineCoverages: {} };
+    } else if (product === 'CommercialProperty') {
       period.line = { businessName: '', claimsLast5Years: 0, locations: [], lineCoverages: {} };
     } else if (product === 'GeneralLiability') {
       period.line = { businessName: '', claimsLast5Years: 0, exposures: [], lineCoverages: {} };
@@ -447,6 +449,23 @@ class PolicyCenter {
       };
     }
 
+    if (product === 'WorkersComp') {
+      const pm = PRODUCTS.WorkersComp;
+      const ctx = { state: period.state };
+      return {
+        businessName: str(line.businessName),
+        experienceMod: num(line.experienceMod) ?? 1,
+        classes: (line.classes || []).map((c) => ({
+          id: c.id || this.store.id('cls'),
+          classCode: str(c.classCode),
+          description: str(c.description),
+          base: 'Payroll',
+          payroll: int(c.payroll),
+          employees: int(c.employees),
+        })),
+        lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+      };
+    }
     if (product === 'CommercialProperty') {
       const pm = PRODUCTS.CommercialProperty;
       const ctx = { state: period.state };
