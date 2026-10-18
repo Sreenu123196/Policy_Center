@@ -82,6 +82,9 @@ export async function bindJob(
     }
     await recordAudit(tx, { actor, action: 'branch.bind', entityType: 'policy_period', entityId: chosen.id, details: { version, quoteId: quote.id } });
     await moveJob(tx, jobId, 'bound', actor);
+    // Two jobs can be open on one policy. When one binds, the others are preempted: they must be rebased onto the new version.
+    const rivals = await tx.query<{ id: string }>("select id from policy.job where policy_id = $1 and id <> $2 and type = 'policy_change' and status in ('draft', 'quoted')", [chosen.policyId, jobId]);
+    for (const rival of rivals.rows) await moveJob(tx, rival.id, 'preempted', actor, `Version ${version} was bound by job ${job.jobNumber}`);
     const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
     const transaction = {
       kind: base === null ? 'new_business' : 'change',

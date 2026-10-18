@@ -78,33 +78,65 @@ const TARGETS = {
   coverage: {
     table: 'policy.coverage',
     data: 'terms',
-    copy: (patch: string) =>
-      `insert into policy.coverage (branch_id, fixed_id, coverable_fid, pattern_code, eff_from, eff_to, terms, created_by)
-       select branch_id, fixed_id, coverable_fid, pattern_code, $2::date, $3::date, terms || ${patch}, $4 from policy.coverage where row_id = $1`,
-    action: 'coverage',
-    label: 'coverage',
+    copy: `insert into policy.coverage (branch_id, fixed_id, coverable_fid, pattern_code, eff_from, eff_to, terms, created_by)
+           select branch_id, fixed_id, coverable_fid, pattern_code, $2::date, $3::date, terms, $4 from policy.coverage where row_id = $1 returning row_id::float8 as row_id`,
   },
   coverable: {
     table: 'policy.coverable',
     data: 'attributes',
-    copy: (patch: string) =>
-      `insert into policy.coverable (branch_id, fixed_id, kind, eff_from, eff_to, attributes, created_by)
-       select branch_id, fixed_id, kind, $2::date, $3::date, attributes || ${patch}, $4 from policy.coverable where row_id = $1`,
-    action: 'coverable',
-    label: 'coverable',
+    copy: `insert into policy.coverable (branch_id, fixed_id, kind, eff_from, eff_to, attributes, created_by)
+           select branch_id, fixed_id, kind, $2::date, $3::date, attributes, $4 from policy.coverable where row_id = $1 returning row_id::float8 as row_id`,
   },
 } as const;
 
-interface EditInput {
+export type ObjectKind = keyof typeof TARGETS;
+export type Q = Pick<PGlite, 'query'>;
+
+export interface EditInput {
   fixedId: string;
   effectiveDate?: string | undefined;
   patch: Record<string, unknown> | null; // null removes the object from the date
 }
 
-async function editFromDate(db: PGlite, kind: keyof typeof TARGETS, branchId: string, input: EditInput, actor: string): Promise<void> {
+// The value of one field of an object on one date in one branch (null when the object or the field is absent).
+async function fieldOn(q: Q, kind: ObjectKind, branchId: string, fixedId: string, field: string, date: string): Promise<unknown> {
+  const { table, data } = TARGETS[kind];
+  const row = (
+    await q.query<{ v: unknown }>(`select ${data} -> $3::text as v from ${table} where branch_id = $1 and fixed_id = $2 and eff_from <= $4::date and $4::date < eff_to`, [branchId, fixedId, field, date])
+  ).rows[0];
+  return row?.v ?? null;
+}
+
+// Bound changes dated after the edit (document section 6, Appendix B): a "later change" that touched this field wins
+// from its own date. It touched the field when the field has another value in that version than in the version it was based on.
+async function protectedFrom(q: Q, kind: ObjectKind, branch: Branch, fixedId: string, date: string, fields: string[]): Promise<Map<string, { from: string; version: number }>> {
+  const later = (
+    await q.query<{ branch_id: string; based_on_id: string | null; version: number; eff: string }>(
+      `select branch_id, based_on_id, version, to_char(effective_date, 'YYYY-MM-DD') as eff
+         from policy.premium_transaction where policy_id = $1 and kind = 'change' and effective_date > $2::date order by effective_date, version`,
+      [branch.policyId, date],
+    )
+  ).rows;
+  const result = new Map<string, { from: string; version: number }>();
+  for (const field of fields) {
+    for (const change of later) {
+      if (change.based_on_id === null) continue;
+      const after = await fieldOn(q, kind, change.branch_id, fixedId, field, change.eff);
+      const before = await fieldOn(q, kind, change.based_on_id, fixedId, field, change.eff);
+      if (JSON.stringify(after) !== JSON.stringify(before)) {
+        result.set(field, { from: change.eff, version: change.version });
+        break;
+      }
+    }
+  }
+  return result;
+}
+
+// Applies one edit inside a transaction. Used by the public edit functions and by rebasing.
+export async function applyEdit(tx: Q, branch: Branch, kind: ObjectKind, input: EditInput, actor: string): Promise<void> {
   const target = TARGETS[kind];
-  const branch = await openBranch(db, branchId);
-  const job = await getJob(db, branch.jobId);
+  const label = kind;
+  const job = await getJob(tx, branch.jobId);
   const date = input.effectiveDate ?? job?.effectiveDate ?? undefined;
 
   const errors: string[] = [];
@@ -114,40 +146,70 @@ async function editFromDate(db: PGlite, kind: keyof typeof TARGETS, branchId: st
   if (input.patch !== null && Object.keys(input.patch).length === 0) errors.push('There is nothing to change');
   if (errors.length > 0 || date === undefined) throw new ValidationError(errors);
 
-  const known = isUuid(input.fixedId) && (await db.query(`select 1 from ${target.table} where branch_id = $1 and fixed_id = $2`, [branchId, input.fixedId])).rows.length > 0;
-  if (!known) throw new ValidationError([`The ${target.label} does not exist in this branch`]);
+  const known = isUuid(input.fixedId) && (await tx.query(`select 1 from ${target.table} where branch_id = $1 and fixed_id = $2`, [branch.id, input.fixedId])).rows.length > 0;
+  if (!known) throw new ValidationError([`The ${label} does not exist in this branch`]);
   const slices = (
-    await db.query<{ row_id: number; eff_from: string; eff_to: string }>(
+    await tx.query<{ row_id: number; eff_from: string; eff_to: string }>(
       `select row_id::float8 as row_id, to_char(eff_from, 'YYYY-MM-DD') as eff_from, to_char(eff_to, 'YYYY-MM-DD') as eff_to
          from ${target.table} where branch_id = $1 and fixed_id = $2 and eff_to > $3::date order by eff_from`,
-      [branchId, input.fixedId, date],
+      [branch.id, input.fixedId, date],
     )
   ).rows;
-  if (slices.length === 0) throw new ValidationError([`The ${target.label} does not exist from that date`]);
+  if (slices.length === 0) throw new ValidationError([`The ${label} does not exist from that date`]);
 
-  await db.transaction(async (tx) => {
-    await reopenIfQuoted(tx, branch, actor);
-    for (const slice of slices) {
-      const spans = slice.eff_from < date;
-      if (input.patch === null) {
-        if (spans) await tx.query(`update ${target.table} set eff_to = $2::date where row_id = $1`, [slice.row_id, date]);
-        else await tx.query(`delete from ${target.table} where row_id = $1`, [slice.row_id]);
-      } else if (spans) {
-        // The part before the date stays as it was; the part from the date on becomes a new slice with the change.
-        await tx.query(`update ${target.table} set eff_to = $2::date where row_id = $1`, [slice.row_id, date]);
-        await tx.query(target.copy('$5::jsonb'), [slice.row_id, date, slice.eff_to, actor, JSON.stringify(input.patch)]);
-      } else {
-        await tx.query(`update ${target.table} set ${target.data} = ${target.data} || $2::jsonb where row_id = $1`, [slice.row_id, JSON.stringify(input.patch)]);
-      }
+  await reopenIfQuoted(tx, branch, actor);
+  const guarded = input.patch === null ? new Map<string, { from: string; version: number }>() : await protectedFrom(tx, kind, branch, input.fixedId, date, Object.keys(input.patch));
+  const heldBack = new Set<string>(); // fields where a later change kept at least one slice
+
+  for (const slice of slices) {
+    if (input.patch === null) {
+      if (slice.eff_from < date) await tx.query(`update ${target.table} set eff_to = $2::date where row_id = $1`, [slice.row_id, date]);
+      else await tx.query(`delete from ${target.table} where row_id = $1`, [slice.row_id]);
+      continue;
     }
-    await recordAudit(tx, {
-      actor,
-      action: `${target.action}.${input.patch === null ? 'remove' : 'change'}`,
-      entityType: 'policy_period',
-      entityId: branchId,
-      details: { fixedId: input.fixedId, effectiveDate: date, ...(input.patch === null ? {} : { [target.data]: input.patch }) },
-    });
+    // The part before the date stays as it was; the part from the date on becomes a new slice that takes the change.
+    let rowId = slice.row_id;
+    let from = slice.eff_from;
+    if (slice.eff_from < date) {
+      await tx.query(`update ${target.table} set eff_to = $2::date where row_id = $1`, [slice.row_id, date]);
+      const copy = await tx.query<{ row_id: number }>(target.copy, [slice.row_id, date, slice.eff_to, actor]);
+      rowId = copy.rows[0]?.row_id ?? rowId;
+      from = date;
+    }
+    const apply: Record<string, unknown> = {};
+    for (const [field, value] of Object.entries(input.patch)) {
+      const hold = guarded.get(field);
+      if (hold !== undefined && from >= hold.from) heldBack.add(field);
+      else apply[field] = value;
+    }
+    if (Object.keys(apply).length > 0) await tx.query(`update ${target.table} set ${target.data} = ${target.data} || $2::jsonb where row_id = $1`, [rowId, JSON.stringify(apply)]);
+  }
+
+  // A conflict is recorded for each field a later change kept: the later change wins until someone decides otherwise.
+  for (const field of heldBack) {
+    const hold = guarded.get(field);
+    if (hold === undefined || input.patch === null) continue;
+    await tx.query('delete from policy.merge_conflict where branch_id = $1 and object_kind = $2 and fixed_id = $3 and field = $4 and resolution is null', [branch.id, kind, input.fixedId, field]);
+    const laterValue = await fieldOn(tx, kind, branch.id, input.fixedId, field, hold.from);
+    await tx.query(
+      `insert into policy.merge_conflict (branch_id, object_kind, fixed_id, field, edit_date, later_version, later_date, our_value, later_value)
+       values ($1, $2, $3, $4, $5::date, $6, $7::date, $8::jsonb, $9::jsonb)`,
+      [branch.id, kind, input.fixedId, field, date, hold.version, hold.from, JSON.stringify(input.patch[field] ?? null), JSON.stringify(laterValue)],
+    );
+  }
+
+  await recordAudit(tx, {
+    actor,
+    action: `${label}.${input.patch === null ? 'remove' : 'change'}`,
+    entityType: 'policy_period',
+    entityId: branch.id,
+    details: { fixedId: input.fixedId, effectiveDate: date, ...(input.patch === null ? {} : { [target.data]: input.patch }), ...(heldBack.size > 0 ? { conflicts: [...heldBack] } : {}) },
   });
+}
+
+async function editFromDate(db: PGlite, kind: ObjectKind, branchId: string, input: EditInput, actor: string): Promise<void> {
+  const branch = await openBranch(db, branchId);
+  await db.transaction((tx) => applyEdit(tx, branch, kind, input, actor));
 }
 
 // Changes terms of a coverage (for example the insured value) from a date to the end of the period.

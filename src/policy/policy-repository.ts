@@ -112,14 +112,14 @@ export async function getPolicy(db: PGlite, id: string, visibility: Visibility):
   return row && canSeeProducerCode(visibility, row.producer_code) ? toPolicy(row) : null;
 }
 
-export async function getJob(db: PGlite, id: string): Promise<Job | null> {
+export async function getJob(db: Pick<PGlite, 'query'>, id: string): Promise<Job | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<JobRow>(`select ${JOB_COLUMNS} from policy.job where id = $1`, [id]);
   const row = result.rows[0];
   return row ? toJob(row) : null;
 }
 
-export async function getBranch(db: PGlite, id: string): Promise<Branch | null> {
+export async function getBranch(db: Pick<PGlite, 'query'>, id: string): Promise<Branch | null> {
   if (!isUuid(id)) return null;
   const result = await db.query<BranchRow>(`select ${BRANCH_COLUMNS} from policy.policy_period where id = $1`, [id]);
   const row = result.rows[0];
@@ -247,6 +247,8 @@ export async function openBranch(db: PGlite, branchId: string): Promise<Branch> 
   if (branch === null) throw new ValidationError(['The branch does not exist']);
   if (branch.status === 'bound') throw new ValidationError(['A bound policy version cannot be changed']);
   if (branch.status === 'withdrawn') throw new ValidationError(['A withdrawn branch cannot be changed']);
+  // Another job bound a newer version first: this job must be rebased onto it before it is edited (document section 6).
+  if ((await getJob(db, branch.jobId))?.status === 'preempted') throw new ValidationError(['This job was preempted by a newer version; rebase it first']);
   return branch;
 }
 

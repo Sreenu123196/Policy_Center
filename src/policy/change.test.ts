@@ -296,7 +296,7 @@ describe('binding a change: version 2 and its transactions (document sections 5 
     expect(transactions[2]!.totalPaise).toBe(transactions[2]!.premiumPaise + transactions[2]!.taxPaise);
   });
 
-  it('refuses to bind a change that started from an older version (another job bound first); rebasing is step E2', async () => {
+  it('preempts a change that started from an older version when another job binds first, so it cannot bind', async () => {
     const { policy, covers } = await issuedPolicy();
     const first = await startChange(policy.id);
     const second = await startChange(policy.id, '2027-02-01');
@@ -306,9 +306,9 @@ describe('binding a change: version 2 and its transactions (document sections 5 
     }
     await bindSubmission(db, bindDeps, first.job.id, { branchId: first.branch.id }, 'agent.two', { today: '2027-01-01' });
     expect(await errorsOf(bindSubmission(db, bindDeps, second.job.id, { branchId: second.branch.id }, 'agent.two', { today: '2027-01-01' }))).toEqual([
-      expect.stringMatching(/version 2 was bound after this job started.*rebase/i),
+      expect.stringMatching(/only a quoted job can be bound \(this one is preempted\)/i),
     ]);
-    expect((await getJob(db, second.job.id))?.status).toBe('quoted');
+    expect((await getJob(db, second.job.id))?.status).toBe('preempted');
   });
 
   it('issues the change with an endorsement schedule that shows the premium change', async () => {

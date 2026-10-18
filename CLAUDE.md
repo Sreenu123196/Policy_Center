@@ -171,6 +171,11 @@ Policy change (document sections 6 and 9)
 - Quoting always rates by slices (`cutDates`, `combineSlices`); a single slice gives the unchanged price. Prorating is `days / term days`, rounded to a whole paise per cost.
 - `bindJob` writes the premium transaction (new premium minus the premium of the version it was based on) and refuses a job based on an older version. Billing must use transactions, never recompute them.
 
+Out-of-sequence changes and preemption (document section 6, Appendix B)
+- Every edit goes through `applyEdit` (src/policy/policy-change.ts), which finds bound changes dated after the edit and protects fields they set; it records a `policy.merge_conflict` and keeps the later value. Never write code that overwrites a later bound change silently.
+- A branch with an unresolved merge conflict cannot be quoted. `resolveConflict` needs a reason and is audited.
+- When a job binds, other open change jobs on the policy become `preempted`; they are fixed only by `rebaseJob`, never by editing them.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

@@ -1,11 +1,13 @@
-import type { Transaction } from '@electric-sql/pglite';
+import type { PGlite } from '@electric-sql/pglite';
+
+type Tx = Pick<PGlite, 'query'>;
 import { recordAudit, ValidationError } from '../platform/index.js';
 import { allowedNextStatuses } from './job-status.js';
 import type { Branch, JobStatus, JobType } from './policy.js';
 
 // Moves a job along its life cycle (document section 8). Every move must be an arrow of the diagram, and is
 // audited in the same transaction as the change.
-export async function moveJob(tx: Transaction, jobId: string, to: JobStatus, actor: string, reason?: string): Promise<void> {
+export async function moveJob(tx: Tx, jobId: string, to: JobStatus, actor: string, reason?: string): Promise<void> {
   const found = await tx.query<{ type: JobType; status: JobStatus }>('select type, status from policy.job where id = $1', [jobId]);
   const job = found.rows[0];
   if (!job) throw new ValidationError(['The job does not exist']);
@@ -25,7 +27,7 @@ export async function moveJob(tx: Transaction, jobId: string, to: JobStatus, act
 
 // A submission is "quoted" when it has at least one open option and every open option is quoted. When a branch is
 // quoted or edited, the job follows. Withdrawn branches do not count.
-export async function refreshJobStatus(tx: Transaction, jobId: string, actor: string): Promise<void> {
+export async function refreshJobStatus(tx: Tx, jobId: string, actor: string): Promise<void> {
   const job = (await tx.query<{ status: JobStatus }>('select status from policy.job where id = $1', [jobId])).rows[0];
   if (!job || (job.status !== 'draft' && job.status !== 'quoted')) return;
 
@@ -36,7 +38,7 @@ export async function refreshJobStatus(tx: Transaction, jobId: string, actor: st
 }
 
 // Editing a quoted branch makes its price stale, so the branch goes back to draft and the job follows.
-export async function reopenIfQuoted(tx: Transaction, branch: Branch, actor: string): Promise<void> {
+export async function reopenIfQuoted(tx: Tx, branch: Branch, actor: string): Promise<void> {
   if (branch.status !== 'quoted') return;
   await tx.query("update policy.policy_period set status = 'draft' where id = $1", [branch.id]);
   await recordAudit(tx, { actor, action: 'branch.reopen', entityType: 'policy_period', entityId: branch.id, details: { reason: 'edited after quote' } });

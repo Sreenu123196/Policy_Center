@@ -180,5 +180,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - The change is **issued** with an **endorsement schedule** that shows the effective date and the premium change.
 - Worked example: zero depreciation added from 1 January, 78 of 365 days after the start. Old cover costs 1,574,600 for the year; zero depreciation costs 240,000 for the year, so for 287 days it costs 188,712. The transaction is +188,712 premium and +33,968 tax.
 
+## E2. Out-of-sequence changes and preemption (section 6, Appendix B)
+- A change is **out of sequence** when its effective date is earlier than a change that is already bound. The new job still starts from the **latest bound version** (so nothing later is lost), and the edit is applied from its date to the end of the period.
+- **Carry forward.** If the later change did not touch the field being edited, the new value simply runs on through the later slices. Example: version 2 adds zero depreciation from 1 January; version 3 raises the insured value from 1 December; the result keeps zero depreciation and rates it on the new insured value.
+- **Conflict.** If the later change set the same field, then from the later change's own date the **later change wins by default**, and a **merge conflict** is recorded with both values. A person must **keep later** (confirm it) or **override** (apply the new value from the later date). A reason is always required, it is audited, and the quote cannot be made while a conflict is open.
+- **Which changes count.** Only **bound** changes dated **after** the edit. Another open draft never causes a conflict. A change dated on the same day or earlier is simply in sequence.
+- **Transactions** are taken against the version the new one was based on, with the effective date of the new change, so billing sees a charge or a refund on the right date. Rounding example: prorating third-party premium in three slices gave 341,601 for the term, one paisa more than 341,600. Each cost is rounded on its own so everything adds up.
+- **Preemption.** Two jobs can be open on one policy. When one binds, every other open change job is moved to **preempted**, with the reason in the audit log. A preempted job cannot be edited, quoted or bound.
+- **Rebase.** `rebaseJob` makes a new copy of the newest version, applies the preempted job's own edits again (same merge rules, so conflicts are recorded if the new version touched the same field), withdraws the old copy and returns the job to draft. It runs in one transaction: if an edit no longer fits, nothing changes.
+- Scenario matrix tested: carry forward, conflict, keep later, override, different field, same day, later date, removed cover, unbound rivals, preempt, blocked actions, rebase with and without conflict, and a rebase that cannot be reapplied.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

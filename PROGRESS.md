@@ -30,7 +30,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D5 | Underwriting rules, issue types, authority and referral | Done (196 tests pass) |
 | D6 | Bind and issue, policy schedule PDF, outbox | Done (216 tests pass) |
 | E1 | Policy change in sequence: slices, prorating, transactions | Done (239 tests pass) |
-| E2 to E4 | Out-of-sequence and preemption, cancellation, renewal | Next: E2 |
+| E2 | Out-of-sequence changes and preemption, with a scenario matrix | Done (253 tests pass) |
+| E3 to E4 | Cancellation and reinstatement, renewal | Next: E3 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -39,6 +40,15 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from E2
+- Conflicts are found per field of a coverage's terms or a coverable's attributes. A conflict is only recorded when a slice of the object exists at or after the later change's date. A later change that added or removed a whole cover is respected (nothing is left to overwrite) but is not shown as a conflict.
+- "Touched" is decided by comparing the field in the later version with the version it was based on, on the later change's effective date. A later change that touched the field twice, or in a way that the comparison on one date does not show, is not detected.
+- Rebase extracts the old copy's edits field by field (set a value from a date, remove a cover from a date) and copies covers that are new in the old copy. It cannot reapply: removing a field (setting it back to "absent"), removing a whole coverable, or re-adding a cover. If an edit no longer fits, the whole rebase is refused with a message and nothing changes.
+- Only policy change jobs are preempted. Renewal, cancellation and reinstatement jobs on the same policy (E3, E4) will join the same rule.
+- Conflicts ask for a reason but not for authority: who may override a later change is a business decision (an authority grant in D5 style) that is left for later.
+- Optimistic locking (a version number on the policy period) is not added; the bind in one transaction plus the "newer version bound" check covers the single-database learning case. Two binds at the very same moment could still race; a row lock or version check at bind is the fix for production.
+- Forms and customer notices that tell the customer about a back-dated change are not built.
 
 ## Deferred from E1
 - Out-of-sequence changes, merging, conflicts and rebasing a job onto a newer version: step E2. E1 only refuses to bind a change that started from an older version, with a message that points to E2.

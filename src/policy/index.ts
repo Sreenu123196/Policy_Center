@@ -28,3 +28,5 @@ export { buildScheduleLines, formatDate, formatRupees, renderSchedulePdf } from 
 export type { ScheduleData } from './schedule.js';
 export { changeCoverable, changeCoverage, listTransactions, removeCoverage, startPolicyChange } from './policy-change.js';
 export type { PremiumTransaction } from './policy-change.js';
+export { listConflicts, rebaseJob, resolveConflict } from './merge.js';
+export type { MergeConflict } from './merge.js';

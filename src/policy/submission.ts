@@ -138,7 +138,12 @@ const isMoney = (value: number): boolean => Number.isInteger(value) && value >= 
 export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId: string, actor: string, options: { today?: string } = {}): Promise<Quote> {
   const branch = await getBranch(db, branchId);
   if (branch === null) throw new ValidationError(['The branch does not exist']);
+  if ((await getJob(db, branch.jobId))?.status === 'preempted') throw new ValidationError(['This job was preempted by a newer version; rebase it first']);
   if (branch.status !== 'draft') throw new ValidationError(['Only a draft branch can be quoted']);
+  const conflicts = await db.query<{ field: string; later_date: string }>("select field, to_char(later_date, 'YYYY-MM-DD') as later_date from policy.merge_conflict where branch_id = $1 and resolution is null order by seq", [branchId]);
+  if (conflicts.rows.length > 0) {
+    throw new ValidationError(conflicts.rows.map((c) => `Resolve the merge conflict on ${c.field} (the later change from ${formatDate(c.later_date)}) before quoting`));
+  }
 
   const policy = (await db.query<{ product_code: string; account_id: string }>('select product_code, account_id from policy.policy where id = $1', [branch.policyId])).rows[0];
   const productVersion = policy ? deps.catalogue.versionsOf(policy.product_code).find((v) => v.version === branch.productVersion) : undefined;
