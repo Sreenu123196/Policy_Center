@@ -186,6 +186,11 @@ Renewal (document section 8)
 - "The newest version of a policy" means the newest term, then the newest version in that term. A change is made to the term that contains its effective date. Version numbers restart at 1 in each term.
 - Non-renewal needs approval by a different person and a notice in time. Never skip that by editing `policy.renewal_direction` directly.
 
+Billing (document sections 14 and 17)
+- Billing reads policy events with `processPolicyEvents` (its own offset in `billing.consumer_offset`) and never queries Policy's tables or imports its internals; `src/architecture.test.ts` enforces it. Anything Billing needs from a policy must be in the event payload.
+- Payment plans are in `config/billing/billing-<version>.json`. Never recompute a premium in Billing: charges come from the transaction in the event. Splits use `splitCharge` so that items add up exactly.
+- Event payloads of `PolicyBound`, `PolicyRenewed`, `PolicyReinstated` and `PolicyCancelled` carry `accountId`, `policyNumber`, `termNumber`, `version` and `transaction`; keep them stable, because Billing relies on them.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

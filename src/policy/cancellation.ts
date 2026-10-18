@@ -250,12 +250,13 @@ export async function bindCancellation(db: PGlite, job: Job, chosen: Branch, act
        values ($1, $2, $3, $4, 'cancellation', $5::date, $6, $7, $8, $9)`,
       [chosen.policyId, chosen.id, chosen.basedOnId, version, adjustment.effectiveDate, transaction.premiumPaise, transaction.taxPaise, transaction.totalPaise, actor],
     );
-    const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
+    const policyRow = (await tx.query<{ policy_number: string; account_id: string }>('select policy_number, account_id from policy.policy where id = $1', [chosen.policyId])).rows[0];
+    const policyNumber = policyRow?.policy_number;
     await recordEvent(tx, {
       type: 'PolicyCancelled',
       aggregateType: 'policy',
       aggregateId: chosen.policyId,
-      payload: { policyNumber, version, branchId: chosen.id, jobId: job.id, effectiveDate: adjustment.effectiveDate, reasonCode: adjustment.reasonCode, method: adjustment.method, transaction },
+      payload: { policyNumber, accountId: policyRow?.account_id, version, termNumber: chosen.termNumber, branchId: chosen.id, jobId: job.id, effectiveDate: adjustment.effectiveDate, reasonCode: adjustment.reasonCode, method: adjustment.method, transaction },
     });
   });
 }

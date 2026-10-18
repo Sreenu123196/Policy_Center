@@ -105,7 +105,8 @@ export async function bindJob(
     const rivals = await tx.query<{ id: string }>("select id from policy.job where policy_id = $1 and id <> $2 and type = 'policy_change' and status in ('draft', 'quoted')", [chosen.policyId, jobId]);
     // A renewal is a different term, so it does not clash with changes to the term that is ending.
     if (job.type !== 'renewal') for (const rival of rivals.rows) await moveJob(tx, rival.id, 'preempted', actor, `Version ${version} was bound by job ${job.jobNumber}`);
-    const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
+    const policyRow = (await tx.query<{ policy_number: string; account_id: string }>('select policy_number, account_id from policy.policy where id = $1', [chosen.policyId])).rows[0];
+    const policyNumber = policyRow?.policy_number;
     const transaction = {
       kind: job.type === 'reinstatement' ? 'reinstatement' : job.type === 'renewal' ? 'renewal' : base === null ? 'new_business' : 'change',
       effectiveDate: job.effectiveDate ?? chosen.periodStart,
@@ -124,6 +125,7 @@ export async function bindJob(
       aggregateId: chosen.policyId,
       payload: {
         policyNumber,
+        accountId: policyRow?.account_id,
         version,
         termNumber: chosen.termNumber,
         branchId: chosen.id,

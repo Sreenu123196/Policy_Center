@@ -1,7 +1,7 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createTestDatabase, resetDatabase } from '../testing/database.js';
-import { listUnpublishedEvents, markPublished, recordEvent } from './outbox.js';
+import { listEventsAfter, listUnpublishedEvents, markPublished, recordEvent } from './outbox.js';
 
 let db: PGlite;
 
@@ -51,5 +51,16 @@ describe('the outbox (document section 17)', () => {
 
   it('refuses an event type that is not written like PolicyBound', async () => {
     await expect(recordEvent(db, { type: 'bad type', aggregateType: 'policy', aggregateId: ID, payload: {} })).rejects.toThrow(/event type/i);
+  });
+
+  it('lets a consumer read on from its own offset, whether or not the events were published', async () => {
+    for (const type of ['PolicyBound', 'PolicyIssued', 'PolicyRenewed']) await recordEvent(db, { type, aggregateType: 'policy', aggregateId: ID, payload: {} });
+    const all = await listEventsAfter(db, 0, 100);
+    expect(all.map((e) => e.type)).toEqual(['PolicyBound', 'PolicyIssued', 'PolicyRenewed']);
+    await markPublished(db, [all[0]!.id]);
+    expect((await listEventsAfter(db, 0, 100)).map((e) => e.type)).toHaveLength(3); // published events are still readable
+    expect((await listEventsAfter(db, all[1]!.id, 100)).map((e) => e.type)).toEqual(['PolicyRenewed']);
+    expect(await listEventsAfter(db, all[2]!.id, 100)).toEqual([]);
+    expect((await listEventsAfter(db, 0, 2)).map((e) => e.type)).toEqual(['PolicyBound', 'PolicyIssued']);
   });
 });

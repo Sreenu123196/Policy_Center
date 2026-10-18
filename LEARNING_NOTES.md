@@ -213,5 +213,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Non-renewal** needs **approval by a different person** (separation of duties) and a **notice document sent in time** (45 days before expiry here). A policy marked for non-renewal cannot be renewed. Each step is audited.
 - Worked example: term 1 premium 1,574,600; term 2 premium 1,414,600 (own damage 1,040,000 after the 35% bonus, third party 341,600, owner-driver cover 33,000), tax 254,628.
 
+## F1. Billing: charges, payment plans, invoices (sections 14 and 17)
+- **Billing learns about policies only through events.** Policy writes `PolicyBound`, `PolicyRenewed`, `PolicyReinstated` and `PolicyCancelled` into the outbox, each with the transaction (premium, tax) and the policy account id. Billing reads them and never touches Policy's tables. A test reads the source files to keep it that way.
+- **A consumer keeps its own offset**: the id of the last event it handled. The batch and the new offset are saved in one transaction, so a failing batch changes nothing. Charges are unique per event, so **seeing an event twice changes nothing** (idempotent), even if the offset is lost.
+- **Charges**: one row for premium and one for tax per event, negative for a refund. They say what happened; they are not payments.
+- **Payment plans** are configuration (full pay, two-pay, quarterly, monthly): a down payment share, a number of instalments, days between them, an instalment fee, invoice lead days and grace days. Only new business and renewal use the plan; a **change or reinstatement is billed in one payment** on its effective date. A negative transaction becomes a **credit** to pay out or apply (F2).
+- **Splitting by the plan**: the down payment is a percentage of the total, the rest is shared equally, and the **rounding left over goes into the last instalment**, so items add up exactly. Premium and tax are split by running totals, so each item shows its own tax (a tax invoice needs that) and nothing goes negative. Example: 1,858,028 quarterly = 464,507 down + three of 464,507, each later one plus a Rs 50 fee.
+- **Invoices** are made by a batch on the invoice date: an item is invoiced when its due date is within the plan's lead days (15 days before for quarterly). Items of one account due on the same day share an invoice. An invoice number is `INV-0000001`. An item is never invoiced twice. Each line shows premium, tax and fee.
+- Billing raises its own event, `ChargesCreated`, in the same transaction.
+- **Architecture test**: modules import each other only through their public door and never read each other's tables.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

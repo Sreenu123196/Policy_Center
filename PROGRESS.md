@@ -33,7 +33,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | E2 | Out-of-sequence changes and preemption, with a scenario matrix | Done (253 tests pass) |
 | E3 | Cancellation (flat, pro rata, short rate) and reinstatement | Done (283 tests pass) |
 | E4 | Renewal: window, direction, offer, non-renewal | Done (302 tests pass) |
-| F1 to F2 | Billing (charges, plans, invoices, payments) | Next: F1 |
+| F1 | Billing: charges from events, payment plans, invoices | Done (340 tests pass) |
+| F2 | Payments, allocation, missed payments leading to a cancellation request | Next: F2 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -42,6 +43,18 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from F1
+- Payments, allocation, the status of invoices (paid or overdue), delinquency steps and the cancellation request: step F2. Invoices are made but nothing marks them paid yet.
+- Credits (return premium) are recorded but not paid out or applied: F2. Unbilled payment items of a policy that is cancelled are not voided yet; F2 must net them against the refund.
+- A minimum invoice amount, invoice fees, and merging a small item into the next invoice (document section 14) are not built. Items of one account due on the same day in the same batch share an invoice; an item that appears after the invoice for its day was made gets its own invoice.
+- The double-entry sub-ledger and the daily export to the general ledger, commissions and producer statements, UPI AutoPay / e-NACH mandates, tax-invoice fields beyond the premium, tax and fee split (seller and buyer GSTIN, place of supply, HSN/SAC code) and a PDF invoice are not built.
+- One billing account per policy account. Billing accounts per policy, per payer or for a fleet are not.
+- The consumer treats a bad event as a poison message: it stops and reports, and nothing moves on until someone fixes it. A dead-letter table and alerting come with operations.
+- A publisher process, the `markPublished` flag, and running `processPolicyEvents` on a timer are not built: a scheduler arrives with the API step (H1) or later.
+- Billing configuration is one file per version, chosen by date; plans are not per product or per producer.
+- The Hindi and Telugu names of the payment plans were written by the mentor and need review.
+- Added `src/architecture.test.ts`, which checks that modules import each other only through `index.js` and never touch each other's tables.
 
 ## Deferred from E4
 - Part E is complete. A claims check for the no-claim bonus: renewal adds one claim-free year to the vehicle on the assumption that no claim was made. Claims (Part G) must reduce or reset it, and the renewal should read the claims record.

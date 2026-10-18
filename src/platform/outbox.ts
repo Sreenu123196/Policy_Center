@@ -61,3 +61,21 @@ export async function markPublished(db: Queryable, ids: number[]): Promise<void>
   if (ids.length === 0) return;
   await db.query('update platform.outbox set published_at = now() where id = any($1::bigint[]) and published_at is null', [ids]);
 }
+
+// Events after a given id, oldest first, whether or not they were published. A consumer (billing, for example) keeps
+// its own offset, the id of the last event it handled, so several consumers can read the same outbox.
+export async function listEventsAfter(db: Pick<PGlite, 'query'>, afterId: number, limit = 100): Promise<OutboxEvent[]> {
+  const result = await db.query<EventRow>(
+    'select id::float8 as id, type, aggregate_type, aggregate_id, payload, created_at, published_at from platform.outbox where id > $1 order by id limit $2',
+    [afterId, limit],
+  );
+  return result.rows.map((r) => ({
+    id: r.id,
+    type: r.type,
+    aggregateType: r.aggregate_type,
+    aggregateId: r.aggregate_id,
+    payload: r.payload,
+    createdAt: r.created_at.toISOString(),
+    publishedAt: r.published_at === null ? null : r.published_at.toISOString(),
+  }));
+}
