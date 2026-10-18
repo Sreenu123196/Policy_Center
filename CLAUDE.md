@@ -101,3 +101,29 @@ For each roadmap step, follow this order and do not skip any part:
 ## Resuming in a new session
 
 At the start of every new session, read CLAUDE.md, PROGRESS.md and LEARNING_NOTES.md, tell me in two or three lines where we stopped, and ask whether to continue with the next step.
+
+## Technical rules (added in step B4)
+
+Working agreement: PROGRESS.md records how the student wants sessions to run (language, session length, and whether to ask questions between steps). Where it says so, it overrides the "wait for go", check-question and "ask before the next step" parts above. Anything that needs a real decision (installing software globally, deleting data, a document error, a blocker) is still brought to the student.
+
+Commands
+- `npm run check` runs the type check, the linter and all tests. It must pass before every commit.
+- `npm test`, `npm run typecheck`, `npm run lint` run one of the three on its own.
+
+Code layout
+- `src/<module>/` for each module: contacts, policy, billing, claims, platform. Tests sit next to the code as `*.test.ts`.
+- Each module's `index.ts` is its public door. Another module may import only from `../<module>/index.js`, never from deeper files, and never read another module's tables. Modules talk through that API or through events (the outbox).
+- Planned folders: `db/migrations/` for numbered plain SQL files (step B3), `config/` for versioned configuration (step C4).
+- In imports, write our own files with the `.js` ending (`./modules.js`), even though the source is `.ts`.
+
+Data rules (from the document)
+- Money is whole paise as integers, never floating point, with a currency code.
+- Dates are ISO `yyyy-mm-dd`. An effective range is from-inclusive, to-exclusive. Show `DD-MM-YYYY` only on screens.
+- Every effective-dated object has a fixed id (same across slices and versions) and a row id per slice.
+- A bound policy version is never edited. A new job copies it into a branch.
+- Every change records who made it (person or agent), when, and through which job.
+
+Quality
+- Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
+- Prefer simple, readable code. Add a short comment where an insurance concept appears.
+- Commit once per roadmap step, with a clear message. Commits stay local until the student asks for a remote.

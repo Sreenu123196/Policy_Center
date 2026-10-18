@@ -53,5 +53,9 @@ A policy change job does **not** update the old policy period. It copies the lat
 - The five module folders (contacts, policy, billing, claims, platform) each have a public `index.ts`. Other modules may only use a module through that file.
 - In ES modules, imports of our own files end in `.js` even though the source file is `.ts`. This is how Node's module system works.
 
+## B4. Technical rules in CLAUDE.md
+- CLAUDE.md is read at the start of every session, so rules written there apply every time.
+- Rules we recorded: run `npm run check` before commits; each module is used only through its `index.ts`; money is whole paise; effective ranges are from-inclusive and to-exclusive; bound versions are never edited; every change is audited; tests first.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

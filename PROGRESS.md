@@ -18,7 +18,7 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | B1 | Tools check, project, Git repository | Done |
 | B2 | TypeScript, Vitest, linting, module folders | Done (`npm run check` passes) |
 | B3 | PostgreSQL in Docker, SQL migrations | Blocked: Docker is not installed (decision needed) |
-| B4 | Technical rules in CLAUDE.md, notes files | Not started |
+| B4 | Technical rules in CLAUDE.md, notes files | Done (done before B3, which needs a decision) |
 | C1 to C4 | Contacts, accounts, users and audit, typelists | Not started |
 | D1 to D6 | Product model, policy tables, submission, rating, underwriting, bind | Not started |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
