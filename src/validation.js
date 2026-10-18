@@ -203,8 +203,11 @@ function validatePeriod(product, p, { jobType, today }) {
   else if (product === 'GeneralLiability') validateGeneralLiability(p, add);
   else if (product === 'CommercialProperty') validateCommercialProperty(p, add);
   else if (product === 'WorkersComp') validateWorkersComp(p, add);
-  else validateHomeowners(p, add);
-  return e;
+  else if (product === 'Businessowners') {
+    validateCommercialProperty(p, add);
+    validateGeneralLiability(p, add);
+  } else validateHomeowners(p, add);
+  return e.filter((x, i) => e.findIndex((y) => y.path === x.path && y.message === x.message) === i);
 }
 
 module.exports = { validateAccount, validatePeriod };

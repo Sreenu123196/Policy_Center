@@ -528,6 +528,97 @@ function rateWorkersComp(period, ctx) {
   return result;
 }
 
+// ---------------------------------------------------------------- Businessowners
+
+function rateBusinessowners(period, ctx) {
+  const book = selectRateBook('Businessowners', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.Businessowners;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const termF = round4(product.termMonths / 12);
+  const claims = period.line.claimsLast5Years || 0;
+  const expF = band(t.experienceFactors, claims);
+  const limitOf = (code) => period.line.lineCoverages[code] && period.line.lineCoverages[code].terms.limit;
+  const costs = [];
+
+  period.line.locations.forEach((loc, i) => {
+    const terr = territoryOf(loc.address.zip);
+    const protF = band(t.protectionFactors, loc.protectionClass);
+    const occF = t.occupancyFactors[loc.occupancy];
+    const base = { type: 'Coverage', coverableId: loc.id, coverable: `Location ${i + 1}: ${loc.description || loc.address.line1}` };
+    const common = (ws) => ws
+      .x(`State factor (${state})`, sf)
+      .x(`Territory ${terr} (ZIP ${loc.address.zip})`, t.territoryFactors[terr])
+      .x(`Protection class ${loc.protectionClass}`, protF)
+      .x(`Occupancy: ${loc.occupancy}`, occF)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    const bld = period.line.lineCoverages.BOPBuildingCov;
+    if (bld && bld.selected) {
+      const d = bld.terms.deductible;
+      const ws = new Worksheet(`Building $${Number(loc.buildingValue).toLocaleString('en-US')} at $${t.buildingRates[loc.construction]} per $100 (${loc.construction})`, (loc.buildingValue / 100) * t.buildingRates[loc.construction])
+        .x(`Deductible ${usd(d)}`, t.deductibleFactors.BOPBuildingCov[d]);
+      common(ws);
+      costs.push(cost({ ...base, coverageCode: 'BOPBuildingCov', coverageName: 'Building', termValue: d }, ws));
+    }
+    const bpp = period.line.lineCoverages.BOPBusinessPersonalPropertyCov;
+    if (bpp && bpp.selected && loc.contentsValue > 0) {
+      const d = bpp.terms.deductible;
+      const rate = t.buildingRates[loc.construction] * t.contentsMultiplier;
+      const ws = new Worksheet(`Contents $${Number(loc.contentsValue).toLocaleString('en-US')} at $${rate.toFixed(3)} per $100`, (loc.contentsValue / 100) * rate)
+        .x(`Deductible ${usd(d)}`, t.deductibleFactors.BOPBusinessPersonalPropertyCov[d]);
+      common(ws);
+      costs.push(cost({ ...base, coverageCode: 'BOPBusinessPersonalPropertyCov', coverageName: 'Business personal property', termValue: d }, ws));
+    }
+  });
+
+  const bi = period.line.lineCoverages.BOPBusinessIncomeCov;
+  if (bi && bi.selected) {
+    const limit = bi.terms.limit;
+    const ws = new Worksheet(`Business income limit ${usd(limit)}`, (limit / 100) * t.businessIncomeRate)
+      .x(`State factor (${state})`, sf)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'BOPBusinessIncomeCov', coverageName: 'Business income', termValue: limit }, ws));
+  }
+
+  const liabLimit = limitOf('BOPPremOpsCov');
+  period.line.exposures.forEach((x, i) => {
+    const cls = product.classes.find((c) => c.code === x.classCode);
+    const rate = t.classRates[x.classCode];
+    const ws = new Worksheet(`Exposure $${Number(x.amount).toLocaleString('en-US')} ${x.base.toLowerCase()} at $${rate} per $1,000`, (x.amount / 1000) * rate)
+      .x(`State factor, liability (${state})`, sf)
+      .x(`Territory ${territoryOf(period.insured.address.zip)} (ZIP ${period.insured.address.zip})`, t.territoryFactors[territoryOf(period.insured.address.zip)])
+      .x(`Limit ${liabLimit}`, t.limitFactors.BOPPremOpsCov[liabLimit])
+      .x(`Liability claims in 5 years: ${claims}`, expF)
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverableId: x.id, coverable: `Class ${i + 1}: ${cls.name}`, coverageCode: 'BOPPremOpsCov', coverageName: 'Premises and operations', termValue: liabLimit }, ws));
+  });
+
+  const med = period.line.lineCoverages.BOPMedPayCov;
+  if (med && med.selected) {
+    const limit = med.terms.limit;
+    const ws = new Worksheet(`Flat charge (medical expense ${usd(limit)})`, t.medPayCharges.BOPMedPayCov[limit])
+      .x(`Rate level (book ${book.version})`, book.rateLevel)
+      .x(`Term factor (${product.termMonths} months)`, termF);
+    costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'BOPMedPayCov', coverageName: 'Medical expense', termValue: limit }, ws));
+  }
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  const discounts = [['PackageDiscount', 'Package discount (property and liability)', t.packageDiscount]];
+  if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  for (const [code, name, pct] of discounts) {
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${pct * 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: code, coverageName: name }, ws));
+  }
+
+  const result = finish(book, costs, state, ctx);
+  result.claimExperience = { claimsLast5Years: claims, factor: expF };
+  return result;
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
@@ -535,6 +626,7 @@ function rate(product, period, ctx) {
   if (product === 'GeneralLiability') return rateGeneralLiability(period, ctx);
   if (product === 'CommercialProperty') return rateCommercialProperty(period, ctx);
   if (product === 'WorkersComp') return rateWorkersComp(period, ctx);
+  if (product === 'Businessowners') return rateBusinessowners(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

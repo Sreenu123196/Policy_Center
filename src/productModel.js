@@ -259,7 +259,52 @@ const WORKERS_COMP = {
   vehicleCoverages: [],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP };
+const BUSINESSOWNERS = {
+  code: 'Businessowners',
+  name: 'Businessowners (BOP)',
+  prefix: 'BP',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  // Property locations and liability classes, as in Commercial Property and General Liability.
+  constructionTypes: ['Frame', 'Masonry', 'Superior'],
+  occupancies: ['Office', 'Retail', 'Warehouse', 'Restaurant'],
+  classes: [
+    { code: '91340', name: 'Carpentry - residential construction', base: 'Payroll' },
+    { code: '98482', name: 'Plumbing', base: 'Payroll' },
+    { code: '46820', name: 'Office - professional services', base: 'Payroll' },
+    { code: '60010', name: 'Retail store', base: 'Sales' },
+    { code: '16500', name: 'Restaurant (no liquor)', base: 'Sales' },
+    { code: '16501', name: 'Restaurant with liquor service', base: 'Sales' },
+  ],
+  lineCoverages: [
+    {
+      code: 'BOPBuildingCov', name: 'Building', category: 'Property', existence: 'Required',
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([1000, 2500, 5000, 10000]), default: '2500' }],
+    },
+    {
+      code: 'BOPBusinessPersonalPropertyCov', name: 'Business Personal Property (contents)', category: 'Property', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([1000, 2500, 5000, 10000]), default: '2500' }],
+    },
+    {
+      code: 'BOPBusinessIncomeCov', name: 'Business Income (12 months)', category: 'Income', existence: 'Electable',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([50000, 100000, 250000]), default: '100000' }],
+    },
+    {
+      code: 'BOPPremOpsCov', name: 'Premises and Operations liability (occurrence / aggregate)', category: 'Liability', existence: 'Required',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: [opt('1000000/2000000', '$1M / $2M'), opt('2000000/4000000', '$2M / $4M')], default: '1000000/2000000' }],
+    },
+    {
+      code: 'BOPMedPayCov', name: 'Medical Expense (any one person)', category: 'Liability', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([1000, 5000, 10000]), default: '5000' }],
+    },
+  ],
+  vehicleCoverages: [],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP, Businessowners: BUSINESSOWNERS };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

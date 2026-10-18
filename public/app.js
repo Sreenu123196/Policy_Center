@@ -396,6 +396,13 @@ function coverageRows(defs, map) {
 
 function periodSummary(productCode, period) {
   const pm = product(productCode);
+  if (productCode === 'Businessowners') {
+    const { locations, exposures, lineCoverages, claimsLast5Years } = period.line;
+    return `<h3>Locations</h3>${table(['Location', 'ZIP', 'Construction', 'Occupancy', 'Protection', 'Building', 'Contents'], locations.map((l) => [esc(l.description || l.address.line1), esc(l.address.zip), esc(l.construction), esc(l.occupancy), esc(l.protectionClass), usd0(l.buildingValue), usd0(l.contentsValue)]))}
+      <h3>Classes of business</h3>${table(['Class', 'Description', 'Base', 'Annual amount'], exposures.map((x) => [esc(x.classCode), esc(x.description), esc(x.base), usd0(x.amount)]))}
+      <h3>Coverages</h3>${table(['Coverage', 'Limit / deductible'], coverageRows(pm.lineCoverages, lineCoverages))}
+      <div class="muted">Claims in the last 5 years: ${esc(claimsLast5Years)}</div>`;
+  }
   if (productCode === 'WorkersComp') {
     const { classes, lineCoverages, experienceMod } = period.line;
     return `<h3>Classifications</h3>${table(['Classification', 'Annual payroll', 'Employees'], classes.map((c) => [esc(`${c.classCode} ${(pm.classes.find((x) => x.code === c.classCode) || {}).name || ''}`), usd0(c.payroll), esc(c.employees)]))}
@@ -500,6 +507,7 @@ const isEditable = (job) => OPEN.includes(job.status) && EDITABLE_TYPES.includes
 
 function jobSteps(job) {
   if (!EDITABLE_TYPES.includes(job.type)) return [['summary', 'Summary']];
+  if (job.product === 'Businessowners') return [['info', 'Policy info'], ['locations', 'Locations'], ['exposures', 'Classes of business'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'WorkersComp') return [['info', 'Policy info'], ['classes', 'Classifications'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'CommercialProperty') return [['info', 'Policy info'], ['locations', 'Locations'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'GeneralLiability') return [['info', 'Policy info'], ['exposures', 'Classes of business'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
@@ -553,7 +561,7 @@ const STEPS = {
     return `<h2>Policy info</h2>
       <div class="form-grid">
         ${field('Named insured', `<input value="${esc(p.insured.name)}" disabled>`)}
-        ${['CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp'].includes(job.product) ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
+        ${['CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'].includes(job.product) ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
         ${field('Base state', `<input value="${esc(S.meta.states[p.state])}" disabled>`)}
         ${field('Producer code', `<input value="${esc(p.producerCode)}" disabled>`)}
         ${field('Term', `<input value="${pm.termMonths} months" disabled>`)}
@@ -610,7 +618,7 @@ const STEPS = {
   },
 
   locations(job, draft, editable) {
-    const pm = product('CommercialProperty');
+    const pm = product(job.product);
     const list = draft.line.locations;
     return `<div class="spread"><h2>Locations</h2>${editable ? '<button class="btn" data-action="add-location">Add location</button>' : ''}</div>
       <div class="form-grid">${field('Property claims in the last 5 years', `<input type="number" min="0" data-type="number" data-bind="line.claimsLast5Years" value="${esc(draft.line.claimsLast5Years)}" ${dis(editable)}>`)}</div>
@@ -636,7 +644,7 @@ const STEPS = {
   },
 
   exposures(job, draft, editable) {
-    const pm = product('GeneralLiability');
+    const pm = product(job.product);
     const list = draft.line.exposures;
     return `<div class="spread"><h2>Classes of business</h2>${editable ? '<button class="btn" data-action="add-exposure">Add class</button>' : ''}</div>
       <div class="form-grid">${field('Liability claims in the last 5 years', `<input type="number" min="0" data-type="number" data-bind="line.claimsLast5Years" value="${esc(draft.line.claimsLast5Years)}" ${dis(editable)}>`)}</div>
@@ -738,7 +746,7 @@ const STEPS = {
     };
     const group = (title, inner) => (inner.trim() ? `<div class="cov-group"><div class="cov-title">${esc(title)}</div>${inner}</div>` : '');
 
-    if (['GeneralLiability', 'CommercialProperty', 'WorkersComp'].includes(job.product)) {
+    if (['GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'].includes(job.product)) {
       const { lineCoverages } = draft.line;
       return `<h2>Coverages</h2>${group('Policy-level coverages', pm.lineCoverages.map((d) => row(d, lineCoverages[d.code], `line.lineCoverages.${d.code}`)).join(''))}`;
     }

@@ -149,12 +149,37 @@ function workersCompIssues(p) {
   return out;
 }
 
+function businessownersIssues(p) {
+  const out = [];
+  const { locations, exposures, claimsLast5Years, lineCoverages } = p.line;
+  if (claimsLast5Years >= 4) out.push(issue('BOP_LOSS_HISTORY', 'Loss history', `${claimsLast5Years} claims in 5 years`, 'BlocksQuote', 2, claimsLast5Years));
+  else if (claimsLast5Years >= 2) out.push(issue('BOP_LOSS_HISTORY', 'Loss history', `${claimsLast5Years} claims in 5 years`, 'BlocksQuote', 1, claimsLast5Years));
+  let total = 0;
+  locations.forEach((loc, i) => {
+    const what = `Location ${i + 1} (${loc.description || loc.address.line1})`;
+    total += (loc.buildingValue || 0) + (loc.contentsValue || 0);
+    if (loc.protectionClass >= 8) out.push(issue('BOP_POOR_PROTECTION', 'Poor fire protection', `${what} has protection class ${loc.protectionClass}`, 'BlocksQuote', 1, loc.protectionClass, loc.id));
+    if (loc.buildingValue > 5000000) out.push(issue('BOP_LARGE_LOCATION', 'Large location', `${what} building value is over $5M; UW Manager approval`, 'BlocksBind', 2, loc.buildingValue, loc.id));
+  });
+  if (total > 10000000) out.push(issue('BOP_TOTAL_VALUES', 'Large total insured value', 'Total insured property value is over $10M; UW Manager approval', 'BlocksBind', 2, total));
+  exposures.forEach((x, i) => {
+    const what = `Class ${i + 1} (${x.classCode})`;
+    if (x.classCode === '16501') out.push(issue('BOP_LIQUOR_SERVICE', 'Liquor service', `${what} serves alcohol; underwriter review`, 'BlocksBind', 1, 1, x.id));
+    if (x.amount > 5000000) out.push(issue('BOP_LARGE_EXPOSURE', 'Large exposure', `${what} exposure is over $5M; UW Manager approval`, 'BlocksBind', 2, x.amount, x.id));
+  });
+  if (lineCoverages.BOPPremOpsCov && lineCoverages.BOPPremOpsCov.terms.limit === '2000000/4000000') {
+    out.push(issue('BOP_HIGH_LIMIT', 'High liability limit', 'A $2M / $4M liability limit needs UW Manager approval', 'BlocksBind', 2, 4000000));
+  }
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
     : product === 'CommercialAuto' ? commercialAutoIssues(period)
     : product === 'GeneralLiability' ? generalLiabilityIssues(period)
     : product === 'CommercialProperty' ? commercialPropertyIssues(period)
-    : product === 'WorkersComp' ? workersCompIssues(period) : homeownersIssues(period);
+    : product === 'WorkersComp' ? workersCompIssues(period)
+    : product === 'Businessowners' ? businessownersIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

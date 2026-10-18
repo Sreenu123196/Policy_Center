@@ -388,7 +388,9 @@ class PolicyCenter {
       insured: { name: this.accountName(account), address: clone(account.address) },
       line: null,
     };
-    if (product === 'WorkersComp') {
+    if (product === 'Businessowners') {
+      period.line = { businessName: '', claimsLast5Years: 0, locations: [], exposures: [], lineCoverages: {} };
+    } else if (product === 'WorkersComp') {
       period.line = { businessName: '', experienceMod: 1, classes: [], lineCoverages: {} };
     } else if (product === 'CommercialProperty') {
       period.line = { businessName: '', claimsLast5Years: 0, locations: [], lineCoverages: {} };
@@ -449,6 +451,19 @@ class PolicyCenter {
       };
     }
 
+    if (product === 'Businessowners') {
+      const pm = PRODUCTS.Businessowners;
+      const ctx = { state: period.state };
+      const prop = this.normalizeLine('CommercialProperty', line, period, prevLine);
+      const liab = this.normalizeLine('GeneralLiability', line, period, prevLine);
+      return {
+        businessName: prop.businessName,
+        claimsLast5Years: prop.claimsLast5Years,
+        locations: prop.locations,
+        exposures: liab.exposures,
+        lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+      };
+    }
     if (product === 'WorkersComp') {
       const pm = PRODUCTS.WorkersComp;
       const ctx = { state: period.state };

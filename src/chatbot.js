@@ -85,7 +85,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
       },
@@ -98,7 +98,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
         sort: { type: 'string', enum: ['premium_desc', 'premium_asc', 'expiration_asc', 'effective_desc'] },
@@ -146,7 +146,7 @@ const TOOLS = [
       properties: {
         from: { type: 'string', description: 'Start date, yyyy-mm-dd' },
         to: { type: 'string', description: 'End date, yyyy-mm-dd' },
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners'] },
       },
       required: ['from', 'to'],
       additionalProperties: false,
@@ -155,7 +155,7 @@ const TOOLS = [
   {
     name: 'get_product_rules',
     description: 'Reference information: the product model (coverages, limits, forms, payment plans), underwriting rules and authority levels, cancellation reasons and methods, and the rate books.',
-    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
   },
 ];
 
@@ -170,6 +170,13 @@ const UW_RULES = {
     'Over 30,000 annual miles: blocks bind, Underwriter',
     'Vehicle value over $100,000: blocks bind, UW Manager',
     'Vehicle over 20 years old with Collision: blocks bind, Underwriter',
+  ],
+  Businessowners: [
+    '2 claims in 5 years: blocks quote, Underwriter; 4+: blocks quote, UW Manager',
+    'Protection class 8 or worse: blocks quote, Underwriter',
+    'Building over $5M or total property over $10M: blocks bind, UW Manager',
+    'Liquor service: blocks bind, Underwriter',
+    'Liability limit of $2M / $4M: blocks bind, UW Manager',
   ],
   WorkersComp: [
     'Experience modification above 1.25: blocks quote, Underwriter; above 1.5: blocks quote, UW Manager',
@@ -259,6 +266,17 @@ function toolLabel(name, input = {}) {
 }
 
 function compactPeriod(product, period) {
+  if (product === 'Businessowners') {
+    const sel = (m) => Object.entries(m || {}).filter(([, c]) => c.selected).map(([code, c]) => `${code}${Object.keys(c.terms).length ? ' ' + Object.values(c.terms).join('/') : ''}`);
+    return {
+      businessName: period.line.businessName,
+      paymentPlan: period.paymentPlan,
+      claimsLast5Years: period.line.claimsLast5Years,
+      locations: period.line.locations.map((l) => ({ location: l.description || l.address.line1, zip: l.address.zip, construction: l.construction, occupancy: l.occupancy, protectionClass: l.protectionClass, buildingValue: l.buildingValue, contentsValue: l.contentsValue })),
+      classes: period.line.exposures.map((x) => ({ class: x.classCode, base: x.base, amount: x.amount })),
+      policyCoverages: sel(period.line.lineCoverages),
+    };
+  }
   if (product === 'WorkersComp') {
     const sel = (m) => Object.entries(m || {}).filter(([, c]) => c.selected).map(([code, c]) => `${code}${Object.keys(c.terms).length ? ' ' + Object.values(c.terms).join('/') : ''}`);
     return {
