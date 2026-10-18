@@ -71,6 +71,13 @@ Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker 
 - PGlite stays as a development convenience. Tests on PGlite are faster (about 2.5 minutes), on PostgreSQL slower (about 4 minutes).
 - Added `README.md` with the commands, and `.env.example` now lists the server settings.
 
+## Tier 1, item 2: real sign-in and the permissions matrix (REVIEW.md, section 6)
+- **Done.** `src/api/authentication.ts`: an `Authenticator` decides who is asking. `bearerAuthenticator` checks a signed token (JWT from an identity provider) with the `jose` library: signature against the provider's published keys, issuer, audience and a required expiry; only asymmetric algorithms (so "none" and shared-secret tokens are refused); every failure gives the same 401. The token only proves who the person is: the user must exist and be active in our database, and roles and permissions still come from there. `headerAuthenticator` (X-User) remains for tests and local runs.
+- **Server settings:** `AUTH_MODE` (`oidc` or `header`); the default is `header` without `DATABASE_URL` and `oidc` with it, so a real database never trusts the forgeable header by accident. `oidc` needs `OIDC_ISSUER`, `OIDC_AUDIENCE`, `OIDC_JWKS_URL` (optional `OIDC_USERNAME_CLAIM`). The OpenAPI description now names the bearer scheme.
+- **Tests:** `authentication.test.ts` (12 tests, an in-test identity provider signs the tokens: good, missing, malformed, expired, wrong issuer/audience/key, "none", HS256, no expiry, unknown or deactivated user, no user-name claim, X-User ignored). `permissions-matrix.test.ts` (5 tests): every route against every demo role, computed from the route list, so a new route or a changed role is covered automatically.
+- **Found by the matrix:** no API route uses `uw.approve` (an underwriter cannot approve a referred issue through the API). Added to the extension list; not fixed here.
+- **Not done:** no real identity provider was used (only a test one), the screens still send X-User (they need a login step), no refresh/logout, no token for machine-to-machine calls, and role assignment from the provider's groups is not mapped.
+
 ## Result of I2
 The roadmap is complete (29 of 29 steps). `REVIEW.md` compares the build with the document section by section (about 55% of the whole document, by my estimate), lists the design rules that held, the known weaknesses and risks, and an ordered plan of what to extend next. Nothing is pending in the roadmap.
 

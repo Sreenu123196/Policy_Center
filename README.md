@@ -22,7 +22,7 @@ cp .env.example .env        # then set POSTGRES_PASSWORD
 docker compose up --build
 ```
 
-The API is at http://localhost:3000 and its description at http://localhost:3000/openapi.json. The server reads `DATABASE_URL` (see `.env.example`); without it, it uses PGlite and keeps files in `.data/`. Add `SEED_DEMO=true` in `.env` to create the demo users (`asha.agent`, `uma.underwriter`, `carl.claims`, `bina.billing`, `root.admin`); never in a real environment.
+The API is at http://localhost:3000 and its description at http://localhost:3000/openapi.json. The server reads `DATABASE_URL` (see `.env.example`); without it, it uses PGlite and keeps files in `.data/`. The API signs people in with tokens from an identity provider (`AUTH_MODE=oidc`, the default with a database: set `OIDC_ISSUER`, `OIDC_AUDIENCE` and `OIDC_JWKS_URL`). For a local try-out only, set `AUTH_MODE=header` to trust the `X-User` header instead (anyone can forge it). Add `SEED_DEMO=true` in `.env` to create the demo users (`asha.agent`, `uma.underwriter`, `carl.claims`, `bina.billing`, `root.admin`); never in a real environment.
 
 The database must be created with **UTF8** encoding (the Hindi and Telugu names need it). The official `postgres` image does this by default.
 

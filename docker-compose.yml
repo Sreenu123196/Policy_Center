@@ -26,6 +26,10 @@ services:
     environment:
       DATABASE_URL: postgres://insurance:${POSTGRES_PASSWORD}@db:5432/insurance_suite
       SEED_DEMO: ${SEED_DEMO:-false}
+      AUTH_MODE: ${AUTH_MODE:-oidc} # set AUTH_MODE=header in .env for a local try-out with the X-User header
+      OIDC_ISSUER: ${OIDC_ISSUER:-}
+      OIDC_AUDIENCE: ${OIDC_AUDIENCE:-}
+      OIDC_JWKS_URL: ${OIDC_JWKS_URL:-}
     ports:
       - "3000:3000"
 

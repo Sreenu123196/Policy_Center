@@ -293,5 +293,12 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Do not create and drop dozens of databases at once.** Each create and drop makes the server write a checkpoint, and doing it in parallel stalled the run. Drop them together at the end.
 - **Say what was not run.** The Dockerfile, compose file and CI workflow were written carefully but never executed here. A file that has not been run is a draft.
 
+## Tier 1, item 2. Sign-in and the permissions matrix
+- **Authentication and authorisation are different.** Authentication: who are you? (a signed token from the identity provider). Authorisation: what may you do? (our roles and permissions). The API keeps the second in its own database.
+- **A signed token.** The provider signs it with a private key; we hold only the public key, so we can check it but never make one. We also check who issued it, who it is for (audience) and when it expires.
+- **Refuse weak tokens.** A token can claim any algorithm in its header, including "none" (no signature). We list the algorithms we accept and never trust the header's choice.
+- **One plain answer.** Every bad token gets the same 401, so an attacker learns nothing about why.
+- **A matrix test.** A table of every role against every route is too long to write and check by hand, so the test builds it from the route list and the role definitions, and a new route is covered the day it is added. It found a permission that nothing uses.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

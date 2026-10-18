@@ -59,7 +59,7 @@ The scenario test (step I1) found a bug that no unit test caught: after a cancel
 
 ## 5. Known weaknesses and risks (honest list)
 
-1. **Sign-in is trusted.** The API believes the `X-User` header. Without a gateway and an identity provider in front, anyone who reaches the API can claim to be anyone.
+1. **Sign-in is trusted.** The API believes the `X-User` header. Without a gateway and an identity provider in front, anyone who reaches the API can claim to be anyone. **Update (Tier 1.2): the API now verifies signed tokens (tested with a stand-in identity provider); X-User is only the default without a database.**
 2. **Cancellation netting is simplified.** The refund credit is what Policy computed, not what the customer actually overpaid. Cash is capped, but the logic is not a ledger.
 3. **Renewal ignores claims for the no-claim bonus.** The test sets the claim-free years by hand. Who owns the claims history must be decided.
 4. **Concurrency is thin.** One database and transactions keep it safe in tests; two people binding at the same instant, or two requests with the same idempotency key at once, need a lock or version check in production.
@@ -76,7 +76,7 @@ Ordered by what makes the biggest difference to being usable, not by size.
 
 **Tier 1: make it safe to run (about 4 to 6 weeks for a small team)**
 1. Run on real PostgreSQL in Docker, with CI that runs `npm run check` and a deployment to a test environment. **Update: the code and the whole test suite now run on real PostgreSQL; the Dockerfile, compose file and CI workflow are written but not yet run (no Docker or Git remote on this machine); deployment waits for a chosen host.**
-2. Real sign-in: put the API behind an identity provider (OpenID Connect with MFA); replace `X-User` with a verified token; add a permissions matrix test for every endpoint.
+2. Real sign-in: put the API behind an identity provider (OpenID Connect with MFA); replace `X-User` with a verified token; add a permissions matrix test for every endpoint. **Update: token check and matrix test are done; a real provider with MFA, a login step in the screens, and an API route for `uw.approve` remain.**
 3. An event publisher with retries and a dead-letter table; locks for idempotency keys and optimistic locking at bind.
 4. Connect claims history to renewal and to the no-claim bonus; replace the simplified cancellation netting with a small ledger.
 

@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest }
 import { ZodError } from 'zod';
 import { findIdempotentResponse, getUserByUsername, PermissionError, requirePermission, saveIdempotentResponse, ValidationError, visibilityFor } from '../platform/index.js';
 import type { ApiConfig } from './config.js';
+import { headerAuthenticator, type Authenticator } from './authentication.js';
 import { buildOpenApi } from './openapi.js';
 import { ApiError, type Route, type RouteContext } from './registry.js';
 import { allRoutes } from './routes.js';
@@ -14,6 +15,7 @@ import { allRoutes } from './routes.js';
 export interface AppOptions {
   today?: () => string; // the date of "today"; tests set it
   logger?: boolean;
+  authenticator?: Authenticator; // how a request proves who it is; the default trusts X-User, for tests and local runs only
 }
 
 const headerValue = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value);
@@ -28,14 +30,15 @@ export async function createApp(db: Database, config: ApiConfig, options: AppOpt
   const app = Fastify({ logger: options.logger ?? false });
   const today = options.today ?? ((): string => new Date().toISOString().slice(0, 10));
   const routes = allRoutes;
+  const authenticator = options.authenticator ?? headerAuthenticator;
 
   async function handle(route: Route, request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    // 1. Who is asking? (The identity provider has already signed them in and set X-User.)
+    // 1. Who is asking? The authenticator checks the proof (a signed token); the database gives the user and the rights.
     let user = { id: '', username: 'anonymous' };
     if (!route.public) {
-      const name = headerValue(request.headers['x-user']);
-      const found = name === undefined ? null : await getUserByUsername(db, name);
-      if (found === null || found.status !== 'active') throw new ApiError(401, 'unauthenticated', 'Sign in: the X-User header must name an active user');
+      const name = await authenticator.username(request.headers);
+      const found = await getUserByUsername(db, name);
+      if (found === null || found.status !== 'active') throw new ApiError(401, 'unauthenticated', 'Sign in: the signed-in person is not an active user of this system');
       user = { id: found.id, username: found.username };
       if (route.permission) await requirePermission(db, user.id, route.permission);
     }
@@ -85,7 +88,7 @@ export async function createApp(db: Database, config: ApiConfig, options: AppOpt
       handler: (request, reply) => handle(route, request, reply),
     });
   }
-  const spec = buildOpenApi(routes);
+  const spec = buildOpenApi(routes, authenticator.describe);
   app.get('/openapi.json', async () => spec);
 
   // One shape for every mistake: { error, message, errors?, issues? }.

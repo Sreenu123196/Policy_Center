@@ -13,7 +13,7 @@ function jsonSchema(schema: z.ZodType): Json {
 
 const errorRef = (description: string): Json => ({ description, content: { 'application/json': { schema: { $ref: '#/components/schemas/Error' } } } });
 
-function operation(route: Route): Json {
+function operation(route: Route, scheme: string): Json {
   const parameters: Json[] = [];
   for (const [, name] of route.path.matchAll(/\{(\w+)\}/g)) parameters.push({ name, in: 'path', required: true, schema: { type: 'string' } });
   if (route.query) {
@@ -41,7 +41,7 @@ function operation(route: Route): Json {
   };
   if (route.body || route.query) responses['400'] = errorRef('The request is not shaped right (bad JSON, a missing or wrong field)');
   if (!route.public) {
-    responses['401'] = errorRef('The user is not known or not active (the X-User header)');
+    responses['401'] = errorRef('The user is not known or not active (missing, expired or wrong token)');
     if (route.permission) responses['403'] = errorRef(`The user does not hold the permission ${route.permission}`);
   }
   if (route.path.includes('{') || route.method !== 'POST') responses['404'] = errorRef('Not found, or not visible to this user (producer code security)');
@@ -56,27 +56,28 @@ function operation(route: Route): Json {
     summary: route.summary,
     tags: [route.tag],
     ...(route.permission ? { 'x-permission': route.permission } : {}),
-    ...(route.public ? {} : { security: [{ userHeader: [] }] }),
+    ...(route.public ? {} : { security: [{ [scheme]: [] }] }),
     parameters,
     ...(route.body ? { requestBody: { required: true, content: { 'application/json': { schema: jsonSchema(route.body) } } } } : {}),
     responses,
   };
 }
 
-export function buildOpenApi(routes: Route[]): Json {
+export function buildOpenApi(routes: Route[], authentication: 'bearer' | 'header' = 'header'): Json {
+  const scheme = authentication === 'bearer' ? 'bearer' : 'userHeader';
   const paths: Record<string, Record<string, Json>> = {};
-  for (const route of routes) (paths[route.path] ??= {})[route.method.toLowerCase()] = operation(route);
+  for (const route of routes) (paths[route.path] ??= {})[route.method.toLowerCase()] = operation(route, scheme);
   return {
     openapi: '3.1.0',
     info: {
       title: 'Insurance Suite API',
       version: '1.0.0',
       description:
-        'Policy, billing and claims for private car insurance (a learning version). Sign-in is done by an identity provider in front of this API, which sets the X-User header; the API then applies roles, permissions and producer code security. Money is whole paise; dates are yyyy-mm-dd.',
+        'Policy, billing and claims for private car insurance (a learning version). People sign in with an identity provider, which gives a signed token sent as Authorization: Bearer <token>; the API checks it, then applies roles, permissions and producer code security from its own database. (A local development run may use the X-User header instead.) Money is whole paise; dates are yyyy-mm-dd.',
     },
     paths,
     components: {
-      securitySchemes: { userHeader: { type: 'apiKey', in: 'header', name: 'X-User', description: 'The user name, set by the identity provider or gateway after sign-in' } },
+      securitySchemes: { bearer: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT', description: 'A token signed by the identity provider' }, userHeader: { type: 'apiKey', in: 'header', name: 'X-User', description: 'Development only: the user name, trusted as sent' } },
       schemas: {
         Error: {
           type: 'object',

@@ -4,7 +4,7 @@ import { assignProducerCode, assignRole, createProducerCode, createProducerOrgan
 // Demo people for a local run: one user for each kind of work, so the screens can be tried without an identity provider.
 // Running it again changes nothing. Real users come from the identity provider and the admin screens (document section 13).
 
-const ROLES: Record<string, { name: string; permissions: Permission[] }> = {
+export const DEMO_ROLES: Record<string, { name: string; permissions: Permission[] }> = {
   agent: { name: 'Agent', permissions: ['account.view', 'account.create', 'submission.create', 'claim.report'] },
   underwriter: { name: 'Underwriter', permissions: ['policy.bind', 'uw.approve', 'account.view_all', 'submission.create', 'billing.view'] },
   claims_handler: { name: 'Claims handler', permissions: ['claim.report', 'claim.handle', 'claim.pay', 'account.view_all'] },
@@ -25,7 +25,7 @@ export async function seedDemo(db: Database): Promise<void> {
     const organisation = await createProducerOrganisation(db, { name: 'Demo Insurance Agency' }, 'seed');
     await createProducerCode(db, { code: 'PC-100', organisationId: organisation.id }, 'seed');
   }
-  for (const [code, role] of Object.entries(ROLES)) {
+  for (const [code, role] of Object.entries(DEMO_ROLES)) {
     if ((await getRole(db, code)) === null) await createRole(db, { code, name: role.name, permissions: role.permissions }, 'seed');
   }
   for (const demo of DEMO_USERS) {

@@ -216,6 +216,11 @@ Screens (document section 20)
 - A button that changes something uses `useAction`, so it is disabled while it runs and keeps its idempotency keys until the call succeeds. Screen tests start with `// @vitest-environment jsdom` and use the stand-in API in `web/src/test-support.ts`.
 - Run: `npm run api` and `npm run web`; `npm run check` also type-checks and tests the screens.
 
+Sign-in (document sections 13 and 17)
+- Who is asking is decided by an `Authenticator` (`src/api/authentication.ts`); the route code and domain code only ever see a user name. Production uses `bearerAuthenticator` (signed token checked by `jose`: signature, issuer, audience, required expiry, asymmetric algorithms only). `headerAuthenticator` (X-User) is for tests and local runs; never make it the default with a real database.
+- A token proves identity only. Roles, permissions and producer codes come from our database, and the user must be active.
+- Every new route is covered by `permissions-matrix.test.ts` automatically. A new permission must be used by a route or named in that test's list of unused permissions.
+
 Scenario test
 - `src/end-to-end.test.ts` is the story of one customer through all modules, with cross-module invariants. When a change touches how modules talk (events, money, dates), run it and extend its invariants; a unit test passing is not enough. When a new module-to-module rule is added, add its invariant there.
 
