@@ -30,3 +30,8 @@ export { changeCoverable, changeCoverage, listTransactions, removeCoverage, star
 export type { PremiumTransaction } from './policy-change.js';
 export { listConflicts, rebaseJob, resolveConflict } from './merge.js';
 export type { MergeConflict } from './merge.js';
+export { loadCancellationRules } from './cancellation-rules.js';
+export type { CancellationRules, CancellationRulesCatalogue, RefundMethod } from './cancellation-rules.js';
+export { computeRefund } from './refund.js';
+export { getAdjustment, getCoverStatus, startCancellation, startReinstatement } from './cancellation.js';
+export type { CancellationDependencies, CoverAdjustment } from './cancellation.js';

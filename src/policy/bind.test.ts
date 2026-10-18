@@ -96,7 +96,7 @@ describe('binding a submission (document section 8)', () => {
     const bound = await bindSubmission(db, bindDeps, job.id, { branchId: branch.id }, 'agent.one', { today: TODAY });
     expect(bound.job.status).toBe('bound');
     expect(bound.branch).toMatchObject({ id: branch.id, status: 'bound', version: 1 });
-    expect(bound.quote.totalPaise).toBe(1858028);
+    expect(bound.quote?.totalPaise).toBe(1858028);
     expect((await getBranch(db, other.id))?.status).toBe('withdrawn');
     expect((await getJob(db, job.id))?.status).toBe('bound');
   });

@@ -1,0 +1,94 @@
+{
+  "product": "MOTOR_PRIVATE_CAR",
+  "version": "2026.10",
+  "minimum_retained_paise": 100000,
+  "reinstatement_window_days": 30,
+  "short_rate": [
+    {
+      "up_to_days": 30,
+      "retained_bps": 2000
+    },
+    {
+      "up_to_days": 60,
+      "retained_bps": 3000
+    },
+    {
+      "up_to_days": 90,
+      "retained_bps": 4000
+    },
+    {
+      "up_to_days": 120,
+      "retained_bps": 5000
+    },
+    {
+      "up_to_days": 150,
+      "retained_bps": 6000
+    },
+    {
+      "up_to_days": 180,
+      "retained_bps": 7000
+    },
+    {
+      "up_to_days": 210,
+      "retained_bps": 8000
+    },
+    {
+      "up_to_days": 240,
+      "retained_bps": 8500
+    },
+    {
+      "up_to_days": 270,
+      "retained_bps": 9000
+    },
+    {
+      "up_to_days": 300,
+      "retained_bps": 9500
+    },
+    {
+      "up_to_days": 366,
+      "retained_bps": 10000
+    }
+  ],
+  "reasons": [
+    {
+      "code": "customer_request",
+      "source": "insured",
+      "methods": [
+        "short_rate"
+      ],
+      "notice_days": 0
+    },
+    {
+      "code": "vehicle_sold",
+      "source": "insured",
+      "methods": [
+        "pro_rata"
+      ],
+      "notice_days": 0
+    },
+    {
+      "code": "non_payment",
+      "source": "insurer",
+      "methods": [
+        "pro_rata"
+      ],
+      "notice_days": 15
+    },
+    {
+      "code": "misrepresentation",
+      "source": "insurer",
+      "methods": [
+        "pro_rata"
+      ],
+      "notice_days": 15
+    },
+    {
+      "code": "issued_in_error",
+      "source": "insurer",
+      "methods": [
+        "flat"
+      ],
+      "notice_days": 0
+    }
+  ]
+}

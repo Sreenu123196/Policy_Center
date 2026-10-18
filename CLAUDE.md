@@ -176,6 +176,11 @@ Out-of-sequence changes and preemption (document section 6, Appendix B)
 - A branch with an unresolved merge conflict cannot be quoted. `resolveConflict` needs a reason and is audited.
 - When a job binds, other open change jobs on the policy become `preempted`; they are fixed only by `rebaseJob`, never by editing them.
 
+Cancellation and reinstatement (document section 8)
+- Cancellation rules (reasons, notice, allowed refund methods, short-rate table, minimum retained, reinstatement window) are files `config/cancellation/<product lower case>-<product version>.json`, loaded with `loadCancellationRules`. Reason codes are also in the `cancellation_reason` typelist. Refunds come only from `computeRefund` (a pure function).
+- A cancellation never goes through quoting: `startCancellation` stores the refund (`policy.cover_adjustment`, never changed) and `bindJob` dispatches to `bindCancellation`. A reinstatement is quoted with `quoteBranch` and bound with `bindJob`; its transaction is the new premium less what the insurer kept at cancellation.
+- A cancelled version has `cancelled_on` and no quote. Code that needs "the premium of a version" must use `getLatestQuote` only for versions that are not cancellations.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
 - A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.

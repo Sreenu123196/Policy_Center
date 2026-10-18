@@ -190,5 +190,16 @@ A policy change job does **not** update the old policy period. It copies the lat
 - **Rebase.** `rebaseJob` makes a new copy of the newest version, applies the preempted job's own edits again (same merge rules, so conflicts are recorded if the new version touched the same field), withdraws the old copy and returns the job to draft. It runs in one transaction: if an edit no longer fits, nothing changes.
 - Scenario matrix tested: carry forward, conflict, keep later, override, different field, same day, later date, removed cover, unbound rivals, preempt, blocked actions, rebase with and without conflict, and a rebase that cannot be reapplied.
 
+## E3. Cancellation and reinstatement (section 8)
+- A **cancellation job** makes a new version in which the cover **ends on the effective date** (`cancelled_on`). Days before it stay covered. The refund is worked out when the job starts and kept as a permanent record (the **cover adjustment**) with a worksheet; the job is "quoted" until someone binds it.
+- **Three refund methods.** *Flat*: everything comes back, only possible from the first day of the period. *Pro rata*: premium x unexpired days / days in the term. *Short rate*: premium x (1 - the share a table keeps for the days in force), so the customer gets less back when they cancel on their own.
+- **Reasons decide the rules.** A reason code (a typelist, with names in three languages) says who asks (insured or insurer), which methods are allowed, and how many days of notice an insurer must give. Example: non-payment needs 15 days notice and refunds pro rata; a customer request has no notice and refunds short rate.
+- **Minimum retained premium.** The insurer never keeps less than the product's minimum (or the whole premium if that is smaller). Tax is refunded in the same proportion as the premium.
+- **Binding** saves the version, makes a **negative premium transaction** (a refund), sends `PolicyCancelled` to billing, and **preempts** open change jobs. A cancelled policy cannot be changed or cancelled again.
+- **Reinstatement** brings the cover back. The new version is a **copy of the version before the cancellation**. *Without a gap* the premium that was refunded is charged back exactly. *With a gap* the days between the cancellation date and the reinstatement date stay uncovered, the rows are cut there, rating skips the uncovered slice, and the charge is the new premium less the part the insurer kept. A request must come within 30 days of the cancellation date.
+- Reinstatement is quoted and bound like any other job, so rating and underwriting apply. Later changes to a reinstated policy are priced from the reinstated premium.
+- Worked example (the golden policy): cancel from 1 January (78 days in force). Short rate keeps 40%, so 944,760 of 1,574,600 premium is refunded, with 170,057 tax. Pro rata would refund 1,238,110. Reinstating without a gap charges back 944,760.
+- **Testing lesson:** my gap test expected 255 covered days after the gap, but 1 February to 15 October is 256. The code was right and my arithmetic was wrong, so I fixed the test after checking by hand.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

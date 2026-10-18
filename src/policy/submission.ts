@@ -166,6 +166,7 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
     const to = dates[i + 1] as string;
     const asOf = await getBranchAsOf(db, branchId, from);
     if (asOf === null) throw new ValidationError(['The branch does not exist']);
+    if (many && asOf.coverables.length === 0 && asOf.coverages.length === 0) continue; // a gap in cover (a reinstatement with a gap) costs nothing
     // Facts about the risk come from the branch and from the account's named insured.
     const { facts, selection, errors: problems } = await buildRisk(db, policy.account_id, asOf);
     problems.push(...validateSelection(productVersion, facts, selection));
@@ -181,6 +182,7 @@ export async function quoteBranch(db: PGlite, deps: QuoteDependencies, branchId:
     }
   }
   if (errors.length > 0) throw new ValidationError([...new Set(errors)]);
+  if (priced.length === 0) throw new ValidationError(['The branch has no cover to price']);
 
   // Underwriting rules (document section 10): an issue that blocks the quote stops it until someone with authority approves.
   const today = options.today ?? new Date().toISOString().slice(0, 10);

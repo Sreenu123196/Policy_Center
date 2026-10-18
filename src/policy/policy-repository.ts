@@ -52,6 +52,7 @@ interface BranchRow {
   period_start: string;
   period_end: string;
   product_version: string;
+  cancelled_on: string | null;
   created_by: string;
   created_at: Date;
 }
@@ -61,7 +62,7 @@ const JOB_COLUMNS = "id, job_number, policy_id, type, status, to_char(effective_
 // Dates are read as text (yyyy-mm-dd), so a time zone can never shift a date by a day.
 const BRANCH_COLUMNS = `id, policy_id, job_id, term_number, label, version, based_on_id, status,
   to_char(period_start, 'YYYY-MM-DD') as period_start, to_char(period_end, 'YYYY-MM-DD') as period_end,
-  product_version, created_by, created_at`;
+  product_version, to_char(cancelled_on, 'YYYY-MM-DD') as cancelled_on, created_by, created_at`;
 
 const toPolicy = (row: PolicyRow): Policy => ({
   id: row.id,
@@ -95,6 +96,7 @@ const toBranch = (row: BranchRow): Branch => ({
   periodStart: row.period_start,
   periodEnd: row.period_end,
   productVersion: row.product_version,
+  cancelledOn: row.cancelled_on,
   createdBy: row.created_by,
   createdAt: row.created_at.toISOString(),
 });

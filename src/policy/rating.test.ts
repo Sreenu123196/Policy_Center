@@ -28,7 +28,7 @@ function request(options: { start?: string; engineCc?: number | undefined; ageYe
   const branch: BranchAsOf = {
     branch: {
       id: 'b', policyId: 'p', jobId: 'j', termNumber: 1, label: 'Option A', version: null, basedOnId: null, status: 'draft',
-      periodStart: start, periodEnd: '2027-10-15', productVersion: productVersion.version, createdBy: 'u', createdAt: '2026-10-15T00:00:00.000Z',
+      periodStart: start, periodEnd: '2027-10-15', productVersion: productVersion.version, cancelledOn: null, createdBy: 'u', createdAt: '2026-10-15T00:00:00.000Z',
     },
     date: start,
     coverables: [{ fixedId: 'v1', kind: 'Vehicle', effFrom: start, effTo: '2027-10-15', attributes }],

@@ -31,7 +31,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | D6 | Bind and issue, policy schedule PDF, outbox | Done (216 tests pass) |
 | E1 | Policy change in sequence: slices, prorating, transactions | Done (239 tests pass) |
 | E2 | Out-of-sequence changes and preemption, with a scenario matrix | Done (253 tests pass) |
-| E3 to E4 | Cancellation and reinstatement, renewal | Next: E3 |
+| E3 | Cancellation (flat, pro rata, short rate) and reinstatement | Done (283 tests pass) |
+| E4 | Renewal | Next: E4 |
 | E1 to E4 | Policy change, out-of-sequence, cancellation, renewal | Not started |
 | F1, F2 | Billing, simple version | Not started |
 | G1, G2 | Claims, simple version | Not started |
@@ -40,6 +41,17 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 
 ## Environment
 Windows 11, 16 GB memory. Node.js v22 (LTS), npm 10, Git 2.55 installed. Docker is not installed.
+
+## Deferred from E3
+- Fees: the cancellation fee and the reinstatement fee (document section 8: "may need underwriting and a fee") are not charged. A fee would be its own cost item next to premium and tax in the transaction.
+- Refund of premium to the customer is only a negative transaction; paying it out is billing (F2). A cancellation for non-payment is started by billing (F2), which will call `startCancellation` with the reason `non_payment`.
+- The refund is on the premium of the newest version. Cancelling a policy that had many changes uses that version's whole-term premium, which is correct because each version prices the full term; a refund of only the unpaid part is a billing decision.
+- Notice days apply only to insurer-initiated reasons with notice above zero, counted from today. Notice by jurisdiction (document) is one table per product version, not per state. A cancellation date in the past is allowed for the insured and for 0-notice reasons: a business rule on back-dating is not decided.
+- Short-rate and minimum-retained values are illustrative, not from a filed tariff. Tax is refunded in proportion to the premium.
+- Reinstatement is only for the same term; there is no "rewrite" (a new policy after a long lapse). The reinstatement window is 30 days after the cancellation date. A reinstatement date is a whole day.
+- The Hindi and Telugu names in `cancellation_reason.json` were written by the mentor and need review by a native speaker.
+- Cancelling or reinstating while another job is open: change jobs are preempted; other cancellation or reinstatement jobs are not, and the "newer version was bound" check stops them at bind.
+- Underwriting applies to a reinstatement through the normal quote (when `underwriting` is given to `quoteBranch`); there is no special reinstatement rule set.
 
 ## Deferred from E2
 - Conflicts are found per field of a coverage's terms or a coverable's attributes. A conflict is only recorded when a slice of the object exists at or after the later change's date. A later change that added or removed a whole cover is respected (nothing is left to overwrite) but is not shown as a conflict.

@@ -46,6 +46,7 @@ export interface Branch {
   periodStart: string;
   periodEnd: string; // exclusive
   productVersion: string; // the product version in force on the start date
+  cancelledOn: string | null; // set when this version cancels the policy: the first day without cover
   createdBy: string;
   createdAt: string;
 }

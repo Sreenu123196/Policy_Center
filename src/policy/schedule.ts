@@ -75,15 +75,16 @@ export function buildScheduleLines(data: ScheduleData): string[] {
 
 const HEADINGS = new Set(['Policy schedule', 'Endorsement schedule', 'Insured', 'Vehicle', 'Cover and premium', 'Conditions']);
 
-// Draws the lines on A4 pages and returns the PDF file. The creation date is the issue date, so the same data gives the same file.
-export async function renderSchedulePdf(data: ScheduleData): Promise<Uint8Array> {
+// Draws lines of text on A4 pages and returns the PDF file. The first line is the title; the lines named in "headings"
+// are drawn in bold. The creation date is the issue date, so the same input gives the same file.
+export async function renderLinesPdf(lines: string[], meta: { title: string; subject: string; date: string; headings: string[] }): Promise<Uint8Array> {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`${data.change ? 'Endorsement' : 'Policy'} schedule ${data.policyNumber}`);
-  pdf.setSubject(`Policy ${data.policyNumber}, version ${data.version}, job ${data.jobNumber}`);
+  pdf.setTitle(meta.title);
+  pdf.setSubject(meta.subject);
   pdf.setProducer('Insurance Suite');
   pdf.setCreator('Insurance Suite');
-  pdf.setCreationDate(new Date(`${data.issuedOn}T00:00:00Z`));
-  pdf.setModificationDate(new Date(`${data.issuedOn}T00:00:00Z`));
+  pdf.setCreationDate(new Date(`${meta.date}T00:00:00Z`));
+  pdf.setModificationDate(new Date(`${meta.date}T00:00:00Z`));
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
 
@@ -91,14 +92,23 @@ export async function renderSchedulePdf(data: ScheduleData): Promise<Uint8Array>
   const lineHeight = 16;
   let page = pdf.addPage([595, 842]);
   let y = 842 - margin;
-  for (const line of buildScheduleLines(data)) {
+  lines.forEach((line, index) => {
     if (y < margin) {
       page = pdf.addPage([595, 842]);
       y = 842 - margin;
     }
-    const heading = HEADINGS.has(line);
-    if (line !== '') page.drawText(line, { x: margin, y, size: line.endsWith(' schedule') ? 20 : heading ? 13 : 11, font: heading ? bold : regular, color: rgb(0, 0, 0) });
-    y -= line.endsWith(' schedule') ? 28 : lineHeight;
-  }
+    const title = index === 0;
+    const heading = meta.headings.includes(line);
+    if (line !== '') page.drawText(line, { x: margin, y, size: title ? 20 : heading ? 13 : 11, font: heading || title ? bold : regular, color: rgb(0, 0, 0) });
+    y -= title ? 28 : lineHeight;
+  });
   return pdf.save();
 }
+
+export const renderSchedulePdf = (data: ScheduleData): Promise<Uint8Array> =>
+  renderLinesPdf(buildScheduleLines(data), {
+    title: `${data.change ? 'Endorsement' : 'Policy'} schedule ${data.policyNumber}`,
+    subject: `Policy ${data.policyNumber}, version ${data.version}, job ${data.jobNumber}`,
+    date: data.issuedOn,
+    headings: [...HEADINGS],
+  });

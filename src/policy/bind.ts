@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import type { PGlite } from '@electric-sql/pglite';
 import { getContact } from '../contacts/index.js';
 import { isUuid, recordAudit, recordEvent, ValidationError } from '../platform/index.js';
+import { bindCancellation, getAdjustment, getAdjustmentOfBranch, issueCancellation } from './cancellation.js';
 import { allowedNextStatuses } from './job-status.js';
 import { moveJob } from './job-sync.js';
 import type { Branch, Job } from './policy.js';
@@ -39,14 +40,22 @@ export async function bindJob(
   input: { branchId: string },
   actor: string,
   options: { today?: string } = {},
-): Promise<{ job: Job; branch: Branch; quote: Quote }> {
+): Promise<{ job: Job; branch: Branch; quote: Quote | null }> {
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
-  if (job.type !== 'submission' && job.type !== 'policy_change') throw new ValidationError([`A ${job.type} job cannot be bound yet`]);
+  if (!['submission', 'policy_change', 'reinstatement', 'cancellation'].includes(job.type)) throw new ValidationError([`A ${job.type} job cannot be bound yet`]);
   if (job.status !== 'quoted') throw new ValidationError([`Only a quoted job can be bound (this one is ${job.status})`]);
   const chosen = await getBranch(db, input.branchId);
   if (chosen === null || chosen.jobId !== jobId) throw new ValidationError(['The branch must be an option of this job']);
   if (chosen.status !== 'quoted') throw new ValidationError([`Only a quoted option can be bound (this one is ${chosen.status})`]);
+
+  if (job.type === 'cancellation') {
+    await bindCancellation(db, job, chosen, actor);
+    const done = await getJob(db, jobId);
+    const doneBranch = await getBranch(db, chosen.id);
+    if (done === null || doneBranch === null) throw new Error('The bound job could not be read back');
+    return { job: done, branch: doneBranch, quote: null };
+  }
 
   // Another job may have bound first. Then this one must be rebased onto the new version (step E2) before it can bind.
   const latest = (
@@ -58,7 +67,16 @@ export async function bindJob(
   if (latest && latest.id !== chosen.basedOnId) {
     throw new ValidationError([`Version ${latest.version} was bound after this job started; it must be rebased onto it before it can bind (step E2)`]);
   }
-  const base = chosen.basedOnId === null ? null : await getLatestQuote(db, chosen.basedOnId);
+  // What the new version is compared with: the quote of the version it was based on. After a cancellation the base is
+  // the part of the premium the insurer kept.
+  let base: { premiumPaise: number; taxPaise: number; totalPaise: number } | null = chosen.basedOnId === null ? null : await getLatestQuote(db, chosen.basedOnId);
+  const reinstatement = job.type === 'reinstatement' ? await getAdjustment(db, jobId) : null;
+  if (job.type === 'reinstatement' && chosen.basedOnId !== null) {
+    const cancelled = await getAdjustmentOfBranch(db, chosen.basedOnId);
+    const keptPremium = (cancelled?.termPremiumPaise ?? 0) - (cancelled?.refundPremiumPaise ?? 0);
+    const keptTax = (cancelled?.termTaxPaise ?? 0) - (cancelled?.refundTaxPaise ?? 0);
+    base = { premiumPaise: keptPremium, taxPaise: keptTax, totalPaise: keptPremium + keptTax };
+  }
 
   const quote = await getLatestQuote(db, chosen.id);
   if (quote === null) throw new ValidationError(['The option has no quote']);
@@ -87,7 +105,7 @@ export async function bindJob(
     for (const rival of rivals.rows) await moveJob(tx, rival.id, 'preempted', actor, `Version ${version} was bound by job ${job.jobNumber}`);
     const policyNumber = (await tx.query<{ policy_number: string }>('select policy_number from policy.policy where id = $1', [chosen.policyId])).rows[0]?.policy_number;
     const transaction = {
-      kind: base === null ? 'new_business' : 'change',
+      kind: job.type === 'reinstatement' ? 'reinstatement' : base === null ? 'new_business' : 'change',
       effectiveDate: job.effectiveDate ?? chosen.periodStart,
       premiumPaise: quote.premiumPaise - (base?.premiumPaise ?? 0),
       taxPaise: quote.taxPaise - (base?.taxPaise ?? 0),
@@ -99,7 +117,7 @@ export async function bindJob(
       [chosen.policyId, chosen.id, chosen.basedOnId, version, transaction.kind, transaction.effectiveDate, transaction.premiumPaise, transaction.taxPaise, transaction.totalPaise, actor],
     );
     await recordEvent(tx, {
-      type: 'PolicyBound',
+      type: job.type === 'reinstatement' ? 'PolicyReinstated' : 'PolicyBound',
       aggregateType: 'policy',
       aggregateId: chosen.policyId,
       payload: {
@@ -113,6 +131,7 @@ export async function bindJob(
         taxPaise: quote.taxPaise,
         totalPaise: quote.totalPaise,
         transaction,
+        ...(reinstatement === null ? {} : { withGap: reinstatement.restoreDate !== null, reinstatementDate: reinstatement.restoreDate, effectiveDate: reinstatement.effectiveDate }),
       },
     });
   });
@@ -257,6 +276,12 @@ export async function issueJob(
   const job = await getJob(db, jobId);
   if (job === null) throw new ValidationError(['The job does not exist']);
   if (!allowedNextStatuses(job.type, job.status).includes('issued')) throw new ValidationError([`A ${job.type} job cannot move from ${job.status} to issued`]);
+  if (job.type === 'cancellation') {
+    const done = await issueCancellation(db, job, actor, options);
+    const documentRow = (await listDocuments(db, job.policyId)).find((d) => d.id === done.documentId);
+    if (documentRow === undefined) throw new Error('The notice could not be read back');
+    return { job: done.job, document: documentRow };
+  }
   const bound = (await db.query<{ id: string }>("select id from policy.policy_period where job_id = $1 and status = 'bound'", [jobId])).rows[0];
   const branch = bound ? await getBranch(db, bound.id) : null;
   const quote = branch ? await getLatestQuote(db, branch.id) : null;
@@ -265,8 +290,8 @@ export async function issueJob(
   const today = options.today ?? todayText();
   if (deps.underwriting) await checkUnderwriting(db, deps.underwriting, branch.id, 'issuance', actor, { today });
 
-  const isChange = job.type === 'policy_change';
-  const kind = isChange ? 'endorsement_schedule' : 'policy_schedule';
+  const isChange = job.type !== 'submission';
+  const kind = job.type === 'policy_change' ? 'endorsement_schedule' : job.type === 'reinstatement' ? 'reinstatement_schedule' : 'policy_schedule';
   const data = await buildScheduleData(db, deps, branch, job.jobNumber, quote, today);
   if (isChange) {
     const t = await transactionOf(db, branch.id);

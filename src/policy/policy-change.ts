@@ -24,6 +24,8 @@ export async function startPolicyChange(db: PGlite, input: { policyId: string; e
     )
   ).rows[0];
   if (!base) throw new ValidationError(['The policy has no bound version to change']);
+  const cancelled = (await db.query<{ cancelled_on: string | null }>("select cancelled_on from policy.policy_period where id = $1", [base.id])).rows[0]?.cancelled_on;
+  if (cancelled) throw new ValidationError(['The policy is cancelled; reinstate it first']);
 
   if (!isRealDate(input.effectiveDate)) errors.push('The effective date is not a real date (write it as yyyy-mm-dd)');
   else if (input.effectiveDate < base.period_start || input.effectiveDate >= base.period_end) {
