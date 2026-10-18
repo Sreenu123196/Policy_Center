@@ -39,5 +39,19 @@ A policy change job does **not** update the old policy period. It copies the lat
 - PostgreSQL's exclusion constraint on date ranges makes overlapping slices impossible (Appendix A).
 - This is the biggest technical risk in the whole project, so the scenario test matrix comes before policy-change code.
 
+## B1. Project and Git
+- A Git repository records every change as a commit, so we can see what changed and why, and go back.
+- `.gitignore` keeps secrets (`.env`), downloaded packages (`node_modules`) and build output out of the repository. `.env.example` is allowed because it holds no real values.
+- The repository is local only. No remote has been connected.
+
+## B2. TypeScript, Vitest, linting, module folders
+- **TypeScript** adds types to JavaScript so mistakes (for example mixing rupees and paise) are caught before the code runs. `strict` turns on the strictest checks.
+- **Vitest** runs the tests. `npm test` runs them once; `npm run test:watch` re-runs them as files change.
+- **ESLint** with typescript-eslint finds likely bugs and style problems without running the code.
+- `npm run check` = type check, then lint, then tests. Run it before every commit.
+- Tests come first: we wrote the test, watched it fail for the right reason (the module did not exist), then wrote the code until it passed.
+- The five module folders (contacts, policy, billing, claims, platform) each have a public `index.ts`. Other modules may only use a module through that file.
+- In ES modules, imports of our own files end in `.js` even though the source file is `.ts`. This is how Node's module system works.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

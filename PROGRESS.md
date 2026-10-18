@@ -15,8 +15,8 @@ Learning project: Insurance Suite (private car, India), following `docs/Insuranc
 | A1 | Big picture and glossary | Done |
 | A2 | Data model and effective dating | Done |
 | A3 | Quiz | Replaced by the self-check list in LEARNING_NOTES.md |
-| B1 | Tools check, project, Git repository | Next |
-| B2 | TypeScript, Vitest, linting, module folders | Not started |
+| B1 | Tools check, project, Git repository | Done |
+| B2 | TypeScript, Vitest, linting, module folders | Done (`npm run check` passes) |
 | B3 | PostgreSQL in Docker, SQL migrations | Blocked: Docker is not installed (decision needed) |
 | B4 | Technical rules in CLAUDE.md, notes files | Not started |
 | C1 to C4 | Contacts, accounts, users and audit, typelists | Not started |
