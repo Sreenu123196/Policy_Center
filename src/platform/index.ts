@@ -2,3 +2,5 @@
 // activities and events, shared by all other modules.
 export { MODULES } from './modules.js';
 export type { ModuleName } from './modules.js';
+export { createDatabase } from './database.js';
+export { runMigrations } from './migrate.js';

@@ -21,5 +21,8 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.71.2",
     "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.10"
   }
 }
