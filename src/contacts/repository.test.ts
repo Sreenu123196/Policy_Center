@@ -1,21 +1,22 @@
-import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createDatabase, runMigrations, ValidationError } from '../platform/index.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { listAuditEntries, ValidationError } from '../platform/index.js';
+import { createTestDatabase, resetDatabase } from '../testing/database.js';
 import type { NewContact } from './contact.js';
 import { createContact, getContact } from './repository.js';
 
-const realMigrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
-
 let db: PGlite;
 
-beforeEach(async () => {
-  db = await createDatabase();
-  await runMigrations(db, realMigrations);
+beforeAll(async () => {
+  db = await createTestDatabase();
 });
 
-afterEach(async () => {
+afterAll(async () => {
   await db.close();
+});
+
+beforeEach(async () => {
+  await resetDatabase(db);
 });
 
 // Made-up people and companies only.
@@ -125,5 +126,16 @@ describe('contacts (document section 16)', () => {
          values ('person', 'Test Person', '1 Test Street', 'Hyderabad', 'Telangana', '500081', '234567890123', 'test.user')`,
       ),
     ).rejects.toThrow();
+  });
+
+  it('records who created the contact in the audit log, without any personal numbers', async () => {
+    const created = await createContact(db, asha, 'test.user');
+    const entries = await listAuditEntries(db, { entityType: 'contact', entityId: created.id });
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]).toMatchObject({ actor: 'test.user', action: 'contact.create', details: { kind: 'person' } });
+    const text = JSON.stringify(entries);
+    expect(text).not.toContain('234567890123');
+    expect(text).not.toContain('ABCPK1234D');
   });
 });

@@ -1,6 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite';
 import { getContact } from '../contacts/index.js';
-import { canSeeProducerCode, getProducerCode, isUuid, ValidationError, type Visibility } from '../platform/index.js';
+import { canSeeProducerCode, getProducerCode, isUuid, recordAudit, ValidationError, type Visibility } from '../platform/index.js';
 import { ACCOUNT_CONTACT_ROLES, type Account, type AccountContact, type AccountContactRole, type NewAccount } from './account.js';
 
 interface AccountRow {
@@ -76,6 +76,7 @@ export async function createAccount(db: PGlite, input: NewAccount, actor: string
       'named_insured',
       actor,
     ]);
+    await recordAudit(tx, { actor, action: 'account.create', entityType: 'account', entityId: id, details: { producerCode: input.producerCode } });
     return id;
   });
 
@@ -103,12 +104,22 @@ export async function addAccountContact(db: PGlite, accountId: string, contact: 
   ]);
   if (already.rows.length > 0) throw new ValidationError(['This contact already has that role on the account']);
 
-  await db.query('insert into policy.account_contact (account_id, contact_id, role, created_by) values ($1, $2, $3, $4)', [
-    accountId,
-    contact.contactId,
-    contact.role,
-    actor,
-  ]);
+  // The new contact link and its audit entry are saved together or not at all.
+  await db.transaction(async (tx) => {
+    await tx.query('insert into policy.account_contact (account_id, contact_id, role, created_by) values ($1, $2, $3, $4)', [
+      accountId,
+      contact.contactId,
+      contact.role,
+      actor,
+    ]);
+    await recordAudit(tx, {
+      actor,
+      action: 'account.add_contact',
+      entityType: 'account',
+      entityId: accountId,
+      details: { contactId: contact.contactId, role: contact.role },
+    });
+  });
   const saved = await getAccount(db, accountId, 'all');
   if (saved === null) throw new Error('The account could not be read back');
   return saved;

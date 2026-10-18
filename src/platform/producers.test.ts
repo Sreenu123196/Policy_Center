@@ -1,23 +1,22 @@
-import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { createDatabase } from './database.js';
-import { runMigrations } from './migrate.js';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { createTestDatabase, resetDatabase } from '../testing/database.js';
 import { createProducerCode, createProducerOrganisation, deactivateProducerCode, getProducerCode } from './producers.js';
 import { ValidationError } from './validation-error.js';
 import { canSeeProducerCode } from './visibility.js';
 
-const realMigrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
-
 let db: PGlite;
 
-beforeEach(async () => {
-  db = await createDatabase();
-  await runMigrations(db, realMigrations);
+beforeAll(async () => {
+  db = await createTestDatabase();
 });
 
-afterEach(async () => {
+afterAll(async () => {
   await db.close();
+});
+
+beforeEach(async () => {
+  await resetDatabase(db);
 });
 
 const errorsOf = async (promise: Promise<unknown>): Promise<string[]> => {

@@ -85,5 +85,15 @@ A policy change job does **not** update the old policy period. It copies the lat
 - Opening an account saves the account and its named insured in **one transaction**.
 - `ValidationError` moved to Platform because a second module now needs it. A malformed id returns "not found" rather than a database error.
 
+## C3. Users, roles, permissions and the audit log (sections 13 and 5)
+- A **user** is a person or an AI **agent** with a username. Agents get their own login so their actions are audited like anyone's.
+- A **role** is a named bundle of **permissions**. The list of permissions is fixed in code; roles are data an administrator can change without a code release. A user holds every permission of every role they have. A deactivated user holds none.
+- `hasPermission` answers "may this user do this?" with one query. `requirePermission` throws a `PermissionError` and is meant for the API edge (step H1). Domain functions do not check permissions themselves.
+- **Producer code security is now driven by users:** `visibilityFor` gives head office `'all'`, an agent their own producer codes, and anyone without the right permission nothing. It plugs straight into C2's `listAccounts`.
+- The **audit log** records who (person or agent), what, which thing and when. It is **append-only**: database triggers refuse updates, deletes and truncates, so even our own code cannot rewrite history.
+- An audit entry is written **in the same transaction** as the change, so they are saved together or not at all. A refused change records nothing. Details hold small facts only, never Aadhaar or PAN.
+- Sign-in is not our job in this project: the document hands it to an identity provider (OpenID Connect with MFA). We model users and what they may do.
+- **Testing lesson:** starting a database takes about 3 seconds, and several test files start one at once. A fresh database per test made setup time out. The fix is one database per test file plus a fast reset between tests. The reset must skip the audit log's protection triggers, which is acceptable only in test support code.
+
 ## Self-check list (A3, no quiz this time)
 I can explain in my own words: policy period, job, branch, slice, out-of-sequence change.

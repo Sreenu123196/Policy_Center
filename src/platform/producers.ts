@@ -1,4 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
+import { recordAudit } from './audit.js';
 import { isUuid } from './ids.js';
 import { ValidationError } from './validation-error.js';
 
@@ -24,12 +25,17 @@ export async function createProducerOrganisation(db: PGlite, input: { name: stri
   const taken = await db.query('select 1 from platform.producer_organisation where lower(name) = lower($1)', [name]);
   if (taken.rows.length > 0) throw new ValidationError([`Organisation ${name} already exists`]);
 
-  const inserted = await db.query<{ id: string }>(
-    'insert into platform.producer_organisation (name, created_by) values ($1, $2) returning id',
-    [name, actor],
-  );
-  const id = inserted.rows[0]?.id;
-  if (id === undefined) throw new Error('The organisation was not saved');
+  // The change and its audit entry are saved together or not at all.
+  const id = await db.transaction(async (tx) => {
+    const inserted = await tx.query<{ id: string }>(
+      'insert into platform.producer_organisation (name, created_by) values ($1, $2) returning id',
+      [name, actor],
+    );
+    const newId = inserted.rows[0]?.id;
+    if (newId === undefined) throw new Error('The organisation was not saved');
+    await recordAudit(tx, { actor, action: 'producer_organisation.create', entityType: 'producer_organisation', entityId: newId, details: { name } });
+    return newId;
+  });
   return { id, name };
 }
 
@@ -43,7 +49,10 @@ export async function createProducerCode(db: PGlite, input: { code: string; orga
     : { rows: [] };
   if (organisation.rows.length === 0) throw new ValidationError(['The producer organisation does not exist']);
 
-  await db.query('insert into platform.producer_code (code, organisation_id, created_by) values ($1, $2, $3)', [code, organisationId, actor]);
+  await db.transaction(async (tx) => {
+    await tx.query('insert into platform.producer_code (code, organisation_id, created_by) values ($1, $2, $3)', [code, organisationId, actor]);
+    await recordAudit(tx, { actor, action: 'producer_code.create', entityType: 'producer_code', entityId: code, details: { organisationId } });
+  });
   const saved = await getProducerCode(db, code);
   if (saved === null) throw new Error('The producer code was saved but could not be read back');
   return saved;
@@ -64,9 +73,12 @@ export async function getProducerCode(db: PGlite, code: string): Promise<Produce
 
 // The record stays (old accounts still refer to it), but new accounts can no longer use the code.
 export async function deactivateProducerCode(db: PGlite, code: string, actor: string): Promise<ProducerCode> {
-  void actor; // the audit log (step C3) will record who deactivated the code
-  const updated = await db.query("update platform.producer_code set status = 'inactive' where code = $1 returning code", [code]);
-  if (updated.rows.length === 0) throw new ValidationError([`Producer code ${code} does not exist`]);
+  if ((await getProducerCode(db, code)) === null) throw new ValidationError([`Producer code ${code} does not exist`]);
+
+  await db.transaction(async (tx) => {
+    await tx.query("update platform.producer_code set status = 'inactive' where code = $1", [code]);
+    await recordAudit(tx, { actor, action: 'producer_code.deactivate', entityType: 'producer_code', entityId: code });
+  });
   const saved = await getProducerCode(db, code);
   if (saved === null) throw new Error('The producer code could not be read back');
   return saved;

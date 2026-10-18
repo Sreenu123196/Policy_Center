@@ -1,5 +1,5 @@
 import type { PGlite } from '@electric-sql/pglite';
-import { isUuid, ValidationError } from '../platform/index.js';
+import { isUuid, recordAudit, ValidationError } from '../platform/index.js';
 import { tidy, validateNewContact, type Contact, type ContactKind, type NewContact } from './contact.js';
 import { maskAadhaar, maskPan, normalisePhone } from './identifiers.js';
 
@@ -45,39 +45,45 @@ const toContact = (row: ContactRow): Contact => ({
 });
 
 // Saves a person or company. Throws ValidationError, listing every problem, if the input is not acceptable.
-// `actor` is the person or agent making the change; the audit log (step C3) will record it too.
+// `actor` is the person or agent making the change; it is recorded on the row and in the audit log.
 export async function createContact(db: PGlite, input: NewContact, actor: string): Promise<Contact> {
   const contact = tidy(input);
   const errors = validateNewContact(contact);
   if (errors.length > 0) throw new ValidationError(errors);
 
-  const inserted = await db.query<{ id: string }>(
-    `insert into contacts.contact
-       (kind, name, date_of_birth, phone, email, address_line1, address_line2, city, state, pin_code,
-        pan, gstin, aadhaar_masked, created_by)
-     values ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-     returning id`,
-    [
-      contact.kind,
-      contact.name,
-      contact.dateOfBirth ?? null,
-      contact.phone ? normalisePhone(contact.phone) : null,
-      contact.email ?? null,
-      contact.address.line1,
-      contact.address.line2 ?? null,
-      contact.address.city,
-      contact.address.state,
-      contact.address.pinCode,
-      contact.pan ?? null,
-      contact.gstin ?? null,
-      // The full Aadhaar number is masked here and goes no further.
-      contact.aadhaar ? maskAadhaar(contact.aadhaar) : null,
-      actor,
-    ],
-  );
+  // The contact and its audit entry are saved together or not at all.
+  const id = await db.transaction(async (tx) => {
+    const inserted = await tx.query<{ id: string }>(
+      `insert into contacts.contact
+         (kind, name, date_of_birth, phone, email, address_line1, address_line2, city, state, pin_code,
+          pan, gstin, aadhaar_masked, created_by)
+       values ($1, $2, $3::date, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       returning id`,
+      [
+        contact.kind,
+        contact.name,
+        contact.dateOfBirth ?? null,
+        contact.phone ? normalisePhone(contact.phone) : null,
+        contact.email ?? null,
+        contact.address.line1,
+        contact.address.line2 ?? null,
+        contact.address.city,
+        contact.address.state,
+        contact.address.pinCode,
+        contact.pan ?? null,
+        contact.gstin ?? null,
+        // The full Aadhaar number is masked here and goes no further.
+        contact.aadhaar ? maskAadhaar(contact.aadhaar) : null,
+        actor,
+      ],
+    );
+    const newId = inserted.rows[0]?.id;
+    if (newId === undefined) throw new Error('The contact was not saved');
+    // The audit entry names only the kind: personal numbers never go into the log.
+    await recordAudit(tx, { actor, action: 'contact.create', entityType: 'contact', entityId: newId, details: { kind: contact.kind } });
+    return newId;
+  });
 
-  const id = inserted.rows[0]?.id;
-  if (id === undefined) throw new Error('The contact was not saved');
   const saved = await getContact(db, id);
   if (saved === null) throw new Error('The contact was saved but could not be read back');
   return saved;

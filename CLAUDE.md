@@ -125,7 +125,13 @@ Data rules (from the document)
 - A bound policy version is never edited. A new job copies it into a branch.
 - Every change records who made it (person or agent), when, and through which job.
 
+Users, permissions and audit
+- Every function that creates or changes something takes an `actor` (the user name of a person or an AI agent). It writes an audit entry in the same transaction as the change, using `recordAudit`. A refused change records nothing. Audit details hold small facts only, never personal numbers such as Aadhaar or PAN.
+- The audit log is append-only; the database refuses updates, deletes and truncates. Never write code that tries to change it.
+- Permissions are a fixed list in code (`src/platform/permissions.ts`); roles are data. Permission checks (`requirePermission`) happen at the API edge, not inside domain functions. Account visibility comes from `visibilityFor(db, userId)`.
+
 Quality
 - Tests first. Rating uses golden tests. Every allowed and forbidden job state move is tested.
+- A test file starts ONE database with `createTestDatabase()` in `beforeAll` and calls `resetDatabase()` in `beforeEach` (`src/testing/database.ts`). Do not start a database per test.
 - Prefer simple, readable code. Add a short comment where an insurance concept appears.
 - Commit once per roadmap step, with a clear message. Commits stay local until the student asks for a remote.

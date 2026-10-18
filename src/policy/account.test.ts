@@ -1,18 +1,20 @@
-import { fileURLToPath } from 'node:url';
 import type { PGlite } from '@electric-sql/pglite';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { createContact, type Contact, type NewContact } from '../contacts/index.js';
 import {
-  createDatabase,
+  assignProducerCode,
+  assignRole,
   createProducerCode,
   createProducerOrganisation,
+  createRole,
+  createUser,
   deactivateProducerCode,
-  runMigrations,
+  listAuditEntries,
   ValidationError,
+  visibilityFor,
 } from '../platform/index.js';
+import { createTestDatabase, resetDatabase } from '../testing/database.js';
 import { addAccountContact, createAccount, getAccount, listAccounts } from './account-repository.js';
-
-const realMigrations = fileURLToPath(new URL('../../db/migrations/', import.meta.url));
 
 let db: PGlite;
 let asha: Contact;
@@ -23,9 +25,16 @@ let bank: Contact;
 const address = { line1: '12 Test Street', city: 'Hyderabad', state: 'Telangana', pinCode: '500081' };
 const person = (name: string): NewContact => ({ kind: 'person', name, address });
 
+beforeAll(async () => {
+  db = await createTestDatabase();
+});
+
+afterAll(async () => {
+  await db.close();
+});
+
 beforeEach(async () => {
-  db = await createDatabase();
-  await runMigrations(db, realMigrations);
+  await resetDatabase(db);
 
   // Two agencies, each with one producer code. All names are made up.
   const acme = await createProducerOrganisation(db, { name: 'Acme Insurance Agency' }, 'admin');
@@ -37,10 +46,6 @@ beforeEach(async () => {
   ravi = await createContact(db, person('Ravi Kumar'), 'admin');
   raoMotors = await createContact(db, { kind: 'company', name: 'Rao Motors Pvt Ltd', address }, 'admin');
   bank = await createContact(db, { kind: 'company', name: 'Sample Finance Ltd', address }, 'admin');
-});
-
-afterEach(async () => {
-  await db.close();
 });
 
 const errorsOf = async (promise: Promise<unknown>): Promise<string[]> => {
@@ -123,5 +128,35 @@ describe('producer code security on accounts (document section 13)', () => {
     expect((await listAccounts(db, { producerCodes: ['PC-100', 'PC-200'] })).map((x) => x.accountNumber)).toEqual([a.accountNumber, b.accountNumber, c.accountNumber]);
     expect((await listAccounts(db, 'all')).length).toBe(3);
     expect(await listAccounts(db, { producerCodes: [] })).toEqual([]);
+  });
+});
+
+describe('accounts with the audit log and real users (document sections 5 and 13)', () => {
+  it('record who opened an account and who added a contact to it', async () => {
+    const account = await createAccount(db, { namedInsuredContactId: asha.id, producerCode: 'PC-100' }, 'agent.one');
+    await addAccountContact(db, account.id, { contactId: ravi.id, role: 'driver' }, 'agent.two');
+
+    const entries = await listAuditEntries(db, { entityType: 'account', entityId: account.id });
+    expect(entries.map((e) => [e.actor, e.action])).toEqual([
+      ['agent.one', 'account.create'],
+      ['agent.two', 'account.add_contact'],
+    ]);
+    expect(entries[1]?.details).toEqual({ contactId: ravi.id, role: 'driver' });
+  });
+
+  it('show each signed-in user only the accounts their producer codes allow', async () => {
+    await createRole(db, { code: 'agent', name: 'Agent', permissions: ['account.view'] }, 'admin');
+    await createRole(db, { code: 'head_office', name: 'Head office', permissions: ['account.view_all'] }, 'admin');
+    const agent = await createUser(db, { username: 'asha.agent', displayName: 'Asha' }, 'admin');
+    await assignRole(db, agent.id, 'agent', 'admin');
+    await assignProducerCode(db, agent.id, 'PC-100', 'admin');
+    const boss = await createUser(db, { username: 'head.office', displayName: 'Head office' }, 'admin');
+    await assignRole(db, boss.id, 'head_office', 'admin');
+
+    const own = await createAccount(db, { namedInsuredContactId: asha.id, producerCode: 'PC-100' }, 'u');
+    await createAccount(db, { namedInsuredContactId: raoMotors.id, producerCode: 'PC-200' }, 'u');
+
+    expect((await listAccounts(db, await visibilityFor(db, agent.id))).map((a) => a.id)).toEqual([own.id]);
+    expect(await listAccounts(db, await visibilityFor(db, boss.id))).toHaveLength(2);
   });
 });
