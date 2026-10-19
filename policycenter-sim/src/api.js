@@ -2,6 +2,7 @@
 // REST API (the simulator's equivalent of PolicyCenter Cloud API). The caller is identified by
 // the X-User header; every mutating call runs as one unit of work against the store.
 
+const crypto = require('node:crypto');
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
@@ -9,6 +10,19 @@ const { Finance } = require('./finance');
 const { Insights } = require('./insights');
 const { Billing } = require('./billing');
 const { ClaimMoney, RESERVE_LIMITS, PAYMENT_LIMITS, COST_TYPES, CLAIMANT_KINDS } = require('./claimMoney');
+
+const hash = (v) => crypto.createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
+
+// Remembered answers to POSTs sent with an Idempotency-Key are kept this long.
+const IDEMPOTENCY_HOURS = 48;
+
+// The ETag of an account or a job: a hash of the record as it is now, so it changes whenever the record does.
+function etagFor(pc, sub) {
+  const m = /^\/(accounts|jobs)\/([^/]+)/.exec(sub);
+  if (!m) return null;
+  const record = (m[1] === 'accounts' ? pc.db.accounts : pc.db.jobs).find((x) => x.id === m[2] || x.accountNumber === m[2] || x.jobNumber === m[2]);
+  return record ? `"${hash(record).slice(0, 32)}"` : null;
+}
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } = {}) {
   const routes = [];
@@ -219,11 +233,46 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
       if (found.isPublic && !user && sub === '/auth/me') throw new AppError(401, 'Not signed in');
       const ctx = { user, token, params: match.groups || {}, query, body };
       if (found.stream) return await found.handler(ctx, res);
-      const result = found.readOnly ? await found.handler(ctx) : store.transaction(() => found.handler(ctx));
+
+      // If-Match: a change to an account or a job says which version it was based on. Refused if the record has changed since.
+      const ifMatch = req.headers['if-match'];
+      if (req.method === 'PUT' && ifMatch && ifMatch !== '*') {
+        const current = etagFor(pc, sub);
+        if (current && ifMatch.replace(/^W\//, '') !== current) throw new AppError(412, 'This record was changed by someone else since you opened it. Reload it and try again.');
+      }
+
+      // Idempotency-Key: the same key and the same request again gets the first answer back and does the work once.
+      const key = req.method === 'POST' && user && !found.readOnly && !found.raw ? String(req.headers['idempotency-key'] || '').trim() : '';
+      const keyId = key ? `${user.id}|${key}` : '';
+      const requestHash = key ? hash(`${sub}|${JSON.stringify(body)}`) : '';
+      if (key) {
+        const stored = store.data.idempotency[keyId];
+        if (stored) {
+          if (stored.requestHash !== requestHash) throw new AppError(422, 'This Idempotency-Key was already used for a different request');
+          res.setHeader('Idempotency-Replayed', 'true');
+          if (stored.etag) res.setHeader('ETag', stored.etag);
+          return send(stored.status, stored.response);
+        }
+      }
+      const statusFor = req.method === 'POST' && /\/(accounts|submission)$/.test(sub) ? 201 : 200;
+      const result = found.readOnly
+        ? await found.handler(ctx)
+        : store.transaction(() => {
+          const r = found.handler(ctx);
+          if (key) {
+            // Saved with the change, so a change and its remembered answer stand or fall together.
+            const cutoff = pc.nowMs() - IDEMPOTENCY_HOURS * 3600000;
+            for (const [k, v] of Object.entries(store.data.idempotency)) if (v.at < cutoff) delete store.data.idempotency[k];
+            store.data.idempotency[keyId] = { requestHash, status: statusFor, response: r, etag: etagFor(pc, sub), at: pc.nowMs() };
+          }
+          return r;
+        });
+      const etag = etagFor(pc, sub);
+      if (etag) res.setHeader('ETag', etag);
       // The consumers run after the change is saved, never inside it: a failing consumer cannot undo the change.
       if (bus && !found.readOnly && !sub.startsWith('/admin/events')) bus.run();
       if (ctx.setCookie) res.setHeader('Set-Cookie', ctx.setCookie);
-      send(req.method === 'POST' && /\/(accounts|submission)$/.test(sub) ? 201 : 200, result);
+      send(statusFor, result);
     } catch (err) {
       if (err instanceof AppError) return send(err.status, { error: err.message, details: err.details || null });
       console.error(err);

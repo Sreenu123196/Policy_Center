@@ -31,12 +31,40 @@ function setPath(obj, path, value) {
   o[keys[keys.length - 1]] = value;
 }
 
+// Retry and conflict protection (see src/api.js). A POST carries an Idempotency-Key. While a form is open its key stays the
+// same, so a retry after a failure or a double click cannot do the work twice; when the form closes the next action gets a new
+// one. Accounts and jobs are read with an ETag, and a change (PUT) sends the last one seen as If-Match, so an edit based on an
+// old copy is refused instead of overwriting someone else's work.
+let formKey = null;
+const etags = {};
+const etagKey = (path) => { const m = /^\/(accounts|jobs)\/([^/?]+)/.exec(path); return m ? `/${m[1]}/${m[2]}` : null; };
+
+const saving = {}; // the last change in flight for each account or job: changes to one record are sent one after the other
+
 async function api(method, path, body) {
+  const tagKey0 = etagKey(path);
+  if (method === 'PUT' && tagKey0) {
+    // Two quick edits must not both be based on the same copy, or the second would be refused as a conflict.
+    const previous = saving[tagKey0] || Promise.resolve();
+    const mine = previous.catch(() => {}).then(() => request(method, path, body));
+    saving[tagKey0] = mine;
+    return mine;
+  }
+  return request(method, path, body);
+}
+
+async function request(method, path, body) {
+  const headers = { 'Content-Type': 'application/json' };
+  if (method === 'POST') headers['Idempotency-Key'] = `${formKey || crypto.randomUUID()}:${path}`;
+  const tagKey = etagKey(path);
+  if (method === 'PUT' && tagKey && etags[tagKey]) headers['If-Match'] = etags[tagKey];
   const res = await fetch('/api' + path, {
     method,
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
+  const tag = res.headers.get('ETag');
+  if (tag && tagKey) etags[tagKey] = tag;
   const data = await res.json().catch(() => ({}));
   if (res.status === 401 && !String(path).startsWith('/auth/')) signInScreen('Your session has ended. Sign in again.');
   if (!res.ok) {
@@ -69,6 +97,7 @@ const view = (html) => { document.getElementById('app').innerHTML = html; };
 const field = (label, control, cls = '') => `<label class="field ${cls}"><span>${esc(label)}</span>${control}</label>`;
 
 function openModal(html, wide = false) {
+  formKey = crypto.randomUUID();
   const m = document.getElementById('modal');
   m.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true">${html}</div>`;
   m.hidden = false;
@@ -76,6 +105,7 @@ function openModal(html, wide = false) {
   if (first) first.focus();
 }
 function closeModal() {
+  formKey = null;
   const m = document.getElementById('modal');
   m.hidden = true;
   m.innerHTML = '';
