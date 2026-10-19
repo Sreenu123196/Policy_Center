@@ -27,6 +27,13 @@ nothing to install, and `npm run migrate-to-pg` copies an existing JSON file int
 
 Use the user picker in the top bar to switch between users and roles.
 
+## Deploy
+
+The UI is static and the API is a long-running Node process, so they go in different places: **Netlify** serves `public/`
+and proxies `/api/*` to a **Node host** (Render is configured here) with **PostgreSQL**. `netlify.toml`, `render.yaml` and
+`scripts/netlify-build.js` are ready; `docs/DEPLOY.md` walks through it, including the one environment variable each side
+needs (`API_ORIGIN` on Netlify, `ALLOWED_ORIGINS` on the API).
+
 ## Checks
 
 `npm run check` lints (`npm run lint`) and runs the suite; CI runs both on every push and pull request

@@ -57,11 +57,21 @@ function applySecurityHeaders(req, res, { page = false } = {}) {
 }
 
 // A request that writes must come from this site. Browsers send Origin on such requests; a different host is refused.
-function sameOrigin(req) {
+// Behind a proxy that serves the site under another name (Netlify forwarding /api to the service), that site is named in
+// ALLOWED_ORIGINS and let in; everything else stays refused.
+function sameOrigin(req, allowedOrigins = []) {
   const origin = req.headers.origin;
   if (!origin) return true;
   try {
-    return new URL(origin).host === req.headers.host;
+    const from = new URL(origin).origin;
+    if (from === `http://${req.headers.host}` || from === `https://${req.headers.host}`) return true;
+    return allowedOrigins.some((allowed) => {
+      try {
+        return new URL(allowed).origin === from;
+      } catch {
+        return false;
+      }
+    });
   } catch {
     return false;
   }

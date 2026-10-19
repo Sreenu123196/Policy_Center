@@ -19,7 +19,10 @@ chat.config.json
 .env
 .env.*
 
-# Editor and OS files
+# Netlify writes this at build time from API_ORIGIN (scripts/netlify-build.js)
+public/_redirects
+
+# Editorial and OS files
 *.tmp
 *.log
 *.wal

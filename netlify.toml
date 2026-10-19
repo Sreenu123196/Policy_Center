@@ -1,0 +1,22 @@
+# Netlify serves the browser UI and proxies /api to the service that runs server.js (docs/DEPLOY.md).
+# There is no Node process on Netlify itself: the app keeps sessions and background work in memory, so the API runs on a
+# container/Node host (render.yaml in this repository) with PostgreSQL.
+
+[build]
+  command = "node scripts/netlify-build.js"
+  publish = "public"
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# The same headers src/security.js sets, for the pages Netlify serves itself.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "no-referrer"
+    Permissions-Policy = "camera=(), geolocation=(), payment=(), usb=(), microphone=(self)"
+    Content-Security-Policy = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; media-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+    # The files have no content hash, so a browser must ask again instead of showing last week's app.
+    Cache-Control = "public, max-age=0, must-revalidate"

@@ -36,8 +36,9 @@ node scripts/load-test.js --check
 | `src/speech.js`, `scripts/whisper_server.py` | Voice input engines: `browser` (current), `whisper`, `google` |
 | `src/chatbot.js` | The assistant (Claude when `ANTHROPIC_API_KEY` is set, otherwise offline mode) |
 | `public/app.js`, `index.html`, `i18n.js`, `styles.css` | The browser UI (no build step) |
+| `netlify.toml`, `scripts/netlify-build.js`, `render.yaml` | The deployment: Netlify serves `public/` and proxies `/api/*` to a Node host (Render) with PostgreSQL. `docs/DEPLOY.md` |
 | `test/` | One file per area; `permissions-matrix.test.js` lists every route against every role |
-| `docs/` | PERFORMANCE, ACCESSIBILITY, DATA-PROTECTION, GO-LIVE, AGENTS, INSURANCE-SUITE-PORT |
+| `docs/` | PERFORMANCE, ACCESSIBILITY, DATA-PROTECTION, GO-LIVE, AGENTS, DEPLOY, INSURANCE-SUITE-PORT |
 
 ## What is done
 

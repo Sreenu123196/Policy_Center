@@ -17,7 +17,7 @@ function json(res, status, payload, headers = {}) {
   res.end(JSON.stringify(payload));
 }
 
-function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 60 }, trustProxy = false }) {
+function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 60 }, trustProxy = false, allowedOrigins = [] }) {
   const root = path.resolve(publicDir);
   const limiter = new RateLimiter({ max: loginLimit.max, windowMs: loginLimit.windowSeconds * 1000 });
 
@@ -50,7 +50,7 @@ function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 
 
     if (isApi) {
       if (req.method !== 'GET' && req.method !== 'HEAD' && req.method !== 'OPTIONS') {
-        if (!sameOrigin(req)) return json(res, 403, { error: 'This request did not come from this site' });
+        if (!sameOrigin(req, allowedOrigins)) return json(res, 403, { error: 'This request did not come from this site' });
         const hasBody = Number(req.headers['content-length'] || 0) > 0 || Boolean(req.headers['transfer-encoding']);
         if (hasBody && !RAW_ROUTES.has(url.pathname) && !isJsonType(req)) return json(res, 415, { error: 'Send the request as application/json' });
       }

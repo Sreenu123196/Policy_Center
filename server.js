@@ -68,7 +68,10 @@ async function main() {
   const voice = speech.status();
   console.log(`Voice input: ${voice.enabled ? voice.provider : `browser speech recognition (${voice.reason})`}`);
 
-  const server = http.createServer(createHandler({ api, publicDir: PUBLIC, trustProxy: process.env.TRUST_PROXY === '1' }));
+  // Sites allowed to call the API when a proxy serves the pages under another name (Netlify forwarding /api here):
+  // ALLOWED_ORIGINS=https://policycenter.netlify.app,https://staging.example.com
+  const allowedOrigins = String(process.env.ALLOWED_ORIGINS || '').split(',').map((value) => value.trim()).filter(Boolean);
+  const server = http.createServer(createHandler({ api, publicDir: PUBLIC, trustProxy: process.env.TRUST_PROXY === '1', allowedOrigins }));
 
   // A backup every BACKUP_HOURS (default 24; 0 turns it off), the newest BACKUP_KEEP (default 14) kept.
   const BACKUP_HOURS = process.env.BACKUP_HOURS === undefined ? 24 : Number(process.env.BACKUP_HOURS);

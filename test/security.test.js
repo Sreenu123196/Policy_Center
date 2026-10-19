@@ -8,7 +8,7 @@ const { createApi } = require('../src/api');
 const { Auth } = require('../src/auth');
 const { hashPassword } = require('../src/passwords');
 const { createHandler } = require('../src/webServer');
-const { RateLimiter } = require('../src/security');
+const { RateLimiter, sameOrigin } = require('../src/security');
 const { TEST_PASSWORD } = require('./signin');
 
 // Security of the web edge (Tier 4): what every response carries, what a request must look like, and what is refused. The rest
@@ -103,6 +103,18 @@ test('a request that writes must be JSON, from this site, of a sensible size and
   } finally {
     s.server.close();
   }
+});
+
+test('a proxy that rewrites Host is let in only when its site is named', () => {
+  const req = (headers) => ({ headers });
+  // The deployment this project uses: the browser talks to the Netlify site, Netlify forwards /api to the service.
+  const proxied = { origin: 'https://policycenter.netlify.app', host: 'policycenter-api.onrender.com' };
+  assert.equal(sameOrigin(req(proxied)), false, 'a different host is refused by default');
+  assert.equal(sameOrigin(req(proxied), ['https://policycenter.netlify.app']), true, 'named, it is let in');
+  assert.equal(sameOrigin(req({ origin: 'https://evil.example', host: 'policycenter-api.onrender.com' }), ['https://policycenter.netlify.app']), false);
+  assert.equal(sameOrigin(req({ origin: 'http://policycenter.netlify.app', host: 'x' }), ['https://policycenter.netlify.app']), false, 'the scheme is part of the origin');
+  assert.equal(sameOrigin(req({ host: 'policycenter-api.onrender.com' })), true, 'no Origin header: a client, not a browser page');
+  assert.equal(sameOrigin(req({ origin: 'not a url', host: 'x' })), false);
 });
 
 test('a body cannot change what every object in the server inherits (prototype pollution)', async () => {

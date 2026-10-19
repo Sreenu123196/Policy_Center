@@ -1,0 +1,29 @@
+# The API half of the deployment in docs/DEPLOY.md: the same server.js, with the data in PostgreSQL.
+# Netlify serves the pages and proxies /api here, so the browser sees one site and the session cookie stays same-site.
+#
+# Render: New -> Blueprint -> pick this repository. It asks for DATABASE_URL and ALLOWED_ORIGINS.
+services:
+  - type: web
+    name: policycenter-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # The data. PostgreSQL, not the JSON file: a host's disk does not survive a deploy.
+      - key: DATABASE_URL
+        sync: false
+      # The Netlify site, so a write forwarded by the proxy is accepted (src/security.js). Set after the site exists.
+      - key: ALLOWED_ORIGINS
+        sync: false
+      # Render terminates https in front of the service.
+      - key: TRUST_PROXY
+        value: "1"
+      # A daily backup is written to the ephemeral disk here; on a managed database use pg_dump instead.
+      - key: BACKUP_HOURS
+        value: "0"
+      - key: AGENT_SWEEP_HOURS
+        value: "24"
