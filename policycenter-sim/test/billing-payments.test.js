@@ -131,3 +131,59 @@ test('only a UW manager runs the missed-payment check', () => {
   const { billing, users, run } = monthlyPolicy();
   assert.throws(() => run(() => billing.runDelinquency(users.uw, { asOf: '2026-03-17' })), (e) => e.status === 403);
 });
+
+// ---- a late payment after a cancellation for non-payment
+
+// The first invoice (due 2026-03-01) is not paid; a cancellation for non-payment is started on 2026-03-17 (effective
+// 2026-03-27) and bound by the manager.
+function cancelledForNonPayment() {
+  const env = monthlyPolicy();
+  const { billing, users, run, pc, setToday } = env;
+  setToday('2026-03-17');
+  run(() => billing.runDelinquency(users.uwm, { asOf: '2026-03-17' }));
+  const job = pc.db.jobs.find((j) => j.type === 'Cancellation');
+  run(() => pc.bind(job.id, users.uwm));
+  assert.equal(pc.policy(env.policy.id).cancellation.reason, 'NonPayment');
+  return env;
+}
+
+test('a late payment that clears what was owed starts a reinstatement, which a person still binds', () => {
+  const { setToday, invoices, pay, pc, policy } = cancelledForNonPayment();
+  setToday('2026-04-05');
+  const result = pay(total(invoices()[0]));
+  assert.equal(result.reinstatement.outcome, 'reinstatement_started');
+  const job = pc.db.jobs.find((j) => j.type === 'Reinstatement');
+  assert.equal(job.status, 'Quoted');
+  assert.equal(job.policyId, policy.id);
+  assert.ok(pc.db.events.some((e) => e.type === 'ReinstatementRequested' && e.payload.policyNumber === pc.policy(policy.id).policyNumber));
+});
+
+test('no reinstatement for a part payment, a payment after the time limit, a policy cancelled for another reason, or when a job is open', () => {
+  // A part payment: what was owed is not cleared.
+  let env = cancelledForNonPayment();
+  env.setToday('2026-04-05');
+  assert.equal(env.pay(10).reinstatement.outcome, 'not_cleared');
+
+  // After the 30 days from the cancellation date (2026-03-27): 2026-04-26 is the last day.
+  env = cancelledForNonPayment();
+  env.setToday('2026-04-27');
+  assert.equal(env.pay(total(env.invoices()[0])).reinstatement.outcome, 'too_late');
+
+  // A cancellation at the insured's request is not undone by a payment.
+  env = monthlyPolicy();
+  env.run(() => env.pc.startCancellation(env.policy.id, { effectiveDate: '2026-03-20', reason: 'InsuredRequest' }, env.users.uwm));
+  env.run(() => env.pc.bind(env.pc.db.jobs.find((j) => j.type === 'Cancellation').id, env.users.uwm));
+  assert.equal(env.pay(total(env.invoices()[0])).reinstatement, null);
+
+  // A policy that is in force has nothing to reinstate.
+  env = monthlyPolicy();
+  assert.equal(env.pay(50).reinstatement, null);
+
+  // A reinstatement job already open: skipped with the reason.
+  env = cancelledForNonPayment();
+  env.setToday('2026-04-05');
+  env.run(() => env.pc.startReinstatement(env.policy.id, env.users.uwm));
+  const result = env.pay(total(env.invoices()[0]));
+  assert.equal(result.reinstatement.outcome, 'skipped');
+  assert.match(result.reinstatement.reason, /open/i);
+});

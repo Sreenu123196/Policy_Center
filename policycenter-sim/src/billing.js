@@ -15,6 +15,10 @@ const { canSeeBilling } = require('./permissions');
 const { round2 } = require('./rating');
 const { balanceOf, paidOn, invoiceView, paymentStatus } = require('./invoiceView');
 
+// A policy cancelled for non-payment can be reinstated by a payment that clears what was owed, within this many days
+// of the cancellation date.
+const REINSTATEMENT_WINDOW_DAYS = 30;
+
 const PAYMENT_METHODS = ['Cheque', 'Card', 'Bank transfer', 'Cash'];
 
 // Days after the due date. Change the steps here, not in the code that runs them.
@@ -97,7 +101,29 @@ class Billing {
     };
     this.pc.db.payments.push(payment);
     this.pc.publish('PaymentReceived', { policyNumber: policy.policyNumber, paymentNumber: payment.paymentNumber, amount });
-    return payment;
+    return { ...payment, reinstatement: this.reinstateIfCleared(policy, payment, user) };
+  }
+
+  // After a payment on a policy cancelled for non-payment: if everything that fell due up to the cancellation date is
+  // now paid, and the time limit has not passed, a reinstatement is started. A person still quotes and binds it.
+  // Returns null when the policy is not in that situation at all.
+  reinstateIfCleared(policy, payment, user) {
+    const cancellation = policy.cancellation;
+    if (!cancellation || cancellation.reason !== 'NonPayment') return null;
+    const base = { policyNumber: policy.policyNumber };
+    const stillOwed = this.pc.db.invoices.some((i) => i.policyId === policy.id && i.amount >= 0 && i.dueDate <= cancellation.effectiveDate && balanceOf(i) > 0);
+    if (stillOwed) return { ...base, outcome: 'not_cleared' };
+    if (payment.receivedOn > D.addDays(cancellation.effectiveDate, REINSTATEMENT_WINDOW_DAYS)) return { ...base, outcome: 'too_late' };
+    const open = this.pc.db.jobs.find((j) => j.policyId === policy.id && ['Draft', 'Quoted'].includes(j.status));
+    if (open) return { ...base, outcome: 'skipped', reason: `The policy has an open ${open.type} (${open.jobNumber})` };
+    this.pc.publish('ReinstatementRequested', { policyNumber: policy.policyNumber, paymentNumber: payment.paymentNumber });
+    try {
+      const job = this.pc.startReinstatement(policy.id, user);
+      return { ...base, outcome: 'reinstatement_started', jobNumber: job.jobNumber };
+    } catch (error) {
+      if (error instanceof AppError && error.status >= 400 && error.status < 500) return { ...base, outcome: 'skipped', reason: error.message };
+      throw error;
+    }
   }
 
   // The missed-payment check for a date. For each policy in force it looks at its oldest overdue invoice and takes the
@@ -145,4 +171,4 @@ class Billing {
   }
 }
 
-module.exports = { Billing, PAYMENT_METHODS, DELINQUENCY_STEPS, invoiceView, paymentStatus };
+module.exports = { Billing, PAYMENT_METHODS, DELINQUENCY_STEPS, REINSTATEMENT_WINDOW_DAYS, invoiceView, paymentStatus };
