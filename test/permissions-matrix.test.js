@@ -80,6 +80,7 @@ const MATRIX = {
   'GET /producers/:code/statement.pdf': ['uw', 'exec'],
   'POST /policies/:id/audit': ['agent'],
   'POST /jobs/:id/audit-actuals': ['agent'],
+  'POST /policies/:id/rewrite': ['agent'],
   'GET /queues': [],
   'GET /documents/:id/render': [],
   'GET /documents/:id/view': [],

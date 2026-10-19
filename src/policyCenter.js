@@ -8,7 +8,7 @@ const { rate, replacementCostEstimate, round2 } = require('./rating');
 const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
-const { invoiceView } = require('./invoiceView');
+const { invoiceView, balanceOf } = require('./invoiceView');
 const { settleCancellation } = require('./ledger');
 const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
@@ -58,6 +58,8 @@ class AppError extends Error {
 
 const OPEN = ['Draft', 'Quoted'];
 const EDITABLE_TYPES = ['Submission', 'PolicyChange', 'Renewal'];
+const REWRITE_MAX_DAYS_AHEAD = 30; // a rewrite starts at most this many days from today
+const REWRITE_GAP_DAYS = 30; // a longer gap in cover counts as a lapse
 // Products priced on an estimate that is audited after the term: which rows hold it and which figures are audited.
 const AUDITABLE = {
   WorkersComp: { key: 'classes', fields: ['payroll', 'employees'], label: 'payroll' },
@@ -710,6 +712,7 @@ class PolicyCenter {
     if (patch.effectiveDate !== undefined && patch.effectiveDate !== p.effectiveDate) {
       if (job.type !== 'Submission') throw new AppError(409, `The effective date of a ${job.type} cannot change`);
       if (!D.isDate(patch.effectiveDate)) throw new AppError(422, 'Effective date must be yyyy-mm-dd');
+      if (job.rewrite && patch.effectiveDate < job.rewrite.cancelledOn) throw new AppError(422, `A rewrite cannot start before the policy was cancelled (${job.rewrite.cancelledOn})`);
       p.effectiveDate = p.editEffectiveDate = patch.effectiveDate;
       p.expirationDate = D.addMonths(patch.effectiveDate, p.termMonths || PRODUCTS[job.product].termMonths);
     }
@@ -754,7 +757,7 @@ class PolicyCenter {
     if (errors.length) throw new AppError(422, `Cannot quote: ${errors.length} validation error(s)`, { errors });
 
     // An audit records what happened; underwriting rules about the risk do not apply to it.
-    job.uwIssues = job.type === 'PremiumAudit' ? [] : applyApprovals(evaluateUW(job.product, job.period, { jobType: job.type, today }), job.uwApprovals);
+    job.uwIssues = job.type === 'PremiumAudit' ? [] : applyApprovals(evaluateUW(job.product, job.period, { jobType: job.rewrite ? 'Rewrite' : job.type, today }), job.uwApprovals);
     const blocksQuote = job.uwIssues.filter((i) => i.blockingPoint === 'BlocksQuote' && !i.approved);
     if (blocksQuote.length) {
       job.status = 'Draft';
@@ -1027,7 +1030,12 @@ class PolicyCenter {
     const installmentFees = this.scheduleInstallments(policy, job, job.quote.total, job.period.effectiveDate);
     this.addDocument(policy, job, 'Declarations Page', v.versionId);
     this.addDocument(policy, job, job.product === 'PersonalAuto' ? 'Auto ID Cards' : 'Evidence of Insurance', v.versionId);
-    this.publish('PolicyIssued', this.eventPayload(policy, job, { accountNumber: account.accountNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total, installmentFees }));
+    if (job.rewrite) {
+      policy.rewrittenFrom = job.rewrite.fromPolicyNumber;
+      const old = this.db.policies.find((p) => p.policyNumber === job.rewrite.fromPolicyNumber);
+      if (old) old.rewrittenTo = policy.policyNumber;
+    }
+    this.publish('PolicyIssued', this.eventPayload(policy, job, { accountNumber: account.accountNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total, installmentFees, ...(job.rewrite ? { rewrittenFrom: job.rewrite.fromPolicyNumber } : {}) }));
     return policy;
   }
 
@@ -1198,6 +1206,7 @@ class PolicyCenter {
   startReinstatement(policyId, user) {
     const policy = this.policy(policyId, user);
     if (!policy.cancellation) throw new AppError(409, 'Only cancelled policies can be reinstated');
+    if (policy.rewrittenTo) throw new AppError(409, `Policy ${policy.policyNumber} was rewritten as ${policy.rewrittenTo}; it cannot be reinstated`);
     this.requireAuthority(user, CANCEL_REASONS[policy.cancellation.reason].authority, 'reinstate this policy');
     this.assertNoOpenJob(policy);
     const terms = this.terms(policy);
@@ -1262,6 +1271,8 @@ class PolicyCenter {
       cancellation: policy.cancellation,
       reinstatements: policy.reinstatements || [],
       audits: policy.audits || [],
+      rewrittenFrom: policy.rewrittenFrom || null,
+      rewrittenTo: policy.rewrittenTo || null,
       auditable: Boolean(AUDITABLE[policy.product]),
       current: this.currentVersion(policy),
       versions: policy.versions,
@@ -1541,6 +1552,48 @@ class PolicyCenter {
     claim.payments.push({ date: this.today(), amount: round2(value), note: str(note), by: user.id });
     this.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: round2(value) });
     return this.claimView(claim, user);
+  }
+
+  // ------------------------------------------------------------------ rewrite
+  // A cancelled policy is replaced by a NEW policy (a new number) for the same customer and risk, linked to the old one. It is
+  // new business: priced and underwritten on the day it starts. It cannot start before the old policy was cancelled or more
+  // than 30 days from today. A gap of more than 30 days in cover ends the claim-free discount and, for a two-wheeler, answers the
+  // prior-lapse question. If the old policy was cancelled for non-payment, the unpaid premium has to be paid first.
+
+  startRewrite(policyId, { effectiveDate } = {}, user) {
+    this.requireAuthority(user, 1, 'rewrite a policy');
+    const policy = this.policy(policyId, user);
+    if (!policy.cancellation) throw new AppError(409, 'Only a cancelled policy can be rewritten');
+    if (policy.rewrittenTo) throw new AppError(409, `Policy ${policy.policyNumber} was already rewritten as ${policy.rewrittenTo}`);
+    this.assertNoOpenJob(policy);
+    const inProgress = this.db.jobs.find((j) => j.rewrite && j.rewrite.fromPolicyNumber === policy.policyNumber && OPEN.includes(j.status));
+    if (inProgress) throw new AppError(409, `A rewrite of ${policy.policyNumber} is already in progress (${inProgress.jobNumber})`);
+    const cancelledOn = policy.cancellation.effectiveDate;
+    const today = this.today();
+    const eff = effectiveDate === undefined ? (cancelledOn > today ? cancelledOn : today) : effectiveDate;
+    if (!D.isDate(eff)) throw new AppError(422, 'The start date must be yyyy-mm-dd');
+    if (eff < cancelledOn) throw new AppError(422, `A rewrite cannot start before the policy was cancelled (${cancelledOn})`);
+    if (eff > D.addDays(today, REWRITE_MAX_DAYS_AHEAD)) throw new AppError(422, `A rewrite can start at most ${REWRITE_MAX_DAYS_AHEAD} days from today`);
+    if (policy.cancellation.reason === 'NonPayment') {
+      const unpaid = round2(this.db.invoices.filter((i) => i.policyId === policy.id && i.amount > 0 && i.dueDate <= cancelledOn).reduce((sum, i) => sum + balanceOf(i), 0));
+      if (unpaid > 0) throw new AppError(422, `Pay the overdue premium of $${unpaid.toFixed(2)} on ${policy.policyNumber} before it is rewritten`);
+    }
+    const last = this.lastTerm(policy).latest;
+    const account = this.account(policy.accountId);
+    const pm = PRODUCTS[policy.product];
+    const period = clone(last.period);
+    const gapDays = D.daysBetween(cancelledOn, eff);
+    if (gapDays > REWRITE_GAP_DAYS) {
+      if ('claimFreeRenewals' in period.line) period.line.claimFreeRenewals = 0;
+      if (period.line.answers && 'priorLapse' in period.line.answers) period.line.answers.priorLapse = 'yes';
+    }
+    Object.assign(period, {
+      termNumber: 1, effectiveDate: eff, editEffectiveDate: eff, expirationDate: D.addMonths(eff, period.termMonths || pm.termMonths),
+      producerCode: account.producerCode, insured: { name: this.accountName(account), address: clone(account.address) },
+    });
+    const job = this.newJob('Submission', { accountId: policy.accountId, product: policy.product, period, policyId: null }, user);
+    job.rewrite = { fromPolicyNumber: policy.policyNumber, cancelledOn, gapDays };
+    return job;
   }
 
   // ------------------------------------------------------------------ premium audit

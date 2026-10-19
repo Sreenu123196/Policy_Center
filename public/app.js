@@ -403,13 +403,16 @@ function renderPolicy() {
   if (!cancelled) actions.push(`<button class="btn" data-action="report-claim">Report claim</button>`);
   const lastTerm = p.terms[p.terms.length - 1];
   if (p.auditable && !cancelled && !p.openJob && lastTerm && S.meta.today >= lastTerm.expirationDate && !p.audits.some((a) => a.termNumber === lastTerm.termNumber) && me().authority >= 1) actions.push('<button class="btn" data-action="policy-audit">Premium audit</button>');
-  if (cancelled && !p.openJob) actions.push(`<button class="btn primary" data-action="policy-reinstate">Reinstate</button>`);
+  if (cancelled && !p.openJob && !p.rewrittenTo) actions.push(`<button class="btn primary" data-action="policy-reinstate">Reinstate</button>`);
+  if (cancelled && !p.openJob && !p.rewrittenTo && me().authority >= 1) actions.push(`<button class="btn" data-action="policy-rewrite">Rewrite policy</button>`);
 
   view(`
     <div class="spread"><div><div class="eyebrow">${productLabel(p.product, p.form)} · Term ${p.termNumber}</div>
       <h1>${esc(p.policyNumber)} ${badge(p.status)}</h1>
       <div class="meta-row">Insured ${accountLink(p.account.id, p.account.name)} (${esc(p.account.accountNumber)}) · ${esc(p.effectiveDate)} → ${esc(p.expirationDate)} · Producer ${esc(p.account.producerCode)}</div></div>
       <div class="toolbar">${actions.join('')}</div></div>
+    ${p.rewrittenTo ? `<div class="banner success">This policy was rewritten as <a href="#/search/${esc(p.rewrittenTo)}">${esc(p.rewrittenTo)}</a>.</div>` : ''}
+    ${p.rewrittenFrom ? `<div class="banner success">A rewrite of <a href="#/search/${esc(p.rewrittenFrom)}">${esc(p.rewrittenFrom)}</a>.</div>` : ''}
     ${cancelled ? `<div class="banner error">Cancelled effective ${esc(p.cancellation.effectiveDate)}: ${esc(p.cancellation.reasonName)} (${esc(p.cancellation.method)}), return premium ${money(-p.cancellation.refund)}.</div>` : ''}
     <div class="tiles">
       <div class="tile accent"><div class="label">Term premium (incl. tax)</div><div class="value">${money(p.termPremium)}</div></div>
@@ -677,6 +680,7 @@ function renderJob() {
       <div class="header-total"><div class="eyebrow">${amountLabel}</div><div class="value">${q ? money(q.changeAmount) : '—'}</div>${q && q.rateBook ? `<div class="muted">Rate book ${esc(q.rateBook.version)}</div>` : ''}</div>
     </div>
     ${notice(job.notice)}
+    ${job.rewrite ? `<div class="banner ${job.rewrite.gapDays > 30 ? 'warning' : 'success'}">Rewrite of ${esc(job.rewrite.fromPolicyNumber)}, cancelled ${esc(job.rewrite.cancelledOn)}. ${job.rewrite.gapDays === 0 ? 'No gap in cover.' : `Gap in cover: ${job.rewrite.gapDays} days.${job.rewrite.gapDays > 30 ? ' This counts as a lapse: the claim-free discount does not carry over.' : ''}`}</div>` : ''}
     ${job.claimExperience ? `<div class="banner ${job.claimExperience.claims ? 'warning' : 'success'}">Claims record of term ${job.claimExperience.termNumber}: ${job.claimExperience.claims === 0 ? 'no claims, so this renewal earns or keeps the claim-free renewal discount.' : `${job.claimExperience.claims} claim${job.claimExperience.claims > 1 ? 's' : ''} (${job.claimExperience.claimNumbers.map((n) => esc(n)).join(', ')}) were added to the loss history; the claim-free discount does not apply.`}</div>` : ''}
     ${S.jv.errors ? errorList(S.jv.errors, 'Fix these before quoting') : ''}
     <div class="wizard">
@@ -1767,6 +1771,14 @@ const ACTIONS = {
     renderJob();
   },
   'policy-audit': async () => { const job = await api('POST', `/policies/${S.policy.id}/audit`, {}); toast('Premium audit started', 'success'); location.hash = `#/job/${job.id}`; },
+  'policy-rewrite': () => {
+    const cancelledOn = S.policy.cancellation.effectiveDate;
+    openModal(`<h2>Rewrite policy ${esc(S.policy.policyNumber)}</h2>
+      <form data-form="policy-rewrite"><div class="form-errors" role="alert"></div>
+        ${field('The new policy starts on', `<input type="date" name="effectiveDate" min="${esc(cancelledOn)}" value="${esc(cancelledOn > S.meta.today ? cancelledOn : S.meta.today)}" required>`)}
+        <p class="muted">A rewrite is a new policy for the same customer and risk, priced and underwritten as new business on the day it starts. It cannot start before the old policy was cancelled (${esc(cancelledOn)}) or more than 30 days from today. A gap of more than 30 days counts as a lapse.</p>
+        <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Start rewrite</button></div></form>`);
+  },
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1949,6 +1961,12 @@ const FORMS = {
     pageAccounting();
   },
   'comm-range': (fd, form) => { S.commRange = { from: String(fd.get('from') || ''), to: String(fd.get('to') || '') }; pageCommission(form.dataset.code); },
+  'policy-rewrite': async (fd) => {
+    const job = await api('POST', `/policies/${S.policy.id}/rewrite`, { effectiveDate: fd.get('effectiveDate') });
+    closeModal();
+    toast('Rewrite started: check the risk, then quote and bind', 'success');
+    location.hash = `#/job/${job.id}`;
+  },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
     closeModal();

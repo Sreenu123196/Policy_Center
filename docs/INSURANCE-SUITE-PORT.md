@@ -88,3 +88,16 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 - An audit changes only the audited figures, never the rest of the policy, and underwriting rules about the risk do not hold it up. No new policy version is added (an audit is an adjustment to the term, not a change of cover), so the policy as of a loss date is unaffected.
 - It posts to the books through the event `PremiumAuditCompleted`; a statement document (`Premium Audit Statement`, in English, Hindi and Telugu) is produced. Screens: a Premium audit button on a policy whose term has ended, an Audit figures step, and a Premium audits table in the policy history.
 - Not done: audits for Businessowners, adding a class that the business turned out to have, audit reminders and non-compliance charges.
+
+## Tier 3, item 10 (d): rewrite
+
+`startRewrite` in `src/policyCenter.js`; `test/rewrite.test.js`; a Rewrite policy button on a cancelled policy.
+
+- A cancelled policy is replaced by a **new policy** (a new number) for the same customer and risk, linked both ways (`rewrittenFrom` / `rewrittenTo`). It is a new-business job copied from the last version of the old policy, priced and underwritten on the day it starts (a person still checks the risk, quotes and binds).
+- Rules: an underwriter starts it; the old policy must be cancelled and not already rewritten; the start date cannot be before the old policy was cancelled or more than 30 days from today; one rewrite at a time. If the old policy was cancelled for non-payment, the unpaid premium must be paid first (paying it also offers a reinstatement; a person chooses one or the other, and a rewritten policy can no longer be reinstated).
+- A gap of more than 30 days is a lapse: the claim-free renewal discount is lost, and for a two-wheeler the prior-lapse question is answered yes, which needs an underwriter. Claims stay with the policy they were made on.
+- Not done: "rewrite full term" on the same policy number, rewriting an expired (not cancelled) policy, and carrying a credit from the old policy to the new one.
+
+## Tier 3 is finished
+
+Items 8 (documents), 9 (accounting) and 10 (two-wheeler and question sets, multi-year terms, premium audit, rewrite) are done. Tier 4 (go-live readiness: scale tests, a security scan, backup and restore, data protection review, hosting) is the next stage in REVIEW.md of the old Insurance Suite (tag `insurance-suite-final`).

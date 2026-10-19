@@ -114,6 +114,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   // Premium audit: start the audit of a term that has ended, record the actual figures, then quote and bind the job as usual.
   route('POST', '/policies/:id/audit', ({ user, params, body }) => pc.jobDetail(pc.startPremiumAudit(params.id, body, user).id, user));
   route('POST', '/jobs/:id/audit-actuals', ({ user, params, body }) => pc.jobDetail(pc.recordAuditActuals(params.id, body.actuals, user).id, user));
+  route('POST', '/policies/:id/rewrite', ({ user, params, body }) => pc.jobDetail(pc.startRewrite(params.id, body, user).id, user));
   route('GET', '/policies/:id/billing', ({ user, params }) => ({ invoices: billing.invoicesFor(params.id, user), payments: billing.paymentsFor(params.id, user), credit: billing.creditFor(params.id, user) }));
   route('POST', '/policies/:id/payments', ({ user, params, body }) => billing.receivePayment(user, { ...body, policyId: params.id }));
   route('GET', '/policies/:id/ledger', ({ user, params }) => billing.ledgerFor(params.id, user));
