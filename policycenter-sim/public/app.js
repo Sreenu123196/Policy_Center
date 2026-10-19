@@ -103,6 +103,8 @@ const ROUTES = [
   [/^#\/policies$/, pagePolicies],
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
+  [/^#\/claims$/, pageClaims],
+  [/^#\/claim\/([^/]+)$/, pageClaim],
   [/^#\/search\/(.*)$/, pageSearch],
   [/^#\/sales$/, pageSales],
   [/^#\/staff$/, pageStaff],
@@ -328,6 +330,7 @@ function renderPolicy() {
     actions.push(`<button class="btn" data-action="policy-renew">Renew</button>`);
     actions.push(`<button class="btn danger" data-action="policy-cancel">Cancel policy</button>`);
   }
+  if (!cancelled) actions.push(`<button class="btn" data-action="report-claim">Report claim</button>`);
   if (cancelled && !p.openJob) actions.push(`<button class="btn primary" data-action="policy-reinstate">Reinstate</button>`);
 
   view(`
@@ -859,6 +862,71 @@ async function pageSearch(q) {
     <div class="card"><h2>Jobs</h2>${table(['Job', 'Type', 'Account', 'Status'], r.jobs.map((j) => [jobLink(j), esc(j.type), esc(j.accountName), badge(j.status)]), 'No jobs')}</div>`);
 }
 
+// ------------------------------------------------------------------ claims
+
+async function pageClaims() {
+  const status = S.claimStatus || '';
+  const list = await api('GET', '/claims' + (status ? `?status=${encodeURIComponent(status)}` : ''));
+  const stages = ['Submitted', 'Under Review', 'Documents Pending', 'Approved', 'Rejected', 'Settled'];
+  const showReserve = list.some((c) => c.reserve !== undefined);
+  view(`
+    <div class="eyebrow">Claims</div><h1>Claims</h1>
+    <div class="card">
+      <form class="toolbar" data-form="claim-filter" style="margin-bottom:12px">
+        ${field('Stage', `<select name="status"><option value="">All</option>${stages.map((x) => `<option ${x === status ? 'selected' : ''}>${x}</option>`).join('')}</select>`)}
+        <button class="btn" style="align-self:flex-end">Filter</button>
+      </form>
+      ${table(['Claim', 'Policy', 'Insured', 'Loss date', 'Type', 'Stage', '$Paid'].concat(showReserve ? ['$Reserve'] : []), list.map((c) => [
+        `<a href="#/claim/${esc(c.id)}">${esc(c.claimNumber)}</a>`, esc(c.policyNumber), esc(c.insured), esc(c.lossDate), esc(c.lossType), badge(c.status), money(c.paid),
+      ].concat(showReserve ? [money(c.reserve)] : [])), 'No claims match')}
+    </div>`);
+}
+
+async function pageClaim(id) {
+  S.claim = await api('GET', `/claims/${id}`);
+  renderClaim();
+}
+
+function renderClaim() {
+  const c = S.claim;
+  const u = me();
+  const staff = u.authority >= 1;
+  const reserves = c.reserve !== undefined;
+  const moneyStage = ['Under Review', 'Documents Pending', 'Approved'].includes(c.status);
+  const canPay = c.status === 'Approved';
+  view(`
+    <div class="page-head"><div>
+      <div class="eyebrow">Claim</div>
+      <h1>${esc(c.claimNumber)} ${badge(c.status)}</h1>
+      <div class="meta-row">Policy <a href="#/policy/${esc(c.policyNumber)}">${esc(c.policyNumber)}</a> · ${esc(c.insured)} · loss ${esc(c.lossDate)} (${esc(c.lossType)}), reported ${esc(c.reportedOn)}</div></div>
+      <div class="toolbar">${staff ? c.nextStages.map((to) => `<button class="btn ${to === 'Rejected' ? 'danger' : ''}" data-action="claim-stage" data-to="${esc(to)}">Move to ${esc(to)}</button>`).join('') : ''}</div></div>
+    ${c.description ? `<div class="card"><h2>What happened</h2><p>${esc(c.description)}</p></div>` : ''}
+    <div class="tiles">
+      <div class="tile accent"><div class="label">Paid</div><div class="value">${money(c.paid)}</div></div>
+      ${reserves ? `<div class="tile"><div class="label">Reserve (expected total)</div><div class="value">${money(c.reserve)}</div></div><div class="tile"><div class="label">Outstanding</div><div class="value">${money(c.outstanding)}</div></div>` : ''}
+      <div class="tile"><div class="label">Waiting for approval</div><div class="value">${c.pendingPayments.length}</div></div>
+    </div>
+    <div class="card"><div class="spread"><h2>Exposures</h2>${staff && moneyStage ? '<button class="btn small primary" data-action="add-exposure">Add exposure</button>' : ''}</div>
+      <p class="muted">An exposure is one claimant against one cover. Reserves and payments belong to an exposure.${staff ? ` Your limits: reserve ${money(S.meta.claimLimits.reserve[Math.min(u.authority, 2)])}, payment ${money(S.meta.claimLimits.payment[Math.min(u.authority, 2)])}. A larger payment waits for a different person with a high enough limit.` : ''}</p>
+      ${table(['No', 'Cover', 'Claimant', 'Description', '$Paid', 'Claim cost', 'Expense'].concat(reserves ? ['$Reserve', '$Outstanding', '$Incurred'] : []).concat(['']), c.exposures.map((e) => [
+        e.number, esc(e.coverage), `${esc(e.claimant.name)} (${esc(e.claimant.kind.replace('_', ' '))})`, esc(e.description), money(e.paid), money(e.paidByCostType.claim_cost), money(e.paidByCostType.expense),
+      ].concat(reserves ? [money(e.reserve), money(e.outstanding), money(e.incurred)] : []).concat([
+        staff && moneyStage ? `<button class="btn small" data-action="set-reserve" data-number="${e.number}">Reserve</button> ${canPay ? `<button class="btn small" data-action="pay-exposure" data-number="${e.number}">Pay</button>` : ''}` : '',
+      ])), 'No exposures yet')}
+    </div>
+    ${c.pendingPayments.length ? `<div class="card"><h2>Payments waiting for approval</h2>
+      ${table(['Exposure', 'Cost type', '$Amount', 'Requested by', 'Requested', ''], c.pendingPayments.map((p) => [
+        p.exposureNumber, esc(p.costType.replace('_', ' ')), money(p.amount), esc(p.requestedBy), when(p.requestedAt),
+        staff && p.requestedBy !== u.id ? `<button class="btn small success" data-action="approve-payment" data-id="${esc(p.id)}">Approve</button>` : '<span class="muted">needs a different person</span>',
+      ]))}</div>` : ''}
+    <div class="card"><h2>Payments</h2>
+      ${table(['Date', 'Exposure', 'Cost type', '$Amount', 'Note', 'By', 'Approved by'], c.payments.map((p) => [esc(p.date), p.exposureNumber || '—', esc((p.costType || '').replace('_', ' ')), money(p.amount), esc(p.note), esc(p.by), esc(p.approvedBy || '—')]), 'No payments yet')}
+    </div>
+    <div class="card"><h2>History</h2>
+      ${table(['When', 'By', 'From', 'To', 'Reason'], c.history.map((h) => [when(h.at), esc(h.by), esc(h.from || '—'), esc(h.to), esc(h.reason)]))}
+    </div>`);
+}
+
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
@@ -1227,6 +1295,48 @@ const ACTIONS = {
   'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-vehicle': async (d) => { S.jv.draft.line.vehicles.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
 
+  'claim-stage': async (d) => {
+    S.claim = await api('POST', `/claims/${S.claim.id}/stage`, { to: d.to });
+    toast(`Claim moved to ${d.to}`, 'success');
+    renderClaim();
+  },
+  'add-exposure': () => openModal(`<h2>Add an exposure</h2>
+    <form data-form="add-exposure"><div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Cover', '<input name="coverage" placeholder="Collision, Liability, Medical ..." required>')}
+        ${field('Claimant', '<input name="claimantName" required>')}
+        ${field('Claimant is', '<select name="claimantKind"><option value="insured">The insured</option><option value="third_party">A third party</option></select>')}
+        ${field('Description', '<input name="description">')}
+      </div>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Add exposure</button></div></form>`),
+  'set-reserve': (d) => openModal(`<h2>Set the reserve for exposure ${esc(d.number)}</h2>
+    <form data-form="set-reserve" data-number="${esc(d.number)}"><div class="form-errors"></div>
+      ${field('Reserve ($): the expected total cost of this exposure', '<input type="number" name="amount" min="0" step="0.01" required>')}
+      <p class="muted">Your reserve limit is ${money(S.meta.claimLimits.reserve[Math.min(me().authority, 2)])}.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Set reserve</button></div></form>`),
+  'pay-exposure': (d) => openModal(`<h2>Pay from exposure ${esc(d.number)}</h2>
+    <form data-form="pay-exposure" data-number="${esc(d.number)}"><div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Amount ($)', '<input type="number" name="amount" min="0.01" step="0.01" required>')}
+        ${field('Cost type', '<select name="costType"><option value="claim_cost">Claim cost</option><option value="expense">Expense</option></select>')}
+        ${field('Note', '<input name="note">')}
+      </div>
+      <p class="muted">You may pay up to ${money(S.meta.claimLimits.payment[Math.min(me().authority, 2)])} yourself. A larger payment waits for a different person.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Pay</button></div></form>`),
+  'approve-payment': async (d) => {
+    const r = await api('POST', `/claims/${S.claim.id}/payments/${d.id}/approve`);
+    toast('Payment approved and issued', 'success');
+    S.claim = r.claim;
+    renderClaim();
+  },
+  'report-claim': () => openModal(`<h2>Report a claim on ${esc(S.policy.policyNumber)}</h2>
+    <form data-form="report-claim"><div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Loss date', `<input type="date" name="lossDate" max="${S.meta.today}" value="${S.meta.today}" required>`)}
+        ${field('Type of loss', `<select name="lossType">${S.meta.claimTypes.map((t) => `<option>${esc(t)}</option>`).join('')}</select>`)}
+      </div>
+      ${field('What happened', '<textarea name="description" rows="3"></textarea>')}
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Report claim</button></div></form>`),
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1331,6 +1441,30 @@ const FORMS = {
     const job = await api('POST', '/jobs/submission', { accountId: form.dataset.account, product: fd.get('product'), effectiveDate: fd.get('effectiveDate') });
     closeModal();
     location.hash = `#/job/${job.id}`;
+  },
+  'claim-filter': (fd) => { S.claimStatus = String(fd.get('status') || ''); pageClaims(); },
+  'add-exposure': async (fd) => {
+    S.claim = await api('POST', `/claims/${S.claim.id}/exposures`, { coverage: fd.get('coverage'), claimantName: fd.get('claimantName'), claimantKind: fd.get('claimantKind'), description: fd.get('description') });
+    closeModal();
+    renderClaim();
+  },
+  'set-reserve': async (fd, form) => {
+    S.claim = await api('POST', `/claims/${S.claim.id}/exposures/${form.dataset.number}/reserve`, { amount: Number(fd.get('amount')) });
+    closeModal();
+    renderClaim();
+  },
+  'pay-exposure': async (fd, form) => {
+    const r = await api('POST', `/claims/${S.claim.id}/exposures/${form.dataset.number}/payments`, { amount: Number(fd.get('amount')), costType: fd.get('costType'), note: fd.get('note') });
+    closeModal();
+    toast(r.result.status === 'issued' ? 'Payment issued' : 'The payment is above your limit and waits for approval by a different person', r.result.status === 'issued' ? 'success' : 'info');
+    S.claim = r.claim;
+    renderClaim();
+  },
+  'report-claim': async (fd) => {
+    const c = await api('POST', `/policies/${S.policy.id}/claims`, { lossDate: fd.get('lossDate'), lossType: fd.get('lossType'), description: fd.get('description') });
+    closeModal();
+    toast(`Claim ${c.claimNumber} reported`, 'success');
+    location.hash = `#/claim/${c.id}`;
   },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });

@@ -1216,9 +1216,22 @@ class PolicyCenter {
       lossDate: c.lossDate, lossType: c.lossType, description: c.description, status: c.status,
       reportedOn: c.reportedOn, paid, payments: c.payments, closedOn: c.closedOn || null, closeReason: c.closeReason || null,
       history: c.history || [],
+      nextStages: CLAIM_TRANSITIONS[c.status] || [],
+      exposures: (c.exposures || []).map((e) => this.exposureView(c, e, user)),
+      pendingPayments: (c.pendingPayments || []).map((p) => ({ id: p.id, exposureNumber: p.exposureNumber, amount: p.amount, costType: p.costType, requestedBy: p.requestedBy, requestedAt: p.requestedAt })),
       documents: (c.documents || []).map(({ path, ...d }) => d),
       ...(user && !canSeeClaimReserves(user) ? {} : { reserve: c.reserve, outstanding: round2(Math.max(0, c.reserve - paid)) }),
     };
+  }
+
+  // One exposure with its money. The reserve and what is outstanding are internal, like the claim's own.
+  exposureView(c, e, user) {
+    const mine = c.payments.filter((p) => p.exposureNumber === e.number);
+    const paid = round2(mine.reduce((sum, p) => sum + p.amount, 0));
+    const paidByCostType = { claim_cost: 0, expense: 0 };
+    for (const p of mine) paidByCostType[p.costType] = round2(paidByCostType[p.costType] + p.amount);
+    const open = user && !canSeeClaimReserves(user) ? {} : { reserve: e.reserve, outstanding: round2(Math.max(0, e.reserve - paid)), incurred: round2(Math.max(e.reserve, paid)) };
+    return { id: e.id, number: e.number, coverage: e.coverage, claimant: e.claimant, description: e.description, paid, paidByCostType, ...open };
   }
 
   claimDetail(id, user) {
@@ -1298,6 +1311,7 @@ class PolicyCenter {
     this.requireAuthority(user, 1, 'set claim reserves');
     const claim = this.claim(id, user);
     this.assertClaimAt(claim, ['Under Review', 'Documents Pending', 'Approved'], 'setting a reserve');
+    if ((claim.exposures || []).length > 0) throw new AppError(409, 'This claim has exposures: set the reserve on an exposure');
     const value = Number(amount);
     const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
     if (!Number.isFinite(value) || value < paid) throw new AppError(422, `Reserve cannot be below the ${round2(paid)} already paid`);
@@ -1309,6 +1323,7 @@ class PolicyCenter {
     this.requireAuthority(user, 1, 'pay claims');
     const claim = this.claim(id, user);
     this.assertClaimAt(claim, ['Approved'], 'a payment');
+    if ((claim.exposures || []).length > 0) throw new AppError(409, 'This claim has exposures: pay from an exposure');
     const value = Number(amount);
     if (!Number.isFinite(value) || value <= 0) throw new AppError(422, 'Payment must be more than zero');
     const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
@@ -1760,4 +1775,4 @@ class PolicyCenter {
   }
 }
 
-module.exports = { PolicyCenter, AppError, CANCEL_REASONS };
+module.exports = { PolicyCenter, AppError, CANCEL_REASONS, CLAIM_TYPES, CLAIM_TRANSITIONS };

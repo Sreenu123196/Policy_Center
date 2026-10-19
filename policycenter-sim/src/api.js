@@ -4,16 +4,18 @@
 
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
-const { AppError, CANCEL_REASONS } = require('./policyCenter');
+const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
 const { Finance } = require('./finance');
 const { Insights } = require('./insights');
 const { Billing } = require('./billing');
+const { ClaimMoney, RESERVE_LIMITS, PAYMENT_LIMITS, COST_TYPES, CLAIMANT_KINDS } = require('./claimMoney');
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } = {}) {
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
   const billing = new Billing(pc);
+  const claimMoney = new ClaimMoney(pc);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -56,6 +58,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
     producerCodes: PRODUCER_CODES,
     products: PRODUCTS,
     cancelReasons: CANCEL_REASONS,
+    claimTypes: CLAIM_TYPES,
+    claimLimits: { reserve: RESERVE_LIMITS, payment: PAYMENT_LIMITS, costTypes: COST_TYPES, claimantKinds: CLAIMANT_KINDS },
   }));
   route('GET', '/desktop', ({ user }) => pc.desktop(user));
   route('GET', '/search', ({ user, query }) => pc.search(query.get('q') || '', user));
@@ -78,7 +82,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
 
   route('GET', '/policies', ({ user, query }) => pc.listPolicies(query.get('q'), user));
   route('GET', '/claims', ({ user, query }) => pc.listClaims(user, { status: query.get('status') || undefined }));
+  route('GET', '/claims/:id', ({ user, params }) => pc.claimDetail(params.id, user));
   route('GET', '/policies/:id', ({ user, params }) => pc.policyDetail(params.id, user));
+  route('POST', '/policies/:id/claims', ({ user, params, body }) => pc.claimDetail(pc.openClaim(params.id, body, user).id, user));
   route('POST', '/policies/:id/change', ({ user, params, body }) => pc.jobDetail(pc.startPolicyChange(params.id, body, user).id, user));
   route('POST', '/policies/:id/cancel', ({ user, params, body }) => pc.jobDetail(pc.startCancellation(params.id, body, user).id, user));
   route('POST', '/policies/:id/reinstate', ({ user, params }) => pc.jobDetail(pc.startReinstatement(params.id, user).id, user));
@@ -96,6 +102,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
     if (!bus) throw new AppError(503, 'Event consumers are not enabled');
     return bus.redrive(user, { consumer: decodeURIComponent(params.consumer), eventId: decodeURIComponent(params.eventId) });
   });
+  // Claim exposures, reserves and payments (staff). Limits are in src/claimMoney.js.
+  route('POST', '/claims/:id/exposures', ({ user, params, body }) => { claimMoney.addExposure(user, params.id, body); return pc.claimDetail(params.id, user); });
+  route('POST', '/claims/:id/exposures/:number/reserve', ({ user, params, body }) => { claimMoney.setExposureReserve(user, params.id, params.number, body.amount); return pc.claimDetail(params.id, user); });
+  route('POST', '/claims/:id/exposures/:number/payments', ({ user, params, body }) => ({ result: claimMoney.payExposure(user, params.id, params.number, body), claim: pc.claimDetail(params.id, user) }));
+  route('POST', '/claims/:id/payments/:paymentId/approve', ({ user, params }) => ({ result: claimMoney.approvePayment(user, params.id, params.paymentId), claim: pc.claimDetail(params.id, user) }));
   route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true' }));
   route('POST', '/activities/:id/complete', ({ user, params }) => pc.completeActivity(params.id, user));
 
