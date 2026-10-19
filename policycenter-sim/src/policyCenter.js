@@ -20,6 +20,9 @@ const FOLLOW_UP_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not
 const LAPSING_WINDOW_DAYS = 60; // a policy whose term ends within this many days is lapsing
 const LAPSED_WINDOW_DAYS = 90;  // a policy whose term ended this many days ago, not renewed, is lapsed
 
+// A loss reported more than this many days after it happened is flagged as a late report.
+const LATE_REPORT_DAYS = 30;
+
 const CLAIM_TYPES = ['Collision', 'Comprehensive', 'Liability', 'Medical', 'Property', 'Theft', 'Water', 'Wind or hail', 'Other'];
 
 // Claim stages and what each stage may move to.
@@ -248,6 +251,27 @@ class PolicyCenter {
     if (today < terms[0].effectiveDate) return 'Scheduled';
     if (today >= terms[terms.length - 1].expirationDate) return 'Expired';
     return 'In Force';
+  }
+
+  // The policy as it was on a date: the version in force that day (the last one whose change date is on or before it),
+  // with the risk as it was. A claim keeps this, so a later change never rewrites what the claim was judged against.
+  policyAsOf(policy, date) {
+    const term = this.termContaining(policy, date);
+    if (!term) throw new AppError(422, `No term of ${policy.policyNumber} covers ${date}`);
+    const version = [...term.versions].reverse().find((v) => v.editEffectiveDate <= date) || term.versions[0];
+    const cancelled = Boolean(policy.cancellation) && policy.cancellation.effectiveDate <= date;
+    return {
+      date,
+      status: cancelled ? 'cancelled' : 'in_force',
+      termNumber: term.termNumber,
+      versionNumber: policy.versions.indexOf(version) + 1,
+      versionId: version.versionId,
+      jobNumber: version.jobNumber,
+      effectiveDate: term.effectiveDate,
+      expirationDate: term.expirationDate,
+      premium: round2(version.quote.premium + version.quote.taxes),
+      line: clone(version.period.line),
+    };
   }
 
   currentVersion(policy) {
@@ -1215,6 +1239,10 @@ class PolicyCenter {
       insured: this.accountName(this.db.accounts.find((a) => a.id === c.accountId)),
       lossDate: c.lossDate, lossType: c.lossType, description: c.description, status: c.status,
       reportedOn: c.reportedOn, paid, payments: c.payments, closedOn: c.closedOn || null, closeReason: c.closeReason || null,
+      lateReport: Boolean(c.lateReport),
+      verification: c.verification || 'verified',
+      verificationNote: c.verificationNote || '',
+      policySnapshot: c.policySnapshot ? this.snapshotSummary(c.policySnapshot) : null,
       history: c.history || [],
       nextStages: CLAIM_TRANSITIONS[c.status] || [],
       exposures: (c.exposures || []).map((e) => this.exposureView(c, e, user)),
@@ -1232,6 +1260,12 @@ class PolicyCenter {
     for (const p of mine) paidByCostType[p.costType] = round2(paidByCostType[p.costType] + p.amount);
     const open = user && !canSeeClaimReserves(user) ? {} : { reserve: e.reserve, outstanding: round2(Math.max(0, e.reserve - paid)), incurred: round2(Math.max(e.reserve, paid)) };
     return { id: e.id, number: e.number, coverage: e.coverage, claimant: e.claimant, description: e.description, paid, paidByCostType, ...open };
+  }
+
+  // What a person needs from the snapshot: where it sits in the policy and what was insured. The full risk stays on the claim.
+  snapshotSummary(s) {
+    const { line, ...rest } = s;
+    return { ...rest, vehicles: (line.vehicles || []).map((v) => ({ year: v.year, make: v.make, model: v.model })) };
   }
 
   claimDetail(id, user) {
@@ -1257,6 +1291,7 @@ class PolicyCenter {
     if (lossDate > this.today()) throw new AppError(422, 'Loss date cannot be in the future');
     const inTerm = this.terms(policy).some((t) => t.effectiveDate <= lossDate && lossDate < t.expirationDate);
     if (!inTerm) throw new AppError(422, `No term of ${policy.policyNumber} covers ${lossDate}`);
+    const snapshot = this.policyAsOf(policy, lossDate);
     const lossType = str(input.lossType);
     if (!CLAIM_TYPES.includes(lossType)) throw new AppError(422, `Loss type must be one of ${CLAIM_TYPES.join(', ')}`);
     const claim = {
@@ -1270,6 +1305,10 @@ class PolicyCenter {
       description: str(input.description),
       status: 'Submitted',
       reportedOn: this.today(),
+      lateReport: D.daysBetween(lossDate, this.today()) > LATE_REPORT_DAYS,
+      policySnapshot: snapshot,
+      verification: snapshot.status === 'in_force' ? 'verified' : 'not_verified',
+      verificationNote: snapshot.status === 'in_force' ? '' : `The policy was cancelled effective ${policy.cancellation.effectiveDate}, before the loss date`,
       reserve: 0,
       payments: [],
       documents: [],

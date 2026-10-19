@@ -877,7 +877,7 @@ async function pageClaims() {
         <button class="btn" style="align-self:flex-end">Filter</button>
       </form>
       ${table(['Claim', 'Policy', 'Insured', 'Loss date', 'Type', 'Stage', '$Paid'].concat(showReserve ? ['$Reserve'] : []), list.map((c) => [
-        `<a href="#/claim/${esc(c.id)}">${esc(c.claimNumber)}</a>`, esc(c.policyNumber), esc(c.insured), esc(c.lossDate), esc(c.lossType), badge(c.status), money(c.paid),
+        `<a href="#/claim/${esc(c.id)}">${esc(c.claimNumber)}</a>`, esc(c.policyNumber), esc(c.insured), esc(c.lossDate), esc(c.lossType), badge(c.status) + (c.lateReport ? ' <span class="badge b-pending">Late</span>' : '') + (c.verification !== 'verified' ? ' <span class="badge b-cancelled">Not verified</span>' : ''), money(c.paid),
       ].concat(showReserve ? [money(c.reserve)] : [])), 'No claims match')}
     </div>`);
 }
@@ -898,7 +898,10 @@ function renderClaim() {
     <div class="page-head"><div>
       <div class="eyebrow">Claim</div>
       <h1>${esc(c.claimNumber)} ${badge(c.status)}</h1>
-      <div class="meta-row">Policy <a href="#/policy/${esc(c.policyNumber)}">${esc(c.policyNumber)}</a> · ${esc(c.insured)} · loss ${esc(c.lossDate)} (${esc(c.lossType)}), reported ${esc(c.reportedOn)}</div></div>
+      <div class="meta-row">Policy <a href="#/policy/${esc(c.policyNumber)}">${esc(c.policyNumber)}</a> · ${esc(c.insured)} · loss ${esc(c.lossDate)} (${esc(c.lossType)}), reported ${esc(c.reportedOn)}</div>
+      ${c.lateReport ? '<div class="banner error">This claim was reported late.</div>' : ''}
+      ${c.verification !== 'verified' ? `<div class="banner error">Not verified: ${esc(c.verificationNote || 'the policy could not be verified for the loss date')}. A handler must decide.</div>` : ''}
+      ${c.policySnapshot ? `<div class="muted">Policy as of the loss date: term ${c.policySnapshot.termNumber}, version ${c.policySnapshot.versionNumber} (${esc(c.policySnapshot.jobNumber)})${c.policySnapshot.vehicles.length ? ', ' + c.policySnapshot.vehicles.map((v) => esc([v.year, v.make, v.model].join(' '))).join('; ') : ''}</div>` : ''}</div>
       <div class="toolbar">${staff ? c.nextStages.map((to) => `<button class="btn ${to === 'Rejected' ? 'danger' : ''}" data-action="claim-stage" data-to="${esc(to)}">Move to ${esc(to)}</button>`).join('') : ''}</div></div>
     ${c.description ? `<div class="card"><h2>What happened</h2><p>${esc(c.description)}</p></div>` : ''}
     <div class="tiles">
