@@ -1328,6 +1328,7 @@ async function contactRenewal(d) {
         return;
       }
       // Not set up on the server: Gmail's compose window opens with the message filled in.
+      toast('Direct sending is not set up on the server (no Gmail address and app password), so Gmail is opened for you to press Send.', 'error');
       tab.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(p.to)}&su=${encodeURIComponent(p.subject || '')}&body=${encodeURIComponent(p.body)}`;
     } else {
       tab.location.href = `https://wa.me/${p.to}?text=${encodeURIComponent(p.body)}`;

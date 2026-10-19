@@ -3,6 +3,7 @@
 //   node scripts/test-email.js                  -> signs in to Gmail only
 //   node scripts/test-email.js someone@x.com    -> also sends one short test email to that address
 // Needs GMAIL_USER and GMAIL_APP_PASSWORD in this window's environment, the same as the server.
+require('../src/loadEnv').loadEnv();
 const nodemailer = require('nodemailer');
 
 const user = process.env.GMAIL_USER;

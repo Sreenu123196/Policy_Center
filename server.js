@@ -4,6 +4,8 @@
 //   PORT=4000 node server.js  -> custom port
 //   DATA_FILE=... node server.js  -> custom data file
 
+const { loadEnv } = require('./src/loadEnv');
+const loaded = loadEnv(); // settings from the .env file, if there is one
 const http = require('node:http');
 const path = require('node:path');
 const { Store } = require('./src/store');
