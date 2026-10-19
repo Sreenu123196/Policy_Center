@@ -24,6 +24,8 @@ node scripts/load-test.js --check
 | `src/api.js` | All REST routes (`route(method, pattern, handler, {readOnly, stream, raw, isPublic})`); `/api/...` |
 | `src/policyCenter.js` | The main service class (accounts, jobs, policies, claims, tickets, staff) |
 | `src/store.js` | JSON file store; `transaction(fn)` rolls back on error; atomic save |
+| `src/pc/claims.js`, `src/pc/tickets.js` | Parts of the service that now live in their own module, mixed into `PolicyCenter.prototype` by the `mixin()` at the end of `src/policyCenter.js` (a class prototype's methods are not enumerable, so they are copied by descriptor). The pattern to follow when the next section is moved out |
+| `src/appError.js`, `src/text.js` | The error type and the small value helpers, so the modules under `src/pc/` can use them without importing the service (a cycle) |
 | `src/pg/schema.js`, `changeTracker.js`, `wal.js`, `postgresStore.js` | The PostgreSQL back end: a row per record, the proxy that notices what changed, the write-ahead log that keeps a synchronous commit safe, and the store itself (same API as `src/store.js`). `docs/DATABASE.md` |
 | `src/eventBus.js`, `src/consumers.js` | Events with per-consumer offsets, retry, dead letter; consumers: collections, claims-queue, accounting, agents |
 | `src/permissions.js` | Roles: agent, underwriter, executive, manager, and `AI Agent` |
@@ -89,11 +91,12 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 ## Open items (suggested order)
 
 1. **Reads through the database.** Writes are rows in PostgreSQL and the back end has now been run against a real PostgreSQL 16.9 server (`docs/DATABASE.md` has the numbers: at 409 policies the load test meets its targets, where the JSON file missed both). Reads still come from memory: the whole book is loaded at start and searches run in JavaScript. Make the services read from the database (the indexes are there) when the book passes a few hundred MB or when more than one server runs.
-2. Agents: show suggestions on the Desktop and in the Work queues; a payment-reminder message template; then a trial period in `suggest` mode before any acting agent (`docs/AGENTS.md`). The planned agents wait on: incoming channels, data providers, online payments and e-signature, photo upload and OCR.
-3. Screens for backup, personal-data export and erasure (API only now).
-4. `docs/GO-LIVE.md` people tasks: penetration test, hosting in India, secrets handling, a restore drill, retention and consent decisions, native-speaker review of Hindi and Telugu (including the agent screens), screen-reader checks, monitoring.
-5. Build and test the Dockerfile.
-6. `npm audit` is clean (the two `uuid` findings are gone via an override); re-run it at go-live.
+2. **Keep dividing the two big files.** `src/policyCenter.js` is down from 2,110 to 1,787 lines: claims and tickets moved to `src/pc/` and are mixed back in. The next sections are jobs, policies/underwriting and the read models; each is a self-contained block like the last two, and the tests plus the linter (which reports an undefined name at once) make the move safe. `public/app.js` (2,833 lines) is the other one: it has no build step, so splitting it means loading several scripts in order — do it deliberately, one screen group at a time.
+3. Agents: show suggestions on the Desktop and in the Work queues; a payment-reminder message template; then a trial period in `suggest` mode before any acting agent (`docs/AGENTS.md`). The planned agents wait on: incoming channels, data providers, online payments and e-signature, photo upload and OCR.
+4. Screens for backup, personal-data export and erasure (API only now).
+5. `docs/GO-LIVE.md` people tasks: penetration test, hosting in India, secrets handling, a restore drill, retention and consent decisions, native-speaker review of Hindi and Telugu (including the agent screens), screen-reader checks, monitoring.
+6. Build and test the Dockerfile.
+7. `npm audit` is clean (the two `uuid` findings are gone via an override); re-run it at go-live.
 
 ## Last state
 

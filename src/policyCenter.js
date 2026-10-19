@@ -10,8 +10,12 @@ const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
 const { invoiceView, balanceOf } = require('./invoiceView');
 const { settleCancellation } = require('./ledger');
-const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
+const { salesScope, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
+const { AppError } = require('./appError');
+const { clone, str, int, num, r100 } = require('./text');
+const claims = require('./pc/claims');
+const tickets = require('./pc/tickets');
 
 // Authority levels for each staff role (see permissions.js).
 const STAFF_ROLES = { Agent: 0, Underwriter: 1, 'Insurance Executive': 1, 'UW Manager': 2 };
@@ -21,40 +25,7 @@ const FOLLOW_UP_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not
 const LAPSING_WINDOW_DAYS = 60; // a policy whose term ends within this many days is lapsing
 const LAPSED_WINDOW_DAYS = 90;  // a policy whose term ended this many days ago, not renewed, is lapsed
 
-// A loss reported more than this many days after it happened is flagged as a late report.
-const LATE_REPORT_DAYS = 30;
 
-const CLAIM_TYPES = ['Collision', 'Comprehensive', 'Liability', 'Medical', 'Property', 'Theft', 'Water', 'Wind or hail', 'Other'];
-
-// Claim stages and what each stage may move to.
-const CLAIM_TRANSITIONS = {
-  Submitted: ['Under Review', 'Rejected'],
-  'Under Review': ['Documents Pending', 'Approved', 'Rejected'],
-  'Documents Pending': ['Under Review'],
-  Approved: ['Settled'],
-  Rejected: [],
-  Settled: [],
-};
-
-// Ticket response deadlines in hours, and ticket stages.
-const TICKET_HOURS = { Urgent: 4, High: 24, Normal: 48, Low: 120 };
-const TICKET_CATEGORIES = ['Claim', 'Billing', 'Policy change', 'Other'];
-const TICKET_TRANSITIONS = {
-  Open: [],
-  Assigned: ['In Progress'],
-  'In Progress': ['Resolved'],
-  Resolved: ['Closed', 'In Progress'],
-  Closed: [],
-};
-const PREMIUM_THRESHOLD = 3000; // total current term premium (with tax) that makes a customer a premium customer
-
-class AppError extends Error {
-  constructor(status, message, details) {
-    super(message);
-    this.status = status;
-    this.details = details;
-  }
-}
 
 const OPEN = ['Draft', 'Quoted'];
 const EDITABLE_TYPES = ['Submission', 'PolicyChange', 'Renewal'];
@@ -65,19 +36,6 @@ const AUDITABLE = {
   WorkersComp: { key: 'classes', fields: ['payroll', 'employees'], label: 'payroll' },
   GeneralLiability: { key: 'exposures', fields: ['amount'], label: 'receipts or payroll' },
 };
-const clone = (o) => JSON.parse(JSON.stringify(o));
-const str = (v) => (v == null ? '' : String(v).trim());
-const int = (v) => {
-  if (v === '' || v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : null;
-};
-const num = (v) => {
-  if (v === '' || v == null) return null;
-  const n = Number(v);
-  return Number.isFinite(n) ? n : null;
-};
-const r100 = (n) => Math.round(n / 100) * 100;
 
 const CANCEL_REASONS = {
   InsuredRequest: { name: 'Insured request', noticeDays: 0, authority: 0 },
@@ -1405,159 +1363,6 @@ class PolicyCenter {
     };
   }
 
-  // ------------------------------------------------------------------ claims
-  // Claim stages: Submitted > Under Review > Documents Pending > Approved / Rejected > Settled.
-  // Reserves can be set once a claim is under review; money is paid only after approval.
-  // Reserve = the expected remaining cost (internal). Paid = money already paid out.
-
-  claim(id, user) {
-    const c = this.db.claims.find((x) => x.id === id || x.claimNumber === id);
-    if (!c) throw new AppError(404, 'Claim not found');
-    if (user) this.policy(c.policyId, user);
-    return c;
-  }
-
-  claimView(c, user) {
-    const paid = round2(c.payments.reduce((s, p) => s + p.amount, 0));
-    const policy = this.db.policies.find((p) => p.id === c.policyId);
-    return {
-      id: c.id, claimNumber: c.claimNumber, policyNumber: policy ? policy.policyNumber : null, product: c.product,
-      insured: this.accountName(this.db.accounts.find((a) => a.id === c.accountId)),
-      lossDate: c.lossDate, lossType: c.lossType, description: c.description, status: c.status,
-      reportedOn: c.reportedOn, paid, payments: c.payments, closedOn: c.closedOn || null, closeReason: c.closeReason || null,
-      lateReport: Boolean(c.lateReport),
-      verification: c.verification || 'verified',
-      verificationNote: c.verificationNote || '',
-      policySnapshot: c.policySnapshot ? this.snapshotSummary(c.policySnapshot) : null,
-      history: c.history || [],
-      nextStages: CLAIM_TRANSITIONS[c.status] || [],
-      exposures: (c.exposures || []).map((e) => this.exposureView(c, e, user)),
-      pendingPayments: (c.pendingPayments || []).map((p) => ({ id: p.id, exposureNumber: p.exposureNumber, amount: p.amount, costType: p.costType, requestedBy: p.requestedBy, requestedAt: p.requestedAt })),
-      documents: (c.documents || []).map(({ path, ...d }) => d),
-      ...(user && !canSeeClaimReserves(user) ? {} : { reserve: c.reserve, outstanding: round2(Math.max(0, c.reserve - paid)) }),
-    };
-  }
-
-  // One exposure with its money. The reserve and what is outstanding are internal, like the claim's own.
-  exposureView(c, e, user) {
-    const mine = c.payments.filter((p) => p.exposureNumber === e.number);
-    const paid = round2(mine.reduce((sum, p) => sum + p.amount, 0));
-    const paidByCostType = { claim_cost: 0, expense: 0 };
-    for (const p of mine) paidByCostType[p.costType] = round2(paidByCostType[p.costType] + p.amount);
-    const open = user && !canSeeClaimReserves(user) ? {} : { reserve: e.reserve, outstanding: round2(Math.max(0, e.reserve - paid)), incurred: round2(Math.max(e.reserve, paid)) };
-    return { id: e.id, number: e.number, coverage: e.coverage, claimant: e.claimant, description: e.description, paid, paidByCostType, ...open };
-  }
-
-  // What a person needs from the snapshot: where it sits in the policy and what was insured. The full risk stays on the claim.
-  snapshotSummary(s) {
-    const { line, ...rest } = s;
-    return { ...rest, vehicles: (line.vehicles || []).map((v) => ({ year: v.year, make: v.make, model: v.model })) };
-  }
-
-  claimDetail(id, user) {
-    return this.claimView(this.claim(id, user), user);
-  }
-
-  listClaims(user, { policy, status } = {}) {
-    return this.db.claims
-      .filter((c) => {
-        const account = this.db.accounts.find((a) => a.id === c.accountId);
-        return account && this.canSee(user, account);
-      })
-      .filter((c) => !policy || this.db.policies.find((p) => p.id === c.policyId)?.policyNumber === policy)
-      .filter((c) => !status || c.status === status)
-      .map((c) => this.claimView(c, user))
-      .reverse();
-  }
-
-  openClaim(policyId, input, user) {
-    const policy = this.policy(policyId, user);
-    const lossDate = str(input.lossDate);
-    if (!D.isDate(lossDate)) throw new AppError(422, 'Loss date must be yyyy-mm-dd');
-    if (lossDate > this.today()) throw new AppError(422, 'Loss date cannot be in the future');
-    const inTerm = this.terms(policy).some((t) => t.effectiveDate <= lossDate && lossDate < t.expirationDate);
-    if (!inTerm) throw new AppError(422, `No term of ${policy.policyNumber} covers ${lossDate}`);
-    const snapshot = this.policyAsOf(policy, lossDate);
-    const lossType = str(input.lossType);
-    if (!CLAIM_TYPES.includes(lossType)) throw new AppError(422, `Loss type must be one of ${CLAIM_TYPES.join(', ')}`);
-    const claim = {
-      id: this.store.id('clm'),
-      claimNumber: this.store.number('CL-', 7),
-      policyId: policy.id,
-      accountId: policy.accountId,
-      product: policy.product,
-      lossDate,
-      lossType,
-      description: str(input.description),
-      status: 'Submitted',
-      reportedOn: this.today(),
-      lateReport: D.daysBetween(lossDate, this.today()) > LATE_REPORT_DAYS,
-      policySnapshot: snapshot,
-      verification: snapshot.status === 'in_force' ? 'verified' : 'not_verified',
-      verificationNote: snapshot.status === 'in_force' ? '' : `The policy was cancelled effective ${policy.cancellation.effectiveDate}, before the loss date`,
-      reserve: 0,
-      payments: [],
-      documents: [],
-      history: [{ at: this.now(), by: user.id, from: null, to: 'Submitted', reason: 'Claim submitted' }],
-      createdBy: user.id,
-    };
-    this.db.claims.push(claim);
-    this.publish('ClaimOpened', { claimNumber: claim.claimNumber, policyNumber: policy.policyNumber, lossDate, lossType, lateReport: claim.lateReport, verification: claim.verification });
-    return claim;
-  }
-
-  // Moves a claim to the next stage. Staff only, following the allowed stage order.
-  moveClaim(id, { to, reason }, user) {
-    this.requireAuthority(user, 1, 'move claims between stages');
-    const claim = this.claim(id, user);
-    const allowed = CLAIM_TRANSITIONS[claim.status] || [];
-    if (!allowed.includes(to)) throw new AppError(409, `A ${claim.status} claim cannot move to ${to}. Allowed: ${allowed.join(', ') || 'none (final stage)'}`);
-    if (to === 'Settled') {
-      const paid = round2(claim.payments.reduce((s, p) => s + p.amount, 0));
-      claim.reserve = paid;
-      claim.closedOn = this.today();
-      claim.closeReason = str(reason) || 'Settled';
-    }
-    if (to === 'Rejected') {
-      claim.closedOn = this.today();
-      claim.closeReason = str(reason) || 'Rejected';
-    }
-    claim.history.push({ at: this.now(), by: user.id, from: claim.status, to, reason: str(reason) });
-    claim.status = to;
-    this.publish('ClaimStageChanged', { claimNumber: claim.claimNumber, stage: to });
-    return this.claimView(claim, user);
-  }
-
-  assertClaimAt(claim, stages, action) {
-    if (!stages.includes(claim.status)) throw new AppError(409, `Claim ${claim.claimNumber} is ${claim.status}; ${action} needs it to be ${stages.join(' or ')}`);
-  }
-
-  setClaimReserve(id, amount, user) {
-    this.requireAuthority(user, 1, 'set claim reserves');
-    const claim = this.claim(id, user);
-    this.assertClaimAt(claim, ['Under Review', 'Documents Pending', 'Approved'], 'setting a reserve');
-    if ((claim.exposures || []).length > 0) throw new AppError(409, 'This claim has exposures: set the reserve on an exposure');
-    const value = Number(amount);
-    const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
-    if (!Number.isFinite(value) || value < paid) throw new AppError(422, `Reserve cannot be below the ${round2(paid)} already paid`);
-    claim.reserve = round2(value);
-    return this.claimView(claim, user);
-  }
-
-  payClaim(id, { amount, note }, user) {
-    this.requireAuthority(user, 1, 'pay claims');
-    const claim = this.claim(id, user);
-    this.assertClaimAt(claim, ['Approved'], 'a payment');
-    if ((claim.exposures || []).length > 0) throw new AppError(409, 'This claim has exposures: pay from an exposure');
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) throw new AppError(422, 'Payment must be more than zero');
-    const paid = claim.payments.reduce((s, p) => s + p.amount, 0);
-    if (round2(paid + value) > claim.reserve) throw new AppError(422, 'Payment would exceed the reserve; raise the reserve first');
-    claim.payments.push({ date: this.today(), amount: round2(value), note: str(note), by: user.id });
-    this.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: round2(value) });
-    return this.claimView(claim, user);
-  }
-
   // ------------------------------------------------------------------ rewrite
   // A cancelled policy is replaced by a NEW policy (a new number) for the same customer and risk, linked to the old one. It is
   // new business: priced and underwritten on the day it starts. It cannot start before the old policy was cancelled or more
@@ -1662,145 +1467,6 @@ class PolicyCenter {
     this.addDocument(policy, job, 'Premium Audit Statement', null, { audit: policy.audits[policy.audits.length - 1] });
     this.publish('PremiumAuditCompleted', this.eventPayload(policy, job, { termNumber: term.termNumber, premiumChange: job.quote.changeAmount }));
     return policy;
-  }
-
-  // ------------------------------------------------------------------ tickets
-  // Customer and staff issues. Each ticket has a priority with a response deadline (SLA):
-  //   Urgent 4 hours, High 1 day, Normal 2 days, Low 5 days (calendar hours from creation).
-  // Customers who hold a premium policy (total current term premium of PREMIUM_THRESHOLD or more) go first
-  // in the queue, then by priority, then by the earliest deadline.
-
-  premiumCustomer(accountId) {
-    const today = this.today();
-    const total = this.db.policies
-      .filter((p) => p.accountId === accountId && !p.cancellation)
-      .reduce((sum, p) => {
-        const term = this.termContaining(p, today);
-        return term ? sum + term.latest.quote.premium + term.latest.quote.taxes : sum;
-      }, 0);
-    return round2(total) >= PREMIUM_THRESHOLD;
-  }
-
-  createTicket(input, user) {
-    const account = this.account(str(input.accountId), user);
-    const priority = input.priority || 'Normal';
-    if (!TICKET_HOURS[priority]) throw new AppError(422, `Priority must be one of ${Object.keys(TICKET_HOURS).join(', ')}`);
-    const subject = str(input.subject);
-    if (subject.length < 3) throw new AppError(422, 'Give the ticket a short subject');
-    const category = input.category || 'Other';
-    if (!TICKET_CATEGORIES.includes(category)) throw new AppError(422, `Category must be one of ${TICKET_CATEGORIES.join(', ')}`);
-    const policy = input.policyId ? this.policy(input.policyId, user) : null;
-    const claim = input.claimId ? this.claim(input.claimId, user) : null;
-    const createdMs = this.nowMs();
-    const ticket = {
-      id: this.store.id('tkt'),
-      ticketNumber: this.store.number('TKT-', 7),
-      accountId: account.id,
-      policyId: policy ? policy.id : null,
-      claimId: claim ? claim.id : null,
-      category, subject, description: str(input.description), priority,
-      status: 'Open', assignedTo: null,
-      source: input.source || 'staff',
-      createdBy: user.id, createdByName: user.name, createdAt: new Date(createdMs).toISOString(),
-      slaDueAt: new Date(createdMs + TICKET_HOURS[priority] * 3600 * 1000).toISOString(),
-      firstResponseAt: null, resolvedAt: null, closedAt: null,
-      notes: [],
-      history: [{ at: new Date(createdMs).toISOString(), by: user.id, action: 'Created', detail: `${priority} priority, ${category}` }],
-    };
-    this.db.tickets.push(ticket);
-    this.publish('TicketOpened', { ticketNumber: ticket.ticketNumber, priority, category });
-    return ticket;
-  }
-
-  ticket(id, user) {
-    const t = this.db.tickets.find((x) => x.id === id || x.ticketNumber === id);
-    if (!t) throw new AppError(404, 'Ticket not found');
-    const account = this.db.accounts.find((a) => a.id === t.accountId);
-    if (user && (!account || !this.canSee(user, account))) throw new AppError(404, 'Ticket not found');
-    return t;
-  }
-
-  // SLA state: Met or Missed once resolved or closed; otherwise Responded, On time, or Breached.
-  slaOf(t) {
-    const due = Date.parse(t.slaDueAt);
-    const hoursLeft = Math.round(((due - this.nowMs()) / 3600000) * 10) / 10;
-    if (t.resolvedAt || t.closedAt) return { state: Date.parse(t.resolvedAt || t.closedAt) <= due ? 'Met' : 'Missed', hoursLeft: null };
-    if (t.firstResponseAt) return { state: 'Responded', hoursLeft: null };
-    return { state: hoursLeft < 0 ? 'Breached' : 'On time', hoursLeft };
-  }
-
-  ticketView(t, user) {
-    const account = this.db.accounts.find((a) => a.id === t.accountId);
-    const { notes, ...rest } = t;
-    return {
-      ...rest,
-      customer: account ? this.accountName(account) : '',
-      accountNumber: account ? account.accountNumber : null,
-      premiumCustomer: this.premiumCustomer(t.accountId),
-      assignedToName: t.assignedTo ? (USERS.find((u) => u.id === t.assignedTo) || { name: t.assignedTo }).name : null,
-      sla: this.slaOf(t),
-      nextStatuses: TICKET_TRANSITIONS[t.status] || [],
-      notes: notes.map((n) => ({ ...n })),
-    };
-  }
-
-  listTickets(user, { status } = {}) {
-    return this.db.tickets
-      .filter((t) => {
-        const account = this.db.accounts.find((a) => a.id === t.accountId);
-        return account && this.canSee(user, account);
-      })
-      .filter((t) => !status || (status === 'open' ? !['Resolved', 'Closed'].includes(t.status) : t.status === status))
-      .map((t) => this.ticketView(t, user))
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }
-
-  // The staff queue: open tickets, premium customers first, then priority, then the earliest deadline.
-  ticketQueue(user) {
-    return this.listTickets(user, { status: 'open' })
-      .sort((a, b) => (Number(b.premiumCustomer) - Number(a.premiumCustomer))
-        || (TICKET_HOURS[a.priority] - TICKET_HOURS[b.priority])
-        || a.slaDueAt.localeCompare(b.slaDueAt));
-  }
-
-  assignTicket(id, assigneeId, user) {
-    this.requireAuthority(user, 1, 'assign tickets');
-    const t = this.ticket(id, user);
-    if (!['Open', 'Assigned'].includes(t.status)) throw new AppError(409, `A ${t.status} ticket cannot be assigned`);
-    const assignee = USERS.find((u) => u.id === assigneeId && u.authority >= 1);
-    if (!assignee) throw new AppError(422, 'Assign to an underwriter, insurance executive or manager');
-    t.assignedTo = assignee.id;
-    t.status = 'Assigned';
-    t.history.push({ at: this.now(), by: user.id, action: 'Assigned', detail: assignee.name });
-    return this.ticketView(t, user);
-  }
-
-  // Ticket stages: Open > Assigned > In Progress > Resolved > Closed (a resolved ticket can be reopened).
-  moveTicket(id, { to }, user) {
-    this.requireAuthority(user, 1, 'change ticket status');
-    const t = this.ticket(id, user);
-    const allowed = TICKET_TRANSITIONS[t.status] || [];
-    if (!allowed.includes(to)) throw new AppError(409, `A ${t.status} ticket cannot move to ${to}. Allowed: ${allowed.join(', ') || 'none'}`);
-    const at = this.now();
-    if (to === 'In Progress' && !t.firstResponseAt) t.firstResponseAt = at;
-    if (to === 'Resolved') t.resolvedAt = at;
-    if (to === 'Closed') t.closedAt = at;
-    if (to === 'In Progress') t.resolvedAt = null;
-    t.history.push({ at, by: user.id, action: 'Status', detail: `${t.status} to ${to}` });
-    t.status = to;
-    return this.ticketView(t, user);
-  }
-
-  addTicketNote(id, { text, internal }, user) {
-    const t = this.ticket(id, user);
-    const body = str(text);
-    if (!body) throw new AppError(422, 'Write a note before saving');
-    const staff = salesScope(user) === 'all';
-    const at = this.now();
-    if (staff && !t.firstResponseAt) t.firstResponseAt = at;
-    t.notes.push({ at, by: user.id, byName: user.name, text: body, internal: Boolean(internal && staff) });
-    t.history.push({ at, by: user.id, action: 'Note', detail: staff ? 'staff note' : 'customer note' });
-    return this.ticketView(t, user);
   }
 
   // ------------------------------------------------------------------ staff accounts
@@ -2107,4 +1773,15 @@ class PolicyCenter {
   }
 }
 
-module.exports = { PolicyCenter, AppError, CANCEL_REASONS, CLAIM_TYPES, CLAIM_TRANSITIONS };
+// The parts of the service that live in their own modules (src/pc/*), mixed in so callers see one object. A class
+// prototype's methods are not enumerable, so they are copied by descriptor rather than with Object.assign.
+function mixin(target, source) {
+  for (const name of Object.getOwnPropertyNames(source)) {
+    if (name !== 'constructor') Object.defineProperty(target, name, Object.getOwnPropertyDescriptor(source, name));
+  }
+}
+
+mixin(PolicyCenter.prototype, claims.Claims.prototype);
+mixin(PolicyCenter.prototype, tickets.Tickets.prototype);
+
+module.exports = { PolicyCenter, AppError, CANCEL_REASONS, CLAIM_TYPES: claims.CLAIM_TYPES, CLAIM_TRANSITIONS: claims.CLAIM_TRANSITIONS };
