@@ -101,3 +101,9 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 ## Tier 3 is finished
 
 Items 8 (documents), 9 (accounting) and 10 (two-wheeler and question sets, multi-year terms, premium audit, rewrite) are done. Tier 4 (go-live readiness: scale tests, a security scan, backup and restore, data protection review, hosting) is the next stage in REVIEW.md of the old Insurance Suite (tag `insurance-suite-final`).
+
+## Tier 4: go-live readiness (in code)
+
+Done: load test and the fixes it found (`docs/PERFORMANCE.md`), security hardening of the web edge (`src/security.js`, `src/webServer.js`, `test/security.test.js`), backup and restore with checksums (`src/backup.js`, `scripts/backup.js`, `scripts/restore.js`, `test/backup.test.js`), personal data export and erasure (`src/dataProtection.js`, `test/data-protection.test.js`, `docs/DATA-PROTECTION.md`), a Dockerfile (not built here), and `docs/GO-LIVE.md`, which lists what only people can finish: the database move, a penetration test, hosting, secrets, a restore drill, data protection decisions, language review, accessibility checks and monitoring.
+
+Not done: screens for backup, data export and erasure (API only), and the database move.

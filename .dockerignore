@@ -1,0 +1,11 @@
+node_modules
+data
+.git
+.env
+.env.*
+chat.config.json
+*-credentials.json
+*service-account*.json
+*speech-key*.json
+reference-docs
+docs/*.pdf
