@@ -8,6 +8,7 @@ const { rate, replacementCostEstimate, round2 } = require('./rating');
 const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
+const { invoiceView } = require('./invoiceView');
 const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
 
@@ -1120,7 +1121,7 @@ class PolicyCenter {
     }));
     const invoices = this.db.invoices
       .filter((i) => i.policyId === policy.id)
-      .map((i) => ({ ...i, status: i.amount < 0 ? 'Credit' : i.dueDate <= today ? 'Billed' : 'Planned' }))
+      .map((i) => ({ ...invoiceView(i, today), status: i.amount < 0 ? 'Credit' : i.dueDate <= today ? 'Billed' : 'Planned' }))
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.invoiceNumber.localeCompare(b.invoiceNumber));
     return {
       ...this.policySummary(policy),
@@ -1134,6 +1135,8 @@ class PolicyCenter {
       transactions: billing ? policy.transactions : [],
       writtenPremium: billing ? round2(policy.transactions.reduce((s, t) => s + t.amount, 0)) : null,
       invoices: billing ? invoices : [],
+      payments: billing ? this.db.payments.filter((x) => x.policyId === policy.id) : [],
+      credit: billing ? round2(this.db.payments.filter((x) => x.policyId === policy.id).reduce((sum, x) => sum + x.unapplied, 0)) : 0,
       documents: this.db.documents.filter((d) => d.policyId === policy.id),
       events: this.db.events.filter((e) => e.payload.policyNumber === policy.policyNumber).reverse(),
       jobs: this.db.jobs.filter((j) => j.policyId === policy.id).map((j) => this.jobSummary(j)).reverse(),

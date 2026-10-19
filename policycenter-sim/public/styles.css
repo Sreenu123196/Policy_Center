@@ -82,6 +82,9 @@ dl.facts dd { margin: 0; }
 .b-quoted, .b-scheduled, .b-planned, .b-billed { background: var(--accent-soft); color: var(--accent); }
 .b-draft, .b-open, .b-pending, .b-blocksbind, .b-normal { background: var(--warning-soft); color: var(--warning); }
 .b-cancelled, .b-declined, .b-blocksquote, .b-not-approvable, .b-high, .b-expired { background: var(--danger-soft); color: var(--danger); }
+.b-paid { background: var(--success-soft); color: var(--success); }
+.b-part-paid, .b-unpaid { background: var(--warning-soft); color: var(--warning); }
+.b-overdue { background: var(--danger-soft); color: var(--danger); }
 .b-withdrawn, .b-credit { background: #eceff3; color: #59636e; }
 
 /* ---------- banners & toasts */

@@ -5,7 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], documents: [], events: [], claims: [], followUps: [], messages: [], tickets: [], staff: [] });
+const empty = () => ({ seq: {}, accounts: [], policies: [], jobs: [], activities: [], invoices: [], payments: [], documents: [], events: [], claims: [], followUps: [], messages: [], tickets: [], staff: [] });
 
 // Claims saved before the stage workflow used "Open" and "Closed". Map them to the new stages.
 function migrateClaims(claims) {

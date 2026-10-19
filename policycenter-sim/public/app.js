@@ -358,10 +358,16 @@ const POLICY_TABS = {
   billing: (p) => {
     if (p.billingHidden) return BILLING_HIDDEN;
     const total = p.invoices.reduce((s, i) => s + i.amount + i.fee, 0);
-    return `<div class="muted" style="margin-bottom:10px">Simulated BillingCenter invoice stream for this policy.</div>`
-      + table(['Invoice', 'Due', 'Job', 'Description', 'Status', '$Amount', '$Fee'], p.invoices.map((i) => [
-        esc(i.invoiceNumber), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), money(i.amount), money(i.fee),
-      ])) + `<div class="spread" style="margin-top:10px"><span></span><strong>Total billed and planned: ${money(total)}</strong></div>`;
+    const balance = p.invoices.reduce((s, i) => s + i.balance, 0);
+    return `<div class="spread" style="margin-bottom:10px"><div class="muted">Simulated BillingCenter invoice stream for this policy. A payment is applied to the oldest invoice first.</div>
+        <button class="btn small primary" data-action="record-payment">Record payment</button></div>`
+      + table(['Invoice', 'Due', 'Job', 'Description', 'Status', 'Payment', '$Amount', '$Fee', '$Paid', '$Balance'], p.invoices.map((i) => [
+        esc(i.invoiceNumber), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
+      ])) + `<div class="spread" style="margin-top:10px"><span>${p.credit > 0 ? `Credit on the policy: <strong>${money(p.credit)}</strong>` : ''}</span><strong>Total billed and planned: ${money(total)} · Balance owing: ${money(balance)}</strong></div>`
+      + '<h3>Payments received</h3>'
+      + table(['Payment', 'Received', 'Method', 'Reference', '$Amount', 'Applied to', '$Left over'], p.payments.map((x) => [
+        esc(x.paymentNumber), esc(x.receivedOn), esc(x.method), esc(x.reference), money(x.amount), esc(x.allocations.map((a) => a.invoiceNumber).join(', ') || '-'), money(x.unapplied),
+      ]), 'No payments yet');
   },
   documents: (p) => table(['Document', 'Name', 'Job', 'Created', ''], p.documents.map((d) => [
     esc(d.documentNumber), esc(d.name), esc(d.jobNumber), when(d.createdAt), `<button class="btn small" data-action="view-doc" data-id="${d.id}">View</button>`,
@@ -1217,6 +1223,16 @@ const ACTIONS = {
   'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-vehicle': async (d) => { S.jv.draft.line.vehicles.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
 
+  'record-payment': () => openModal(`<h2>Record a payment for ${esc(S.policy.policyNumber)}</h2>
+    <form data-form="record-payment"><div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Amount ($)', '<input type="number" name="amount" min="0.01" step="0.01" required>')}
+        ${field('Method', '<select name="method"><option>Cheque</option><option>Card</option><option>Bank transfer</option><option>Cash</option></select>')}
+        ${field('Reference (cheque number or transaction id)', '<input name="reference" required>')}
+        ${field('Date received', `<input type="date" name="receivedOn" value="${S.meta.today}" required>`)}
+      </div>
+      <p class="muted">The payment goes to the oldest invoice first. Anything left over stays as a credit on the policy.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Record payment</button></div></form>`),
   'policy-tab': (d) => { S.policyTab = d.tab; renderPolicy(); },
   'view-doc': (d) => docModal(d.id),
   'policy-change': () => openModal(`<h2>Change policy ${esc(S.policy.policyNumber)}</h2>
@@ -1305,6 +1321,13 @@ const FORMS = {
     const job = await api('POST', '/jobs/submission', { accountId: form.dataset.account, product: fd.get('product'), effectiveDate: fd.get('effectiveDate') });
     closeModal();
     location.hash = `#/job/${job.id}`;
+  },
+  'record-payment': async (fd) => {
+    const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
+    closeModal();
+    toast(`Payment ${payment.paymentNumber} recorded`, 'success');
+    S.policy = await api('GET', `/policies/${S.policy.id}`);
+    renderPolicy();
   },
   'policy-change': async (fd) => {
     const job = await api('POST', `/policies/${S.policy.id}/change`, { effectiveDate: fd.get('effectiveDate') });

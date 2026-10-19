@@ -7,11 +7,13 @@ const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS } = require('./policyCenter');
 const { Finance } = require('./finance');
 const { Insights } = require('./insights');
+const { Billing } = require('./billing');
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {}) {
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
+  const billing = new Billing(pc);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -81,6 +83,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
   route('POST', '/policies/:id/cancel', ({ user, params, body }) => pc.jobDetail(pc.startCancellation(params.id, body, user).id, user));
   route('POST', '/policies/:id/reinstate', ({ user, params }) => pc.jobDetail(pc.startReinstatement(params.id, user).id, user));
   route('POST', '/policies/:id/renew', ({ user, params }) => pc.jobDetail(pc.startRenewal(params.id, user).id, user));
+
+  // Payments and missed payments (UW managers). A payment is applied to the oldest invoice first.
+  route('GET', '/policies/:id/billing', ({ user, params }) => ({ invoices: billing.invoicesFor(params.id, user), payments: billing.paymentsFor(params.id, user), credit: billing.creditFor(params.id, user) }));
+  route('POST', '/policies/:id/payments', ({ user, params, body }) => billing.receivePayment(user, { ...body, policyId: params.id }));
+  route('POST', '/billing/delinquency', ({ user, body }) => billing.runDelinquency(user, { asOf: body.asOf }));
 
   route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true' }));
   route('POST', '/activities/:id/complete', ({ user, params }) => pc.completeActivity(params.id, user));
