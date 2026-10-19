@@ -35,4 +35,55 @@ function collectionsConsumer(pc) {
   };
 }
 
-module.exports = { collectionsConsumer };
+// Claims queues: a new claim becomes an activity for the underwriters (High if it was reported late or could not be verified),
+// and a claim payment waiting for approval becomes an activity for the UW manager. They close by themselves: the review when
+// the claim leaves Submitted, the approval when the payment is issued. One activity per event, however often it is delivered.
+function claimsQueueConsumer(pc) {
+  const claimOf = (number) => pc.db.claims.find((c) => c.claimNumber === number);
+  const add = (event, claim, fields) => {
+    if (pc.db.activities.some((a) => a.eventId === event.eventId)) return; // seen before
+    pc.db.activities.push({
+      id: pc.store.id('act'),
+      activityNumber: pc.store.number('ACT-', 6),
+      type: 'Claims',
+      eventId: event.eventId,
+      claimId: claim.id,
+      claimNumber: claim.claimNumber,
+      accountId: claim.accountId,
+      policyId: claim.policyId,
+      policyNumber: (pc.db.policies.find((p) => p.id === claim.policyId) || {}).policyNumber,
+      status: 'Open',
+      createdAt: pc.now(),
+      createdBy: 'system',
+      ...fields,
+    });
+  };
+  const close = (match) => {
+    for (const a of pc.db.activities) if (a.type === 'Claims' && a.status === 'Open' && match(a)) Object.assign(a, { status: 'Completed', completedAt: pc.now(), completedBy: 'system' });
+  };
+  return (event) => {
+    const p = event.payload;
+    const claim = claimOf(p.claimNumber);
+    if (!claim) return;
+    if (event.type === 'ClaimOpened') {
+      const flags = [p.lateReport ? 'It was reported late.' : '', p.verification !== 'verified' ? 'The policy could not be verified for the loss date.' : ''].filter(Boolean);
+      add(event, claim, {
+        subject: `Review new claim ${claim.claimNumber}`,
+        description: `${p.lossType} on ${p.lossDate}, policy ${p.policyNumber}. ${flags.join(' ')}`.trim(),
+        assignedTo: 'uw', priority: flags.length ? 'High' : 'Normal', dueDate: D.addDays(pc.today(), 2), review: true,
+      });
+    } else if (event.type === 'ClaimStageChanged' && p.stage !== 'Submitted') {
+      close((a) => a.claimId === claim.id && a.review);
+    } else if (event.type === 'ClaimPaymentPending') {
+      add(event, claim, {
+        subject: `Approve claim payment of ${p.amount} on ${claim.claimNumber}`,
+        description: `A payment on exposure ${p.exposure} is above the requester's limit and needs a different person to approve it.`,
+        assignedTo: 'uwm', priority: 'High', dueDate: D.addDays(pc.today(), 1), paymentId: p.paymentId,
+      });
+    } else if (event.type === 'ClaimPaid' && p.paymentId) {
+      close((a) => a.paymentId === p.paymentId);
+    }
+  };
+}
+
+module.exports = { collectionsConsumer, claimsQueueConsumer };

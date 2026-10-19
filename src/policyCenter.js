@@ -1219,7 +1219,8 @@ class PolicyCenter {
     return this.db.activities
       .filter((a) => this.canSee(user, this.db.accounts.find((x) => x.id === a.accountId)))
       .filter((a) => all || a.status === 'Open')
-      .filter((a) => all || user.role === 'Agent' || a.assignedTo === user.id || (user.authority >= 2 && a.assignedTo === 'uw'))
+      // A UW manager sees the underwriters' queue and the manager queue ('uwm'), whoever the manager is.
+      .filter((a) => all || user.role === 'Agent' || a.assignedTo === user.id || (user.authority >= 2 && ['uw', 'uwm'].includes(a.assignedTo)))
       .map((a) => ({ ...a, assignedToName: USERS.find((u) => u.id === a.assignedTo)?.name }))
       .reverse();
   }
@@ -1354,7 +1355,7 @@ class PolicyCenter {
       createdBy: user.id,
     };
     this.db.claims.push(claim);
-    this.publish('ClaimOpened', { claimNumber: claim.claimNumber, policyNumber: policy.policyNumber, lossDate, lossType });
+    this.publish('ClaimOpened', { claimNumber: claim.claimNumber, policyNumber: policy.policyNumber, lossDate, lossType, lateReport: claim.lateReport, verification: claim.verification });
     return claim;
   }
 

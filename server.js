@@ -16,7 +16,7 @@ const { Speech } = require('./src/speech');
 const { Messaging, emailTransport, whatsappTransport } = require('./src/messaging');
 const { Auth } = require('./src/auth');
 const { EventBus } = require('./src/eventBus');
-const { collectionsConsumer } = require('./src/consumers');
+const { collectionsConsumer, claimsQueueConsumer } = require('./src/consumers');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -36,6 +36,7 @@ const messaging = new Messaging(pc, { transports: { email: emailTransport(), wha
 const auth = new Auth(pc);
 const bus = new EventBus(pc);
 bus.register('collections', collectionsConsumer(pc));
+bus.register('claims-queue', claimsQueueConsumer(pc));
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus });
 bus.run(); // events written before this start
 

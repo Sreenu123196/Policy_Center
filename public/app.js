@@ -180,7 +180,7 @@ async function pageDesktop() {
       ${table(['Activity', 'Subject', 'Job', 'Priority', 'Assigned to', 'Due', ''], d.activities.map((a) => [
         esc(a.activityNumber),
         `${esc(a.subject)}<div class="muted" style="white-space:pre-line">${esc(a.description)}</div>`,
-        a.jobId ? `<a href="#/job/${a.jobId}">${esc(a.jobNumber)}</a>` : `<a href="#/policy/${a.policyId}">${esc(a.policyNumber)}</a>`,
+        a.jobId ? `<a href="#/job/${a.jobId}">${esc(a.jobNumber)}</a>` : a.claimId ? `<a href="#/claim/${a.claimId}">${esc(a.claimNumber)}</a>` : `<a href="#/policy/${a.policyId}">${esc(a.policyNumber)}</a>`,
         badge(a.priority), esc(a.assignedToName || a.assignedTo), esc(a.dueDate),
         u.role === 'Agent' ? '' : `<button class="btn small" data-action="complete-activity" data-id="${a.id}">Complete</button>`,
       ]), 'No open activities')}

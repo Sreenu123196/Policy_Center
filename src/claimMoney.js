@@ -114,13 +114,13 @@ class ClaimMoney {
     }
     const pending = { id: this.pc.store.id('cpp'), ...entry, requestedBy: user.id, requestedAt: this.pc.now(), requestedOn: this.pc.today() };
     claim.pendingPayments.push(pending);
-    this.pc.publish('ClaimPaymentPending', { claimNumber: claim.claimNumber, exposure: exposure.number, amount: value });
+    this.pc.publish('ClaimPaymentPending', { claimNumber: claim.claimNumber, exposure: exposure.number, amount: value, paymentId: pending.id });
     return { status: 'pending_approval', id: pending.id, amount: value };
   }
 
-  issue(claim, entry) {
+  issue(claim, entry, paymentId) {
     claim.payments.push({ date: this.pc.today(), ...entry });
-    this.pc.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: entry.amount, exposure: entry.exposureNumber });
+    this.pc.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: entry.amount, exposure: entry.exposureNumber, ...(paymentId ? { paymentId } : {}) });
   }
 
   approvePayment(user, claimId, paymentId) {
@@ -132,7 +132,7 @@ class ClaimMoney {
     if (pending.amount > limit) throw new AppError(403, `A payment of ${pending.amount} is above your authority (${limit})`);
     claim.pendingPayments = claim.pendingPayments.filter((p) => p.id !== paymentId);
     const { id, requestedAt, requestedOn, ...entry } = pending;
-    this.issue(claim, { ...entry, by: pending.requestedBy, approvedBy: user.id });
+    this.issue(claim, { ...entry, by: pending.requestedBy, approvedBy: user.id }, paymentId);
     return { status: 'issued', amount: pending.amount };
   }
 }
