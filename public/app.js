@@ -134,6 +134,7 @@ const ROUTES = [
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
   [/^#\/claims$/, pageClaims],
+  [/^#\/reports$/, pageReports],
   [/^#\/claim\/([^/]+)$/, pageClaim],
   [/^#\/search\/(.*)$/, pageSearch],
   [/^#\/sales$/, pageSales],
@@ -990,6 +991,41 @@ function renderClaim() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ reports
+
+async function pageReports() {
+  const u = me();
+  const manager = u.role === 'UW Manager';
+  const asOf = S.reportAsOf || S.meta.today;
+  const [collections, refunds, approvals] = await Promise.all([
+    manager ? api('GET', `/reports/collections?asOf=${encodeURIComponent(asOf)}`) : null,
+    manager ? api('GET', '/reports/refunds') : null,
+    api('GET', '/reports/claim-approvals'),
+  ]);
+  const stage = { none: '—', notice: 'Notice sent', cancellation_request: 'Cancellation requested' };
+  view(`
+    <div class="eyebrow">Reports</div><h1>Reports</h1>
+    ${collections ? `<div class="card"><div class="spread"><h2>Collections: overdue payments</h2>
+        <form class="toolbar" data-form="report-date">${field('As of', `<input type="date" name="asOf" value="${esc(asOf)}">`)}<button class="btn small" style="align-self:flex-end">Show</button></form></div>
+      <div class="tiles">${Object.entries(collections.buckets).map(([name, b]) => `<div class="tile"><div class="label">${esc(name)} days</div><div class="value">${money(b.balance)}</div><div class="muted">${b.policies} polic${b.policies === 1 ? 'y' : 'ies'}</div></div>`).join('')}
+        <div class="tile accent"><div class="label">Total overdue</div><div class="value">${money(collections.total)}</div></div></div>
+      ${table(['Policy', 'Insured', 'Product', 'Oldest due', 'Days late', '$Overdue', 'Step taken'], collections.policies.map((p) => [
+        `<a href="#/policy/${esc(p.policyId)}">${esc(p.policyNumber)}</a>`, esc(p.insured), productLabel(p.product), esc(p.oldestDueDate), p.daysOverdue, money(p.balance), esc(stage[p.stage]),
+      ]), 'Nothing is overdue on this date')}</div>` : ''}
+    ${refunds ? `<div class="card"><h2>Refunds and amounts owed after cancellation</h2>
+      <div class="tiles">${['Due', 'Issued', 'Withdrawn'].map((k) => `<div class="tile"><div class="label">Refunds ${k.toLowerCase()}</div><div class="value">${money(refunds.byStatus[k].amount)}</div><div class="muted">${refunds.byStatus[k].count}</div></div>`).join('')}
+        <div class="tile accent"><div class="label">Owed by cancelled customers</div><div class="value">${money(refunds.totalArrears)}</div></div></div>
+      ${table(['Refund', 'Policy', 'Insured', 'Status', '$Amount', 'Paid on'], refunds.refunds.map((r) => [esc(r.refundNumber), esc(r.policyNumber), esc(r.insured), badge(r.status), money(r.amount), esc(r.paidOn || '—')]), 'No refunds')}
+      <h3>Cancelled customers who still owe money</h3>
+      ${table(['Policy', 'Insured', 'Cancelled', '$Owed'], refunds.arrears.map((a) => [esc(a.policyNumber), esc(a.insured), esc(a.cancelledOn), money(a.owed)]), 'Nobody owes money after cancellation')}</div>` : ''}
+    <div class="card"><h2>Claim payments waiting for approval</h2>
+      <div class="tiles"><div class="tile accent"><div class="label">Waiting</div><div class="value">${money(approvals.pendingTotal)}</div><div class="muted">${approvals.pending.length} payment${approvals.pending.length === 1 ? '' : 's'}</div></div>
+        <div class="tile"><div class="label">Approved by a second person</div><div class="value">${money(approvals.approved.amount)}</div><div class="muted">${approvals.approved.count}</div></div></div>
+      ${table(['Claim', 'Policy', 'Insured', 'Exposure', 'Cost type', '$Amount', 'Requested by', 'Waiting (days)'], approvals.pending.map((p) => [
+        `<a href="#/claim/${esc(p.claimId)}">${esc(p.claimNumber)}</a>`, esc(p.policyNumber), esc(p.insured), p.exposure, esc(p.costType.replace('_', ' ')), money(p.amount), esc(p.requestedBy), p.ageDays,
+      ]), 'No payment is waiting')}</div>`);
+}
+
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
@@ -1514,6 +1550,7 @@ const FORMS = {
     closeModal();
     location.hash = `#/job/${job.id}`;
   },
+  'report-date': (fd) => { S.reportAsOf = String(fd.get('asOf') || ''); pageReports(); },
   'claim-filter': (fd) => { S.claimStatus = String(fd.get('status') || ''); pageClaims(); },
   'add-exposure': async (fd) => {
     S.claim = await api('POST', `/claims/${S.claim.id}/exposures`, { coverage: fd.get('coverage'), claimantName: fd.get('claimantName'), claimantKind: fd.get('claimantKind'), description: fd.get('description') });
@@ -2169,6 +2206,7 @@ async function boot() {
   setSignedOutChrome(false);
   document.getElementById('whoami').textContent = `${S.me.name} · ${S.me.role}`;
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.querySelectorAll('[data-nav="reports"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.getElementById('signout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
     location.hash = '#/desktop';

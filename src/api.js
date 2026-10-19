@@ -9,6 +9,7 @@ const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
 const { Finance } = require('./finance');
 const { Insights } = require('./insights');
 const { Billing } = require('./billing');
+const { Reports } = require('./reports');
 const { ClaimMoney, RESERVE_LIMITS, PAYMENT_LIMITS, COST_TYPES, CLAIMANT_KINDS } = require('./claimMoney');
 
 const hash = (v) => crypto.createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
@@ -30,6 +31,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   const insights = new Insights(pc, finance);
   const billing = new Billing(pc);
   const claimMoney = new ClaimMoney(pc);
+  const reports = new Reports(pc, billing);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -169,6 +171,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   route('POST', '/sales/policies/:id/followups', ({ user, params, body }) => pc.logFollowUp(params.id, body, user));
   // Management reports. Access is set per role in src/permissions.js.
   route('GET', '/reports/claims', ({ user }) => pc.claimsReport(user));
+  // Reports on payments, refunds and claim approvals. Collections and refunds: UW managers. Claim approvals: underwriters and managers.
+  route('GET', '/reports/collections', ({ user, query }) => reports.collections(user, { asOf: query.get('asOf') || undefined }));
+  route('GET', '/reports/refunds', ({ user }) => reports.refunds(user));
+  route('GET', '/reports/claim-approvals', ({ user }) => reports.claimApprovals(user));
   route('GET', '/reports/billing', ({ user, query }) => pc.billingReport(user, { from: query.get('from') || undefined, to: query.get('to') || undefined }));
   // Monthly profitability and settlement (UW Manager only): premiums + commission, less expenses entered here.
   const monthRange = (query) => ({ from: query.get('from') || undefined, to: query.get('to') || undefined });

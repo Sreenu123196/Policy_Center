@@ -26,3 +26,13 @@ so the older write routes that only check `authority >= 1` let an executive move
 batch, approve level-1 underwriting issues and use the claim-level reserve and payment calls. The new claim exposure
 routes refuse executives (`src/claimMoney.js`). Closing the older ones is a decision for the owner of the role design, so
 the matrix pins today's behaviour for them; change the matrix row in the same commit as any fix.
+
+## Reports for the ported features
+
+| Endpoint | Who | What it shows |
+|---|---|---|
+| `GET /api/reports/collections?asOf=` | UW managers | Policies with overdue invoices: days late, amount, step taken (notice, cancellation request), age buckets 1-30 / 31-60 / 61+ |
+| `GET /api/reports/refunds` | UW managers | Refunds by status (Due, Issued, Withdrawn) and cancelled customers who still owe money |
+| `GET /api/reports/claim-approvals` | Underwriters, UW managers | Claim payments waiting for a second person (oldest first, days waiting) and how many were approved |
+
+Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/reports` (the Reports menu item, shown to underwriters and managers).
