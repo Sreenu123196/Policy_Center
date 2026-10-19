@@ -2300,6 +2300,7 @@ async function chatSend(text) {
   CHAT.busy = true;
   CHAT.abort = new AbortController();
   chatUpdateSend();
+  stopSpeaking();
   chatAppend('user', esc(message));
   const bubble = chatAppend('bot live', '<div class="steps-live"></div><div class="answer"><span class="cursor"></span></div>');
   const steps = bubble.querySelector('.steps-live');
@@ -2359,6 +2360,7 @@ async function chatSend(text) {
       textSoFar = result.reply;
       steps.querySelectorAll('.step').forEach((s) => s.classList.add('done'));
       if (!CHAT.status || result.mode !== CHAT.status.mode) chatStatus();
+      if (!failure) speakReply(result.reply); // read the answer aloud
     }
     if (failure && !textSoFar) {
       bubble.className = 'msg error';
@@ -2369,6 +2371,87 @@ async function chatSend(text) {
     }
     chatUpdateSend();
   }
+}
+
+// Voice replies: the answer is read aloud by the browser's own speech (no server, no cost). It speaks in the language of the chat
+// picker, or, on Auto, in the script the answer is written in. Sending a new question, using the mic, starting a new chat, closing
+// the chat or turning the speaker off stops it.
+const VOICE_REPLIES = { on: true, spoken: false, warned: false };
+try { VOICE_REPLIES.on = localStorage.getItem('chatVoiceReplies') !== 'off'; } catch { /* the default is on */ }
+
+function plainForSpeech(md) {
+  return String(md)
+    .replace(/```[\s\S]*?```/g, ' ')
+    .replace(/`([^`]*)`/g, '$1')
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+    .replace(/^\s*\|?[-:| ]{3,}\|?\s*$/gm, '')
+    .replace(/^[ \t]*\|(.*)\|[ \t]*$/gm, (row, cells) => cells.split('|').map((c) => c.trim()).filter(Boolean).join(', ') + '.') // a table row is read as a sentence
+    .replace(/\|/g, ', ')
+    .replace(/^#{1,6}\s*/gm, '')
+    .replace(/\*/g, '')
+    .replace(/^\s*[-•]\s+/gm, '')
+    .replace(/([^.!?।:,;\s])[ \t]*\n/g, '$1.\n') // a line without an ending gets a pause
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function speechLanguageFor(text) {
+  const chosen = chatLanguage();
+  if (BROWSER_SPEECH_LANGUAGES[chosen]) return BROWSER_SPEECH_LANGUAGES[chosen];
+  if (/[ఀ-౿]/.test(text)) return 'te-IN';
+  if (/[ऀ-ॿ]/.test(text)) return 'hi-IN';
+  return 'en-IN';
+}
+
+function stopSpeaking() {
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  VOICE_REPLIES.spoken = false;
+}
+
+function speakReply(markdown) {
+  if (!VOICE_REPLIES.on || !window.speechSynthesis || !window.SpeechSynthesisUtterance) return;
+  const text = plainForSpeech(markdown);
+  if (!text) return;
+  stopSpeaking();
+  const lang = speechLanguageFor(text);
+  const voices = window.speechSynthesis.getVoices();
+  const voice = voices.find((v) => v.lang.replace('_', '-').toLowerCase() === lang.toLowerCase()) || voices.find((v) => v.lang.toLowerCase().startsWith(lang.slice(0, 2)));
+  if (voices.length && !voice && !VOICE_REPLIES.warned && lang !== 'en-IN') {
+    VOICE_REPLIES.warned = true;
+    toast(`This computer has no ${lang === 'te-IN' ? 'Telugu' : 'Hindi'} voice, so the reply is read in the default voice. Add one in Windows: Settings, Time & language, Speech.`, 'error');
+  }
+  // Short pieces: some voices stop in the middle of a long text.
+  const pieces = text.match(/[^.!?।]+[.!?।]*\s*/g) || [text];
+  for (const piece of pieces) {
+    const u = new SpeechSynthesisUtterance(piece.trim());
+    u.lang = lang;
+    if (voice) u.voice = voice;
+    window.speechSynthesis.speak(u);
+  }
+  VOICE_REPLIES.spoken = true;
+}
+
+function setupVoiceReplies() {
+  const btn = document.getElementById('chat-voice');
+  if (!window.speechSynthesis) { btn.hidden = true; return; }
+  const paint = () => {
+    btn.textContent = VOICE_REPLIES.on ? '🔊' : '🔇';
+    btn.setAttribute('aria-pressed', String(VOICE_REPLIES.on));
+    const label = VOICE_REPLIES.on ? 'Voice replies are on. Click to turn them off' : 'Voice replies are off. Click to turn them on';
+    btn.setAttribute('aria-label', label);
+    btn.title = label;
+  };
+  btn.addEventListener('click', () => {
+    VOICE_REPLIES.on = !VOICE_REPLIES.on;
+    try { localStorage.setItem('chatVoiceReplies', VOICE_REPLIES.on ? 'on' : 'off'); } catch { /* a per-viewer convenience */ }
+    if (!VOICE_REPLIES.on) stopSpeaking();
+    paint();
+  });
+  const mic = document.getElementById('chat-mic');
+  if (mic) mic.addEventListener('click', stopSpeaking); // so the assistant does not hear itself
+  window.addEventListener('beforeunload', stopSpeaking);
+  paint();
 }
 
 // The send arrow is only active when there is text to send and no reply is pending.
@@ -2624,7 +2707,7 @@ function setupChat() {
   try { const saved = localStorage.getItem('chatLanguage'); if (saved) langBox.value = saved; } catch {}
   langBox.addEventListener('change', () => { try { localStorage.setItem('chatLanguage', langBox.value); } catch {} });
   const open = (show) => {
-    if (!show) stopVoice(true);
+    if (!show) { stopVoice(true); stopSpeaking(); }
     panel.hidden = !show;
     toggle.hidden = show;
     toggle.setAttribute('aria-expanded', String(show));
@@ -2639,7 +2722,7 @@ function setupChat() {
     open(true);
   });
   document.getElementById('chat-close').addEventListener('click', () => open(false));
-  document.getElementById('chat-new').addEventListener('click', chatReset);
+  document.getElementById('chat-new').addEventListener('click', () => { stopSpeaking(); chatReset(); });
   document.getElementById('chat-suggest').addEventListener('click', (ev) => {
     const b = ev.target.closest('[data-q]');
     if (b) chatSend(b.dataset.q);
@@ -2662,6 +2745,7 @@ function setupChat() {
   });
   input.addEventListener('input', chatUpdateSend);
   setupVoice(input);
+  setupVoiceReplies();
   input.addEventListener('keydown', (ev) => {
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();

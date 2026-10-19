@@ -147,7 +147,7 @@ const MATRIX = {
 
 // Sign-in routes need no session; /auth/password and /auth/me are checked in test/auth.test.js.
 const PUBLIC = ['GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password'];
-// The speech route calls an outside service; with none set up it answers 502 to everybody who is allowed.
+// The speech route calls an outside service; here that service always refuses, so it answers 502 to everybody who is allowed.
 const OUTSIDE = ['POST /speech'];
 
 async function serve() {
@@ -159,7 +159,7 @@ async function serve() {
     staff.mustChangePassword = false;
   }
   const cookies = Object.fromEntries(Object.entries(ROLES).map(([name, id]) => [name, `pc_session=${auth.login(id, TEST_PASSWORD).token}`]));
-  const api = createApi(env.pc, env.store, { backupDir: require('node:path').join(require('node:os').tmpdir(), 'pc-matrix-backups'), auth, bus: new EventBus(env.pc), chatbot: new Chatbot(env.pc), speech: new Speech(), messaging: new Messaging(env.pc, { transports: {} }) });
+  const api = createApi(env.pc, env.store, { backupDir: require('node:path').join(require('node:os').tmpdir(), 'pc-matrix-backups'), auth, bus: new EventBus(env.pc), chatbot: new Chatbot(env.pc), speech: new Speech({ config: { speechEngine: 'whisper', whisperUrl: 'http://127.0.0.1:1', speechRegion: 'us', speechLanguages: [], speechModel: 'chirp_3' }, fetchImpl: async () => new Response(JSON.stringify({ error: 'speech service refused' }), { status: 500 }) }), messaging: new Messaging(env.pc, { transports: {} }) });
   const server = http.createServer((req, res) => { const u = new URL(req.url, 'http://x'); api(req, res, u.pathname, u.searchParams); });
   await new Promise((ok) => server.listen(0, ok));
   const base = `http://127.0.0.1:${server.address().port}/api`;

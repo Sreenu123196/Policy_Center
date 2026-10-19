@@ -111,6 +111,10 @@ in its most prominent language, so heavily mixed speech may come back in one scr
   is `{conversationId?, message, context}`. Conversations are kept in server memory and reset when the server
   restarts.
 
+## Voice replies
+
+The assistant reads every answer aloud, using the browser's own speech (no server, no cost). The speaker button in the chat header (🔊 / 🔇) turns it on or off and remembers the choice on that computer. It speaks in the language chosen in the chat picker (on Auto, in the script the answer is written in). A new question, the microphone, a new chat, closing the chat or the speaker button stops it. Hindi and Telugu need a voice for that language on the computer (Windows: Settings, Time & language, Speech); without one the chat says so and reads in the default voice.
+
 ## Voice input: the fast option (the browser's own)
 
 Local Whisper is slow on a computer without a graphics card. To use Chrome or Edge's own speech recognition instead (words appear as you speak; needs the internet), put `"speechEngine": "browser"` in `chat.config.json` (or set `SPEECH_ENGINE=browser`) and restart the server. It listens in the language chosen in the chat (English, Hindi or Telugu; Auto listens as English). It does not detect the language by itself: for that use Whisper or Google below.
