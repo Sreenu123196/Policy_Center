@@ -1,7 +1,17 @@
 # The API half of the deployment in docs/DEPLOY.md: the same server.js, with the data in PostgreSQL.
 # Netlify serves the pages and proxies /api here, so the browser sees one site and the session cookie stays same-site.
 #
-# Render: New -> Blueprint -> pick this repository. It asks for DATABASE_URL and ALLOWED_ORIGINS.
+# Render: New -> Blueprint -> pick this repository. It creates the database and the service, and wires DATABASE_URL.
+# The one thing left is ALLOWED_ORIGINS, filled in once the Netlify site exists.
+#
+# The free database Render offers is meant for trying things out (it is time-limited); for anything longer, point
+# DATABASE_URL at Neon, Supabase or a paid Render database instead.
+databases:
+  - name: policycenter-db
+    databaseName: policycenter
+    user: policycenter
+    plan: free
+
 services:
   - type: web
     name: policycenter-api
@@ -15,7 +25,9 @@ services:
         value: "22"
       # The data. PostgreSQL, not the JSON file: a host's disk does not survive a deploy.
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: policycenter-db
+          property: connectionString
       # The Netlify site, so a write forwarded by the proxy is accepted (src/security.js). Set after the site exists.
       - key: ALLOWED_ORIGINS
         sync: false
