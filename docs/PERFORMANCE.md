@@ -4,6 +4,12 @@ How to measure: `node scripts/load-test.js` (add `--check` to fail when a target
 starts the server on it, signs in as the UW manager and runs a number of people at once. `GET /api/admin/metrics` (UW managers)
 shows memory, record counts and what saving the data costs; `GET /api/health` is for a load balancer.
 
+Measure on a quiet machine. The load test writes the whole book on every change, so a file sync tool or a busy disk changes
+the result more than the code does: a run on this laptop while OneDrive was syncing reported saves at 95 ms and missed both
+targets, and an isolated save measured on the same machine at the same moment still cost 27 ms. The numbers below were taken
+with the machine otherwise idle. For a real measurement, keep the clone outside the synced folder (or pause the sync) and
+run the load test on the server that will host it.
+
 ## What was found, and fixed
 
 1. **A write could freeze the server for 22 seconds** (a book of 300 policies). Every write woke the event consumers, which worked
