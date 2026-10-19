@@ -9,9 +9,9 @@
   --nav-text: #dbe7f3;
   --accent: #0b6bcb;
   --accent-soft: #e6f0fb;
-  --success: #1f8a4c;
+  --success: #17703c;
   --success-soft: #e5f5ec;
-  --warning: #a86200;
+  --warning: #8a4f00;
   --warning-soft: #fff4e0;
   --danger: #c0352b;
   --danger-soft: #fdecea;
@@ -253,3 +253,16 @@ pre.payload { margin: 0; font-size: 11px; white-space: pre-wrap; word-break: bre
 .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; display: inline-block; }
 .note { border-left: 3px solid var(--border); padding: 4px 10px; margin: 8px 0; }
 .note.internal { border-left-color: var(--warning); background: var(--warning-soft); }
+
+/* Accessibility (WCAG 2.2 AA): skip link, visible keyboard focus, target size, reduced motion. */
+.skip-link { position: absolute; left: -9999px; top: 8px; z-index: 100; background: #fff; color: var(--accent); padding: 10px 16px; border-radius: 6px; font-weight: 600; }
+.skip-link:focus { left: 8px; outline: 3px solid var(--accent); outline-offset: 2px; }
+a:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, [tabindex]:focus-visible { outline: 3px solid #0b57a8; outline-offset: 2px; }
+.topbar a:focus-visible, .topbar button:focus-visible, .topbar select:focus-visible { outline-color: #fff; }
+main:focus-visible { outline: none; }
+.btn, .mainnav a, .tabs button, .steps button { min-height: 24px; }
+.btn.small { min-height: 24px; display: inline-flex; align-items: center; }
+.lang-select { font: inherit; min-height: 28px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface); color: var(--text); padding: 2px 8px; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+}

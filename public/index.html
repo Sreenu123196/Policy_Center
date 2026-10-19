@@ -7,9 +7,10 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <a class="skip-link" href="#app">Skip to main content</a>
   <header class="topbar">
     <a class="brand" href="#/desktop"><span class="logo">PC</span> PolicyCenter <small>Simulator</small></a>
-    <nav class="mainnav">
+    <nav class="mainnav" aria-label="Main">
       <a href="#/desktop" data-nav="desktop">Desktop</a>
       <a href="#/accounts" data-nav="account">Accounts</a>
       <a href="#/policies" data-nav="polic">Policies</a>
@@ -26,11 +27,12 @@
       <input name="q" type="search" placeholder="Search accounts, policies, jobs" aria-label="Search">
     </form>
     <div class="userpick">
+      <select id="lang-select" class="lang-select" aria-label="Language"><option value="en">English</option><option value="hi">हिन्दी</option><option value="te">తెలుగు</option></select>
       <span id="whoami"></span>
       <button class="btn small" id="signout" hidden>Sign out</button>
     </div>
   </header>
-  <main id="app" class="page"><div class="loading">Loading…</div></main>
+  <main id="app" class="page" tabindex="-1"><div class="loading">Loading…</div></main>
   <div id="modal" class="modal-backdrop" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite"></div>
   <button id="chat-toggle" class="chat-toggle" aria-label="Open PolicyCenter Assistant" aria-expanded="false">Ask PolicyCenter</button>
@@ -52,6 +54,7 @@
       </button>
     </form>
   </section>
+  <script src="i18n.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

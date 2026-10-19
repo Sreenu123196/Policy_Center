@@ -91,15 +91,23 @@ function reportError(err) {
   if (errors && target) target.innerHTML = errorList(errors, err.message);
 }
 
-const errorList = (errors, title) => `<div class="banner error"><strong>${esc(title)}</strong><ul>${errors.map((e) => `<li>${esc(e.message)}</li>`).join('')}</ul></div>`;
+const errorList = (errors, title) => `<div class="banner error" role="alert"><strong>${esc(title)}</strong><ul>${errors.map((e) => `<li>${esc(e.message)}</li>`).join('')}</ul></div>`;
 const notice = (n) => (n ? `<div class="banner ${esc(n.level)}">${esc(n.text)}</div>` : '');
-const view = (html) => { document.getElementById('app').innerHTML = html; };
+const view = (html) => {
+  document.getElementById('app').innerHTML = html;
+  // A screen reader hears the name of the screen when the title changes.
+  const heading = document.querySelector('#app h1');
+  document.title = `${heading ? heading.textContent.trim() : 'PolicyCenter'} · PolicyCenter Simulator`;
+};
 const field = (label, control, cls = '') => `<label class="field ${cls}"><span>${esc(label)}</span>${control}</label>`;
+
+let opener = null; // the control that opened the dialog: focus goes back to it when the dialog closes
 
 function openModal(html, wide = false) {
   formKey = crypto.randomUUID();
   const m = document.getElementById('modal');
-  m.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true">${html}</div>`;
+  if (m.hidden) opener = document.activeElement;
+  m.innerHTML = `<div class="modal ${wide ? 'wide' : ''}" role="dialog" aria-modal="true" aria-labelledby="modal-title">${html.replace('<h2>', '<h2 id="modal-title">')}</div>`;
   m.hidden = false;
   const first = m.querySelector('input, select, textarea, button');
   if (first) first.focus();
@@ -109,11 +117,30 @@ function closeModal() {
   const m = document.getElementById('modal');
   m.hidden = true;
   m.innerHTML = '';
+  if (opener && document.contains(opener)) opener.focus();
+  opener = null;
 }
+
+// Keyboard in a dialog: Escape closes it, and Tab stays inside it.
+document.addEventListener('keydown', (ev) => {
+  const m = document.getElementById('modal');
+  if (m.hidden) return;
+  if (ev.key === 'Escape') {
+    ev.preventDefault();
+    closeModal();
+  } else if (ev.key === 'Tab') {
+    const items = [...m.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])')];
+    if (items.length === 0) return;
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (ev.shiftKey && document.activeElement === first) { ev.preventDefault(); last.focus(); }
+    else if (!ev.shiftKey && document.activeElement === last) { ev.preventDefault(); first.focus(); }
+  }
+});
 
 function table(headers, rows, empty = 'Nothing to show') {
   if (!rows.length) return `<div class="empty">${esc(empty)}</div>`;
-  return `<div class="table-wrap"><table class="list"><thead><tr>${headers.map((h) => `<th class="${h.startsWith('$') ? 'num' : ''}">${esc(h.replace(/^\$/, ''))}</th>`).join('')}</tr></thead>
+  return `<div class="table-wrap"><table class="list"><thead><tr>${headers.map((h) => `<th scope="col" class="${h.startsWith('$') ? 'num' : ''}">${esc(h.replace(/^\$/, ''))}</th>`).join('')}</tr></thead>
     <tbody>${rows.map((r) => `<tr>${r.map((c, i) => `<td class="${headers[i].startsWith('$') ? 'num' : ''}">${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 }
 
@@ -156,9 +183,10 @@ async function router() {
     try {
       await fn(...m.slice(1).map(decodeURIComponent));
     } catch (err) {
-      view(`<div class="banner error">${esc(err.message)}</div>`);
+      view(`<div class="banner error" role="alert">${esc(err.message)}</div>`);
     }
     window.scrollTo(0, 0);
+    document.getElementById('app').focus({ preventScroll: true }); // a new screen: the keyboard starts at its top
     return;
   }
   view('<div class="card"><h2>Page not found</h2><a href="#/desktop">Back to desktop</a></div>');
@@ -224,7 +252,7 @@ async function pageAccountForm(id) {
   view(`
     <div class="eyebrow">${id ? 'Edit account' : 'New account'}</div><h1>${id ? esc(a.name) : 'Create account'}</h1>
     <form class="card" data-form="account" data-id="${id || ''}">
-      <div class="form-errors"></div>
+      <div class="form-errors" role="alert"></div>
       <h3>Primary named insured</h3>
       <div class="form-grid">
         ${field('First name', `<input name="firstName" value="${v('firstName')}" required>`)}
@@ -292,7 +320,7 @@ async function composeModal(accountId) {
   const tplOpts = status.templates.map((t) => `<option value="${t.key}">${esc(t.label)}</option>`).join('');
   openModal(`<h2>Send message to ${esc(acct.account.name)}</h2>
     <form data-form="compose-message" data-id="${esc(accountId)}">
-      <div class="form-errors"></div>
+      <div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Channel', `<select name="channel">${chOpts}</select>`)}
         ${field('Template', `<select name="template">${tplOpts}</select>`)}
@@ -320,7 +348,7 @@ function newSubmissionModal(accountId) {
   openModal(`
     <h2>New submission</h2>
     <form data-form="new-submission" data-account="${accountId}">
-      <div class="form-errors"></div>
+      <div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Product', `<select name="product">${Object.values(S.meta.products).map((p) => `<option value="${p.code}">${esc(p.name)} (${p.termMonths}-month term)</option>`).join('')}</select>`)}
         ${field('Effective date', `<input name="effectiveDate" type="date" value="${S.meta.today}" required>`)}
@@ -1084,7 +1112,7 @@ function renderTicket() {
         <button class="btn" style="align-self:flex-end">Assign</button></form></div>` : ''}
     <div class="card"><h2>Notes</h2>
       ${t.notes.length ? t.notes.map((n) => `<div class="note ${n.internal ? 'internal' : ''}"><div class="muted">${esc(n.byName)} · ${esc(when(n.at))}${n.internal ? ' · internal' : ''}</div><div>${esc(n.text)}</div></div>`).join('') : '<div class="empty">No notes yet</div>'}
-      <form data-form="ticket-note" style="margin-top:12px"><div class="form-errors"></div>
+      <form data-form="ticket-note" style="margin-top:12px"><div class="form-errors" role="alert"></div>
         ${field('Add a note', '<textarea name="text" rows="3" required></textarea>')}
         ${staff ? '<label class="field check"><input type="checkbox" name="internal"> <span>Internal: not shown to the customer</span></label>' : ''}
         <div class="actions"><button class="btn primary">Save note</button></div></form>
@@ -1198,7 +1226,7 @@ async function pageSales() {
 function followUpModal(policyId, number) {
   openModal(`<h2>Log follow-up · ${esc(number)}</h2>
     <form data-form="followup" data-id="${esc(policyId)}">
-      <div class="form-errors"></div>
+      <div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Date', `<input type="date" name="date" value="${S.meta.today}" max="${S.meta.today}" required>`)}
         ${field('Channel', `<select name="channel">${FOLLOW_CHANNELS.map((c) => `<option>${c}</option>`).join('')}</select>`)}
@@ -1231,7 +1259,7 @@ async function pageStaff() {
   view(`<div class="eyebrow">Administration</div><h1>Staff accounts</h1>
     <div class="grid two">
       <div class="card"><h2>Create an account</h2>
-        <form data-form="create-staff"><div class="form-errors"></div>
+        <form data-form="create-staff"><div class="form-errors" role="alert"></div>
           ${field('Username', '<input name="username" placeholder="for example venkatesh.r" required>')}
           ${field('Full name', '<input name="name" required>')}
           ${field('Role', `<select name="role">${roles.map((r) => `<option>${r}</option>`).join('')}</select>`)}
@@ -1378,13 +1406,13 @@ async function pageFinance() {
     </div>
     <div class="grid two" style="margin-top:16px">
       <div class="card"><h2>Commission rate</h2>
-        <form data-form="finance-commission"><div class="form-errors"></div>
+        <form data-form="finance-commission"><div class="form-errors" role="alert"></div>
           ${field('Commission (percent of premium)', `<input name="percent" type="number" min="0" max="100" step="0.1" value="${r.commissionRatePercent}" required>`)}
           <div class="toolbar" style="margin-top:12px"><button class="btn primary">Save rate</button></div>
         </form>
       </div>
       <div class="card"><h2>Add an expense</h2>
-        <form data-form="finance-expense"><div class="form-errors"></div>
+        <form data-form="finance-expense"><div class="form-errors" role="alert"></div>
           ${field('Month', `<input name="month" type="month" value="${esc(r.to)}" required>`)}
           ${field('Category', `<select name="category">${cats.map((c) => `<option>${esc(c)}</option>`).join('')}</select>`)}
           ${field('Amount', '<input name="amount" type="number" min="0.01" step="0.01" required>')}
@@ -1466,7 +1494,7 @@ const ACTIONS = {
     renderClaim();
   },
   'add-exposure': () => openModal(`<h2>Add an exposure</h2>
-    <form data-form="add-exposure"><div class="form-errors"></div>
+    <form data-form="add-exposure"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Cover', '<input name="coverage" placeholder="Collision, Liability, Medical ..." required>')}
         ${field('Claimant', '<input name="claimantName" required>')}
@@ -1475,12 +1503,12 @@ const ACTIONS = {
       </div>
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Add exposure</button></div></form>`),
   'set-reserve': (d) => openModal(`<h2>Set the reserve for exposure ${esc(d.number)}</h2>
-    <form data-form="set-reserve" data-number="${esc(d.number)}"><div class="form-errors"></div>
+    <form data-form="set-reserve" data-number="${esc(d.number)}"><div class="form-errors" role="alert"></div>
       ${field('Reserve ($): the expected total cost of this exposure', '<input type="number" name="amount" min="0" step="0.01" required>')}
       <p class="muted">Your reserve limit is ${money(S.meta.claimLimits.reserve[Math.min(me().authority, 2)])}.</p>
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Set reserve</button></div></form>`),
   'pay-exposure': (d) => openModal(`<h2>Pay from exposure ${esc(d.number)}</h2>
-    <form data-form="pay-exposure" data-number="${esc(d.number)}"><div class="form-errors"></div>
+    <form data-form="pay-exposure" data-number="${esc(d.number)}"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Amount ($)', '<input type="number" name="amount" min="0.01" step="0.01" required>')}
         ${field('Cost type', '<select name="costType"><option value="claim_cost">Claim cost</option><option value="expense">Expense</option></select>')}
@@ -1495,7 +1523,7 @@ const ACTIONS = {
     renderClaim();
   },
   'report-claim': () => openModal(`<h2>Report a claim on ${esc(S.policy.policyNumber)}</h2>
-    <form data-form="report-claim"><div class="form-errors"></div>
+    <form data-form="report-claim"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Loss date', `<input type="date" name="lossDate" max="${S.meta.today}" value="${S.meta.today}" required>`)}
         ${field('Type of loss', `<select name="lossType">${S.meta.claimTypes.map((t) => `<option>${esc(t)}</option>`).join('')}</select>`)}
@@ -1503,7 +1531,7 @@ const ACTIONS = {
       ${field('What happened', '<textarea name="description" rows="3"></textarea>')}
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Report claim</button></div></form>`),
   'issue-refund': (d) => openModal(`<h2>Issue a refund of ${money(Number(d.amount))}</h2>
-    <form data-form="issue-refund" data-id="${esc(d.id)}"><div class="form-errors"></div>
+    <form data-form="issue-refund" data-id="${esc(d.id)}"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Method', '<select name="method"><option>Bank transfer</option><option>Cheque</option><option>Cash</option></select>')}
         ${field('Reference', '<input name="reference" required>')}
@@ -1520,7 +1548,7 @@ const ACTIONS = {
   'new-ticket': async () => {
     const accounts = await api('GET', '/accounts');
     openModal(`<h2>New ticket</h2>
-      <form data-form="new-ticket"><div class="form-errors"></div>
+      <form data-form="new-ticket"><div class="form-errors" role="alert"></div>
         <div class="form-grid">
           ${field('Customer', `<select name="accountId" required><option value="">Choose an account</option>${accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.accountNumber)} · ${esc(a.name)}</option>`).join('')}</select>`)}
           ${field('Category', `<select name="category">${TICKET_CATEGORIES.map((c) => `<option>${esc(c)}</option>`).join('')}</select>`)}
@@ -1538,7 +1566,7 @@ const ACTIONS = {
     pageAdmin();
   },
   'record-payment': () => openModal(`<h2>Record a payment for ${esc(S.policy.policyNumber)}</h2>
-    <form data-form="record-payment"><div class="form-errors"></div>
+    <form data-form="record-payment"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Amount ($)', '<input type="number" name="amount" min="0.01" step="0.01" required>')}
         ${field('Method', '<select name="method"><option>Cheque</option><option>Card</option><option>Bank transfer</option><option>Cash</option></select>')}
@@ -1550,11 +1578,11 @@ const ACTIONS = {
   'policy-tab': (d) => { S.policyTab = d.tab; renderPolicy(); },
   'view-doc': (d) => docModal(d.id),
   'policy-change': () => openModal(`<h2>Change policy ${esc(S.policy.policyNumber)}</h2>
-    <form data-form="policy-change"><div class="form-errors"></div>
+    <form data-form="policy-change"><div class="form-errors" role="alert"></div>
       ${field('Change effective date', `<input type="date" name="effectiveDate" value="${S.meta.today}" required>`)}
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Start policy change</button></div></form>`),
   'policy-cancel': () => openModal(`<h2>Cancel policy ${esc(S.policy.policyNumber)}</h2>
-    <form data-form="policy-cancel"><div class="form-errors"></div>
+    <form data-form="policy-cancel"><div class="form-errors" role="alert"></div>
       <div class="form-grid">
         ${field('Reason', `<select name="reason">${Object.entries(S.meta.cancelReasons).map(([k, r]) => `<option value="${k}" ${me().authority >= r.authority ? '' : 'disabled'}>${esc(r.name)}${r.noticeDays ? ` (${r.noticeDays} days notice)` : ''}</option>`).join('')}</select>`)}
         ${field('Cancellation effective date', `<input type="date" name="effectiveDate" value="${S.meta.today}" required>`)}
@@ -2261,7 +2289,7 @@ function signInScreen(message) {
   view(`<div class="card" style="max-width:380px;margin:40px auto">
     <div class="eyebrow">PolicyCenter</div><h1>Sign in</h1>
     ${message ? `<div class="banner error">${esc(message)}</div>` : ''}
-    <form data-form="signin"><div class="form-errors"></div>
+    <form data-form="signin"><div class="form-errors" role="alert"></div>
       ${field('Username', '<input name="username" autocomplete="username" required>')}
       ${field('Password', '<input name="password" type="password" autocomplete="current-password" required>')}
       <div class="toolbar" style="margin-top:12px"><button class="btn primary">Sign in</button></div>
@@ -2273,7 +2301,7 @@ function changePasswordScreen(first) {
   view(`<div class="card" style="max-width:420px;margin:40px auto">
     <div class="eyebrow">${first ? 'Your first sign-in' : 'Account'}</div><h1>Choose a new password</h1>
     <p class="muted">${first ? 'Your password was set by your manager. Choose your own password to continue.' : 'Enter your current password and choose a new one.'}</p>
-    <form data-form="change-password"><div class="form-errors"></div>
+    <form data-form="change-password"><div class="form-errors" role="alert"></div>
       ${field('Current password', '<input name="current" type="password" autocomplete="current-password" required>')}
       ${field('New password (at least 8 characters)', '<input name="next" type="password" minlength="8" autocomplete="new-password" required>')}
       ${field('Repeat new password', '<input name="confirm" type="password" minlength="8" autocomplete="new-password" required>')}
@@ -2287,7 +2315,7 @@ function setupScreen() {
   view(`<div class="card" style="max-width:420px;margin:40px auto">
     <div class="eyebrow">First start</div><h1>Create your account</h1>
     <p class="muted">Choose the username and password for the UW Manager account. You use it to sign in and to create the other accounts. Nobody else can sign in until this is done.</p>
-    <form data-form="setup"><div class="form-errors"></div>
+    <form data-form="setup"><div class="form-errors" role="alert"></div>
       ${field('Username (3 to 30 letters, numbers or dots)', '<input name="username" autocomplete="username" required>')}
       ${field('Password (at least 8 characters)', '<input name="password" type="password" minlength="8" autocomplete="new-password" required>')}
       ${field('Repeat password', '<input name="confirm" type="password" minlength="8" autocomplete="new-password" required>')}
