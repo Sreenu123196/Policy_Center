@@ -14,7 +14,7 @@ Requires Node.js 20+.
 ```bash
 npm install        # once: the libraries the optional parts use (email, documents, speech, the database driver)
 npm start          # http://localhost:3000
-npm test           # 350 tests: rating, the policy lifecycle, the screens, security and the database store
+npm run check      # lint + 353 tests: rating, the policy lifecycle, the screens, security and the database store
 ```
 
 Data is saved to `data/policycenter.json`. Delete that file (or use **Administration → Reset demo data**
@@ -26,6 +26,17 @@ For more than a few hundred policies the JSON file is the wrong place: it is wri
 nothing to install, and `npm run migrate-to-pg` copies an existing JSON file into a database.
 
 Use the user picker in the top bar to switch between users and roles.
+
+## Checks
+
+`npm run check` lints (`npm run lint`) and runs the suite; CI runs both on every push and pull request
+(`.github/workflows/tests.yml`). Besides the unit tests the suite contains the permissions matrix (every route against
+every role), an HTTP smoke test (every read route with real data, then reset, then account → quote → bind → payment →
+ticket), and the database tests, which run PostgreSQL in-process.
+
+What none of it covers: the browser screens have no automated UI test (the accessibility test reads the HTML and checks
+the markup), there is no penetration test, the Hindi and Telugu wording has not been reviewed by a native speaker, and the
+`Dockerfile` has never been built. `docs/GO-LIVE.md` lists the rest.
 
 | User | Role | UW authority | Sees |
 |---|---|---|---|

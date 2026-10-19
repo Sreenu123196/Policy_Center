@@ -21,7 +21,9 @@ What the code now does, and what is left for people. Work through the second lis
 
 Behind a proxy: set `TRUST_PROXY=1` so the sign-in limit counts the caller, not the proxy. The proxy must end https and set `X-Forwarded-Proto`.
 
-Dependency scan: `npm audit` reports two moderate findings, both `uuid` (<11.1.1, a missing buffer bounds check in v3/v5/v6 when a buffer is given) through `exceljs`. The simulator does not call those functions, and the only fix offered downgrades `exceljs` to 3.4.0. Check again at go-live.
+Dependency scan: `npm audit` is clean. It used to report two moderate `uuid` findings through `exceljs`; `package.json` now
+overrides `uuid` to 11.1.1 (the API `exceljs` uses is unchanged, and the Excel export test still downloads a real file).
+Re-run `npm audit` at go-live.
 
 ## Needs people (the code cannot do these)
 

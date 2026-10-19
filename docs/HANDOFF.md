@@ -11,7 +11,7 @@ It began as a separate "Insurance Suite" learning project (TypeScript). Everythi
 ```
 npm install        # once
 npm start          # http://localhost:3000   (first start: create the first UW manager on the sign-in page)
-npm test           # 320 tests, all passing at the last run
+npm run check      # lint + the whole suite (353 tests at the last run; `npm test` on its own skips the linter)
 node scripts/load-test.js --check
 ```
 
@@ -93,11 +93,10 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 3. Screens for backup, personal-data export and erasure (API only now).
 4. `docs/GO-LIVE.md` people tasks: penetration test, hosting in India, secrets handling, a restore drill, retention and consent decisions, native-speaker review of Hindi and Telugu (including the agent screens), screen-reader checks, monitoring.
 5. Build and test the Dockerfile.
-6. `npm audit`: two moderate `uuid` findings via `exceljs`, not reachable; recheck at go-live.
+6. `npm audit` is clean (the two `uuid` findings are gone via an override); re-run it at go-live.
 
 ## Last state
 
-`main` has the database back end (`docs/DATABASE.md`), verified against a real PostgreSQL 16.9 server, and 350 tests
-passing (320 before it, plus 30 for the store, the change tracker, the app on the database, the reset button and the
-password reset). Nothing uncommitted except the PDF noted above. No server was running on port 3000 when this was written;
-start it, and set `DATABASE_URL` if you want the data in PostgreSQL.
+`main` has the database back end (`docs/DATABASE.md`), verified against a real PostgreSQL 16.9 server, plus CI, a linter
+and the HTTP smoke test; 353 tests pass and `npm run lint` is clean. Nothing uncommitted except the PDF noted above. No
+server was running on port 3000 when this was written; start it, and set `DATABASE_URL` if you want the data in PostgreSQL.

@@ -81,7 +81,7 @@ service code  ->  store.transaction(fn)
 ```
 
 Why a log at all: `store.transaction()` is **synchronous** — every service calls it and uses the result immediately, and
-the 348 tests are written that way. A database write is not synchronous. Rather than make every service, route and test
+the tests are written that way. A database write is not synchronous. Rather than make every service, route and test
 async (a rewrite of the whole app), a commit appends a small frame to `src/pg/wal.js` and returns; the rows follow in one
 database transaction immediately afterwards. If the process dies in between, `load()` replays the frames the database has
 not seen (the watermark is `pc_meta.wal_seq`) and only then serves requests. The log is emptied after each successful
