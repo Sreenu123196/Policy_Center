@@ -91,6 +91,7 @@ const HOMEOWNERS = {
   name: 'Homeowners',
   prefix: 'HO',
   termMonths: 12,
+  termOptions: [12, 24, 36],
   paymentPlans: [
     { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
     { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
@@ -334,6 +335,7 @@ const TWO_WHEELER = {
   name: 'Two-Wheeler (motorcycle and scooter)',
   prefix: 'TW',
   termMonths: 12,
+  termOptions: [12, 24, 36], // a term the customer may choose, in months
   paymentPlans: [
     { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
     { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },

@@ -235,6 +235,7 @@ const TW_TABLES = {
   vehicleValueFactors: [{ max: 3000, f: 0.6 }, { max: 6000, f: 0.85 }, { max: 10000, f: 1.0 }, { max: 20000, f: 1.3 }, { f: 1.7 }],
   outdoorFactor: 1.12,
   discounts: { multiBike: 0.1, paidInFull: 0.05 },
+  multiYearDiscounts: { 24: 0.03, 36: 0.05 }, // by term in months
   claimFreeDiscounts: [0.05, 0.1, 0.15],
   taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
   policyFee: 20,

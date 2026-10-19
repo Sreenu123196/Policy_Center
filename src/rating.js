@@ -87,7 +87,8 @@ function ratePersonalAuto(period, ctx) {
   const product = PRODUCTS.PersonalAuto;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const effYear = D.yearOf(period.effectiveDate);
   const rd = ratedDriver(period.line.drivers, period.effectiveDate, t);
   const costs = [];
@@ -110,7 +111,7 @@ function ratePersonalAuto(period, ctx) {
         .x(`Usage: ${v.usage}`, t.usageFactors[v.usage])
         .x(`Annual mileage ${Number(v.annualMiles).toLocaleString('en-US')}`, band(t.mileageFactors, v.annualMiles || 0))
         .x(`Rate level (book ${book.version})`, book.rateLevel)
-        .x(`Term factor (${product.termMonths} months)`, termF);
+        .x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
     }
 
@@ -136,7 +137,7 @@ function ratePersonalAuto(period, ctx) {
         termValue = cov.terms.limit;
         ws = new Worksheet(`Flat annual charge (${termValue})`, t.flatCharges[def.code][termValue]);
       }
-      ws.x(`Rate level (book ${book.version})`, book.rateLevel).x(`Term factor (${product.termMonths} months)`, termF);
+      ws.x(`Rate level (book ${book.version})`, book.rateLevel).x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue }, ws));
     }
   });
@@ -173,8 +174,10 @@ function rateHomeowners(period, ctx) {
   const state = period.state;
   const { form, dwelling: d, coverages: c } = period.line;
   const owner = form === 'HO3' || form === 'HO5';
-  const rl = book.rateLevel;
-  const rlLabel = `Rate level (book ${book.version})`;
+  // A homeowners term of 12 months is the base; a longer term multiplies every cost by its length in years.
+  const termMonths = period.termMonths || 12;
+  const rl = round4(book.rateLevel * (termMonths / 12));
+  const rlLabel = termMonths === 12 ? `Rate level (book ${book.version})` : `Rate level (book ${book.version}) x term ${termMonths} months`;
   const lim = (code) => (c[code] && c[code].selected ? Number(c[code].terms.limit) : 0);
   const A = lim('HODwellingCov');
   const B = lim('HOOtherStructuresCov');
@@ -308,7 +311,8 @@ function rateCommercialAuto(period, ctx) {
   const product = PRODUCTS.CommercialAuto;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const effYear = D.yearOf(period.effectiveDate);
   const drivers = period.line.drivers;
   const accidents = drivers.reduce((s, d) => s + (d.accidents || 0), 0);
@@ -334,7 +338,7 @@ function rateCommercialAuto(period, ctx) {
         .x(`Radius: ${v.radius}`, t.radiusFactors[v.radius])
         .x(`Fleet driving record (${perDriver.toFixed(2)} accidents per driver)`, fleetF)
         .x(`Rate level (book ${book.version})`, book.rateLevel)
-        .x(`Term factor (${product.termMonths} months)`, termF);
+        .x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
     }
 
@@ -352,7 +356,7 @@ function rateCommercialAuto(period, ctx) {
         .x(`Radius: ${v.radius}`, t.radiusFactors[v.radius])
         .x(`Fleet driving record (${perDriver.toFixed(2)} accidents per driver)`, fleetF)
         .x(`Rate level (book ${book.version})`, book.rateLevel)
-        .x(`Term factor (${product.termMonths} months)`, termF);
+        .x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: deductible }, ws));
     }
   });
@@ -381,7 +385,8 @@ function rateGeneralLiability(period, ctx) {
   const state = period.state;
   const sf = t.stateFactors[state];
   const terr = territoryOf(period.insured.address.zip);
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const claims = period.line.claimsLast5Years || 0;
   const expF = band(t.experienceFactors, claims);
   const costs = [];
@@ -397,7 +402,7 @@ function rateGeneralLiability(period, ctx) {
       .x(`Limit ${limit}`, t.limitFactors.GLPremOpsCov[limit])
       .x(`Liability claims in 5 years: ${claims}`, expF)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverableId: x.id, coverable, coverageCode: 'GLPremOpsCov', coverageName: 'Premises and operations', termValue: limit }, ws));
   });
 
@@ -408,7 +413,7 @@ function rateGeneralLiability(period, ctx) {
     const limit = cov.terms.limit;
     const ws = new Worksheet(`Flat charge (medical expense ${usd(limit)})`, t.medPayCharges.GLMedPayCov[limit])
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
   }
 
@@ -433,7 +438,8 @@ function rateCommercialProperty(period, ctx) {
   const product = PRODUCTS.CommercialProperty;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const costs = [];
 
   period.line.locations.forEach((loc, i) => {
@@ -448,7 +454,7 @@ function rateCommercialProperty(period, ctx) {
       .x(`Protection class ${loc.protectionClass}`, protF)
       .x(`Occupancy: ${loc.occupancy}`, occF)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
 
     const bld = period.line.lineCoverages.CPBuildingCov;
     if (bld && bld.selected) {
@@ -474,7 +480,7 @@ function rateCommercialProperty(period, ctx) {
     const ws = new Worksheet(`Business income limit ${usd(limit)}`, (limit / 100) * t.businessIncomeRate)
       .x(`State factor (${state})`, sf)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'CPBusinessIncomeCov', coverageName: 'Business income', termValue: limit }, ws));
   }
 
@@ -496,7 +502,8 @@ function rateWorkersComp(period, ctx) {
   const state = period.state;
   const sf = t.stateFactors[state];
   const mod = period.line.experienceMod;
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const costs = [];
 
   period.line.classes.forEach((c, i) => {
@@ -506,7 +513,7 @@ function rateWorkersComp(period, ctx) {
       .x(`State factor (${state})`, sf)
       .x(`Experience modification ${mod}`, mod)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverableId: c.id, coverable: `Class ${i + 1}: ${cls.name} (${c.classCode})`, coverageCode: 'WCStatutoryCov', coverageName: 'Workers compensation (class premium)' }, ws));
   });
 
@@ -516,7 +523,7 @@ function rateWorkersComp(period, ctx) {
     const ws = new Worksheet(`Employers' liability limit ${usd(limit)}`, t.employersLiabilityCharges[limit])
       .x(`State factor (${state})`, sf)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'WCEmployersLiabilityCov', coverageName: "Employers' liability", termValue: limit }, ws));
   }
 
@@ -539,7 +546,8 @@ function rateBusinessowners(period, ctx) {
   const product = PRODUCTS.Businessowners;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const claims = period.line.claimsLast5Years || 0;
   const expF = band(t.experienceFactors, claims);
   const limitOf = (code) => period.line.lineCoverages[code] && period.line.lineCoverages[code].terms.limit;
@@ -556,7 +564,7 @@ function rateBusinessowners(period, ctx) {
       .x(`Protection class ${loc.protectionClass}`, protF)
       .x(`Occupancy: ${loc.occupancy}`, occF)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     const bld = period.line.lineCoverages.BOPBuildingCov;
     if (bld && bld.selected) {
       const d = bld.terms.deductible;
@@ -582,7 +590,7 @@ function rateBusinessowners(period, ctx) {
     const ws = new Worksheet(`Business income limit ${usd(limit)}`, (limit / 100) * t.businessIncomeRate)
       .x(`State factor (${state})`, sf)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'BOPBusinessIncomeCov', coverageName: 'Business income', termValue: limit }, ws));
   }
 
@@ -596,7 +604,7 @@ function rateBusinessowners(period, ctx) {
       .x(`Limit ${liabLimit}`, t.limitFactors.BOPPremOpsCov[liabLimit])
       .x(`Liability claims in 5 years: ${claims}`, expF)
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverableId: x.id, coverable: `Class ${i + 1}: ${cls.name}`, coverageCode: 'BOPPremOpsCov', coverageName: 'Premises and operations', termValue: liabLimit }, ws));
   });
 
@@ -605,7 +613,7 @@ function rateBusinessowners(period, ctx) {
     const limit = med.terms.limit;
     const ws = new Worksheet(`Flat charge (medical expense ${usd(limit)})`, t.medPayCharges.BOPMedPayCov[limit])
       .x(`Rate level (book ${book.version})`, book.rateLevel)
-      .x(`Term factor (${product.termMonths} months)`, termF);
+      .x(`Term factor (${termMonths} months)`, termF);
     costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'BOPMedPayCov', coverageName: 'Medical expense', termValue: limit }, ws));
   }
 
@@ -630,7 +638,8 @@ function rateUmbrella(period, ctx) {
   const product = PRODUCTS.Umbrella;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const line = period.line;
   const limit = line.lineCoverages.UMBExcessCov.terms.limit;
   const costs = [];
@@ -640,7 +649,7 @@ function rateUmbrella(period, ctx) {
     .x(`Locations: ${line.numberOfLocations}`, band(t.locationFactors, line.numberOfLocations))
     .x(`Liability claims in 5 years: ${line.claimsLast5Years}`, band(t.experienceFactors, line.claimsLast5Years))
     .x(`Rate level (book ${book.version})`, book.rateLevel)
-    .x(`Term factor (${product.termMonths} months)`, termF);
+    .x(`Term factor (${termMonths} months)`, termF);
   costs.push(cost({ type: 'Coverage', coverable: 'Policy', coverageCode: 'UMBExcessCov', coverageName: 'Umbrella liability', termValue: limit }, ws));
 
   const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
@@ -675,7 +684,8 @@ function rateTwoWheeler(period, ctx) {
   const product = PRODUCTS.TwoWheeler;
   const state = period.state;
   const sf = t.stateFactors[state];
-  const termF = round4(product.termMonths / 12);
+  const termMonths = period.termMonths || product.termMonths;
+  const termF = round4(termMonths / 12);
   const effYear = D.yearOf(period.effectiveDate);
   const rd = ratedRider(period.line.drivers, period.effectiveDate, t);
   const outdoors = (period.line.answers || {}).keptOutdoors === 'yes';
@@ -702,7 +712,7 @@ function rateTwoWheeler(period, ctx) {
         .x(`Use: ${v.usage}`, t.usageFactors[v.usage])
         .x(`Annual mileage ${Number(v.annualMiles || 0).toLocaleString('en-US')}`, band(t.mileageFactors, v.annualMiles || 0))
         .x(`Rate level (book ${book.version})`, book.rateLevel)
-        .x(`Term factor (${product.termMonths} months)`, termF);
+        .x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
     }
 
@@ -726,7 +736,7 @@ function rateTwoWheeler(period, ctx) {
         if (def.code === 'TWCollisionCov') ws.x(`Rider (${rd.label})`, rd.factor).x(`Use: ${v.usage}`, t.usageFactors[v.usage]);
         if (def.code === 'TWComprehensiveCov' && outdoors) ws.x('Kept outdoors overnight', t.outdoorFactor);
       }
-      ws.x(`Rate level (book ${book.version})`, book.rateLevel).x(`Term factor (${product.termMonths} months)`, termF);
+      ws.x(`Rate level (book ${book.version})`, book.rateLevel).x(`Term factor (${termMonths} months)`, termF);
       costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue }, ws));
     }
   });
@@ -735,6 +745,7 @@ function rateTwoWheeler(period, ctx) {
   const discounts = [];
   if (period.line.vehicles.length >= 2) discounts.push(['MultiBikeDiscount', 'Multi-bike discount', t.discounts.multiBike]);
   if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  if (t.multiYearDiscounts[termMonths]) discounts.push(['MultiYearDiscount', `Multi-year discount (${termMonths / 12} years)`, t.multiYearDiscounts[termMonths]]);
   const claimFree = period.line.claimFreeRenewals || 0;
   if (claimFree >= 1) discounts.push(['ClaimFreeDiscount', `Claim-free renewal discount (${claimFree} claim-free renewal${claimFree > 1 ? 's' : ''})`, t.claimFreeDiscounts[Math.min(claimFree, t.claimFreeDiscounts.length) - 1]]);
   for (const [code, name, pct] of discounts) {

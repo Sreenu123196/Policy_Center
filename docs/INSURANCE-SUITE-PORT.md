@@ -71,3 +71,11 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 - **Question sets:** a product can define `questions` (yes or no). Every question must be answered to quote, and an answer equal to the question's `trigger` raises that question's underwriting issue (level 1, level 2, or not approvable). Two-Wheeler: modified bike, racing or stunts (not approvable), a lapse in prior cover, a licence suspension. "Kept outdoors" feeds the rating instead. The mechanism is generic: add `questions` to another product and call the same pattern in its UW rules.
 - **Screens:** Riders, Two-wheelers and Questions steps; the policy summary shows riders, bikes and answers.
 - **Still to do for item 10:** multi-year terms, premium audit, rewrite.
+
+## Tier 3, item 10 (b): multi-year terms
+
+`termOptions` in `src/productModel.js` (Two-Wheeler and Homeowners: 12, 24 or 36 months), `period.termMonths`, `test/multi-year.test.js`.
+
+- The customer chooses the term on the Policy info step of a submission (not after binding). A product with a fixed term (Personal Auto, the business lines) refuses another length.
+- The term sets the expiration date, the price (the term factor on every product; Two-Wheeler adds a 3% discount at 2 years and 5% at 3 years, kept in the rate book), the instalments (a quarterly plan on three years is twelve instalments), the pro rata refund on cancellation (over the whole term), and the renewal (the same length again).
+- Homeowners rating was an annual rate with no term factor; a 12-month worksheet is unchanged, a longer term multiplies by its years and says so in the rate-level line.

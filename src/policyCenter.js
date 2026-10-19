@@ -407,6 +407,7 @@ class PolicyCenter {
       termNumber: 1,
       effectiveDate,
       expirationDate: D.addMonths(effectiveDate, pm.termMonths),
+      termMonths: pm.termMonths,
       editEffectiveDate: effectiveDate,
       state: account.address.state,
       producerCode: account.producerCode,
@@ -705,7 +706,16 @@ class PolicyCenter {
       if (job.type !== 'Submission') throw new AppError(409, `The effective date of a ${job.type} cannot change`);
       if (!D.isDate(patch.effectiveDate)) throw new AppError(422, 'Effective date must be yyyy-mm-dd');
       p.effectiveDate = p.editEffectiveDate = patch.effectiveDate;
-      p.expirationDate = D.addMonths(patch.effectiveDate, PRODUCTS[job.product].termMonths);
+      p.expirationDate = D.addMonths(patch.effectiveDate, p.termMonths || PRODUCTS[job.product].termMonths);
+    }
+    // The length of the term: a product that offers several lets the customer choose, before it is bound.
+    if (patch.termMonths !== undefined && Number(patch.termMonths) !== (p.termMonths || PRODUCTS[job.product].termMonths)) {
+      const pm = PRODUCTS[job.product];
+      if (job.type !== 'Submission') throw new AppError(409, `The term of a ${job.type} cannot change`);
+      if (!pm.termOptions) throw new AppError(422, `${pm.name} has a fixed term of ${pm.termMonths} months`);
+      if (!pm.termOptions.includes(Number(patch.termMonths))) throw new AppError(422, `Term must be one of ${pm.termOptions.join(', ')} months`);
+      p.termMonths = Number(patch.termMonths);
+      p.expirationDate = D.addMonths(p.effectiveDate, p.termMonths);
     }
     if (patch.paymentPlan !== undefined && patch.paymentPlan !== p.paymentPlan) {
       if (job.type === 'PolicyChange') throw new AppError(409, 'Payment plan changes are handled in billing, not in a policy change');
@@ -913,8 +923,10 @@ class PolicyCenter {
   scheduleInstallments(policy, job, total, startDate) {
     const pm = PRODUCTS[policy.product];
     const plan = pm.paymentPlans.find((p) => p.code === job.period.paymentPlan) || pm.paymentPlans[0];
-    const n = plan.installments;
-    const step = pm.termMonths / n;
+    // A longer term has more instalments of the same size and spacing (a quarterly plan on three years is twelve instalments).
+    const termMonths = job.period.termMonths || pm.termMonths;
+    const n = plan.installments > 1 ? plan.installments * Math.max(1, Math.round(termMonths / pm.termMonths)) : 1;
+    const step = termMonths / n;
     const cents = Math.round(total * 100);
     let fees = 0;
     const each = Math.floor(cents / n);
@@ -1115,7 +1127,7 @@ class PolicyCenter {
     this.applyClaimExperience(policy.product, period.line, experience);
     period.termNumber = last.termNumber + 1;
     period.effectiveDate = period.editEffectiveDate = last.expirationDate;
-    period.expirationDate = D.addMonths(last.expirationDate, pm.termMonths);
+    period.expirationDate = D.addMonths(last.expirationDate, period.termMonths || pm.termMonths); // the same length of term
     const job = this.newJob('Renewal', {
       accountId: policy.accountId, product: policy.product, period, policyId: policy.id,
       basedOnVersionId: last.latest.versionId, uwApprovals: clone(policy.uwApprovals || {}),

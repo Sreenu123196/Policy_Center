@@ -255,6 +255,8 @@ function validatePeriod(product, p, { jobType, today }) {
   }
   if (jobType === 'Submission' && p.effectiveDate > D.addDays(today, 120)) add('effectiveDate', 'Effective date cannot be more than 120 days in the future');
   if (!PRODUCTS[product].paymentPlans.some((pl) => pl.code === p.paymentPlan)) add('paymentPlan', 'Payment plan is required');
+  const pm = PRODUCTS[product];
+  if (p.termMonths !== undefined && p.termMonths !== pm.termMonths && !(pm.termOptions || []).includes(p.termMonths)) add('termMonths', `Term must be one of ${[pm.termMonths, ...(pm.termOptions || [])].join(', ')} months`);
   if (product === 'PersonalAuto') validatePersonalAuto(p, add);
   else if (product === 'TwoWheeler') validateTwoWheeler(p, add);
   else if (product === 'CommercialAuto') validateCommercialAuto(p, add);

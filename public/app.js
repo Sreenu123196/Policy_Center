@@ -692,7 +692,7 @@ const STEPS = {
         ${['CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'].includes(job.product) ? field('Business name', `<input data-bind="line.businessName" data-save value="${esc(draft.line.businessName)}" ${dis(editable)}>`) : ''}
         ${field('Base state', `<input value="${esc(S.meta.states[p.state])}" disabled>`)}
         ${field('Producer code', `<input value="${esc(p.producerCode)}" disabled>`)}
-        ${field('Term', `<input value="${pm.termMonths} months" disabled>`)}
+        ${pm.termOptions ? field('Term', `<select data-bind="termMonths" data-type="number" data-save ${dis(editable && isSub)}>${pm.termOptions.map((m) => `<option value="${m}" ${sel(m, draft.termMonths || pm.termMonths)}>${m / 12 === Math.floor(m / 12) ? `${m / 12} year${m > 12 ? 's' : ''}` : `${m} months`}</option>`).join('')}</select>`) : field('Term', `<input value="${pm.termMonths} months" disabled>`)}
         ${field('Effective date', `<input type="date" data-bind="effectiveDate" data-save value="${esc(draft.effectiveDate)}" ${dis(editable && isSub)}>`)}
         ${field('Expiration date', `<input value="${esc(p.expirationDate)}" disabled>`)}
         ${field('Payment plan', `<select data-bind="paymentPlan" ${dis(editable && job.type !== 'PolicyChange')}>${pm.paymentPlans.map((pl) => `<option value="${pl.code}" ${sel(pl.code, draft.paymentPlan)}>${esc(pl.name)}${pl.installmentFee ? ` ($${pl.installmentFee} fee each)` : ''}</option>`).join('')}</select>`)}
