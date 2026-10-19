@@ -1303,6 +1303,8 @@ const SALES = { tab: 'analytics', period: 'month', product: '' };
 const FOLLOW_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
 const FOLLOW_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
 
+let PENDING_EMAIL = null; // the email shown in the dialog, waiting for the person to press Send
+
 // Opens the customer's WhatsApp chat or email app with the renewal (or lapse) message filled in.
 // The message comes from the saved templates. WhatsApp opens the chat; email is sent by the server (Gmail) when it is set up, else Gmail's compose window opens.
 async function contactRenewal(d) {
@@ -1322,9 +1324,12 @@ async function contactRenewal(d) {
       const status = await api('GET', '/messages/status');
       if (status.channels && status.channels.email && status.channels.email.enabled) {
         if (tab) tab.close();
-        if (!window.confirm(`Send this ${d.status === 'Lapsed' ? 'lapse' : 'renewal'} email to ${p.to}?\n\nSubject: ${p.subject || ''}`)) return;
-        const rec = await api('POST', '/messages/send', { accountId: d.account, policyId: d.policy, template: d.status === 'Lapsed' ? 'lapse' : 'renewal', channel, language, confirm: true });
-        toast(rec.status === 'Sent' ? `Email sent to ${p.to} (${rec.messageNumber})` : `Email failed: ${rec.error}`, rec.status === 'Sent' ? 'success' : 'error');
+        // The app's own dialog (a browser pop-up can be blocked or switched off and then nothing would happen).
+        PENDING_EMAIL = { accountId: d.account, policyId: d.policy, template: d.status === 'Lapsed' ? 'lapse' : 'renewal', channel, language, to: p.to };
+        openModal(`<h2>Send email</h2>
+          <p><strong>To:</strong> ${esc(p.to)}<br><strong>Subject:</strong> ${esc(p.subject || '')}</p>
+          <pre style="white-space:pre-wrap;font:inherit;background:var(--bg-soft,#f4f4f4);padding:10px;border-radius:6px">${esc(p.body)}</pre>
+          <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button type="button" class="btn primary" data-action="send-renewal-email">Send email</button></div>`);
         return;
       }
       // Not set up on the server: Gmail's compose window opens with the message filled in.
@@ -1595,6 +1600,21 @@ const ACTIONS = {
   'sales-tab': (d) => { SALES.tab = d.tab; pageSales(); },
   'log-followup': (d) => followUpModal(d.id, d.number),
   'contact-policy': (d) => contactRenewal(d),
+  'send-renewal-email': async () => {
+    const mail = PENDING_EMAIL;
+    if (!mail) return;
+    const button = document.querySelector('[data-action="send-renewal-email"]');
+    if (button) { button.disabled = true; button.textContent = 'Sending...'; }
+    try {
+      const { to, ...input } = mail;
+      const rec = await api('POST', '/messages/send', { ...input, confirm: true });
+      closeModal();
+      toast(rec.status === 'Sent' ? `Email sent to ${to} (${rec.messageNumber})` : `Email failed: ${rec.error}`, rec.status === 'Sent' ? 'success' : 'error');
+    } catch (err) {
+      if (button) { button.disabled = false; button.textContent = 'Send email'; }
+      toast(err.message, 'error');
+    }
+  },
   'followup-history': (d) => followUpHistoryModal(d.id, d.number),
   'close-modal': () => closeModal(),
   print: () => window.print(),
