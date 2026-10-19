@@ -36,12 +36,23 @@ one machine, 25 people, a pause of a second between requests (a normal load), re
 So the simulator was comfortable up to a few hundred policies; beyond that the single thread spent its time saving and
 everyone waited. That was a property of the storage, not a bug to tune away.
 
-**The database back end** (`docs/DATABASE.md`) now writes one row per record, in one database transaction per change. On
-the demo book (153 policies, 3.5 MB) a single change went from **25 ms** (the whole 3.5 MB written again) to **0.25 ms**
-of write-ahead log plus **3.4 ms** to write the one row — and neither part grows as the book grows.
+**The database back end** (`docs/DATABASE.md`) now writes one row per record, in one database transaction per change. The
+same load test, on the same machine, against PostgreSQL 16.9:
 
-Reads still come from memory (the whole book is loaded at start), so the read figures above still describe this build. When
-the book or the number of servers grows, the next step is read-through to the database.
+| Book | Store | Reads p95 | Writes p95 | Saving takes | Targets |
+|---|---|---|---|---|---|
+| 127 policies | JSON file | 45 ms | 85 ms | 21 ms | met |
+| 127 policies | PostgreSQL | 43 ms | 108 ms | 7 ms | met |
+| 409 policies | JSON file | 405 ms | 689 ms | 78 ms | **missed: both** |
+| 409 policies | PostgreSQL | **69 ms** | **34 ms** | 13 ms | met |
+
+At a hundred-odd policies the file is fine and the database is slightly slower on writes. The difference is growth: at 409
+policies the file misses both targets, and the database meets both. A single change on the demo book costs 25 ms to
+rewrite the whole 3.5 MB file, against 0.25 ms to append a 6 KB frame to the log plus one row written afterwards.
+
+Reads still come from memory (the whole book is loaded at start), but they are not slowed down by the change tracking: the
+proxies that notice changes are only in place while a unit of work runs (`docs/DATABASE.md`). Read-through to the database
+is the next step if the book grows past a few hundred MB, or when more than one server runs.
 
 The modules keep their data in plain lists with fixed ids and talk to each other through functions and events, which is the
 shape that moved to tables most easily — and the reason the change touched no service.

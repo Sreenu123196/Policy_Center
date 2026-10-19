@@ -11,6 +11,7 @@ const { PolicyCenter } = require('../src/policyCenter');
 const { seed } = require('../src/seed');
 const { account } = require('./helpers');
 const { Store } = require('../src/store');
+const { resetManagerPassword } = require('../src/resetManager');
 
 // The reset-demo-data button (POST /api/admin/reset). It used to leave the app with no staff, so reseeding failed with
 // "Unknown user 'agent'" and the book stayed empty. These tests pin the repair on both stores.
@@ -75,5 +76,29 @@ test('a reset that fails afterwards leaves the old book as it was', async () => 
   await store.drain();
   const { rows } = await store.runner.query('select count(*)::int as n from pc_accounts');
   assert.equal(rows[0].n, before, 'and nothing was truncated in the database');
+  await store.close();
+});
+
+test('a lost manager password can be reset on either store', async () => {
+  // The JSON store.
+  const plain = new Store();
+  const pc = new PolicyCenter(plain);
+  const before = pc.db.staff.find((person) => person.role === 'UW Manager').passwordHash;
+  const one = await resetManagerPassword(plain);
+  assert.ok(one.password.length >= 8);
+  assert.notEqual(plain.data.staff.find((person) => person.username === one.username).passwordHash, before);
+  assert.equal(plain.data.staff.find((person) => person.username === one.username).mustChangePassword, true);
+
+  // The database store: the new hash must actually reach the database, or a lost password stays lost.
+  const db = new PGlite();
+  const store = new PostgresStore(new PgliteRunner(db), { walFile: null });
+  await store.load();
+  const two = await resetManagerPassword(store);
+  await store.drain();
+  const { rows } = await store.runner.query('select doc from pc_staff where doc->>\'username\' = $1', [two.username]);
+  assert.equal(rows.length, 1);
+  assert.ok(rows[0].doc.passwordHash, 'a password hash is stored');
+  assert.equal(rows[0].doc.mustChangePassword, true);
+  assert.equal(rows[0].doc.username, two.username);
   await store.close();
 });

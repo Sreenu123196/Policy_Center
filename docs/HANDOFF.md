@@ -81,13 +81,14 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 - `i18n.js`: a translation whose English text no longer appears in the source fails the "stale entry" test; text built from templates goes in `GENERATED` in `test/i18n.test.js`.
 - Mail and other outside services are asynchronous: wait for them **outside** `store.transaction` (see `Messaging.dispatch`).
 - **The database store only sees writes made inside `store.transaction`.** The app already works that way (every route, the event bus, messaging and documents do), but a new write added outside one is silently kept in memory only. The built-in staff is seeded inside one for this reason.
+- **Reads outside a unit of work get the plain data, not the watched proxies** (that is what keeps reads fast). So look a record up *inside* the same unit of work that changes it: a record fetched outside and written inside would not be saved. `src/resetManager.js` is the small example to copy.
 - **PostgreSQL folds an unquoted name to lower case.** Table names are built by `tableFor()` in `src/pg/schema.js` (snake_case) and must be used through it, never typed.
 - **Windows cannot `ftruncate` an append handle** (EPERM): `src/pg/wal.js` truncates by path while the append handle stays open.
 - On a database, **`store.reset()` is part of the unit of work**; the reset button also puts the built-in staff back (`pc.seedStaff()`), or the seed fails with "Unknown user 'agent'".
 
 ## Open items (suggested order)
 
-1. **Reads through the database.** Writes are now rows in PostgreSQL (`docs/DATABASE.md`), but reads still come from memory: the whole book is loaded at start and searches run in JavaScript. Before several servers or a very large book, make the services read from the database (the indexes are already there). Also run it against a real PostgreSQL server once: the tests use the same engine in-process (PGlite), which is not a server.
+1. **Reads through the database.** Writes are rows in PostgreSQL and the back end has now been run against a real PostgreSQL 16.9 server (`docs/DATABASE.md` has the numbers: at 409 policies the load test meets its targets, where the JSON file missed both). Reads still come from memory: the whole book is loaded at start and searches run in JavaScript. Make the services read from the database (the indexes are there) when the book passes a few hundred MB or when more than one server runs.
 2. Agents: show suggestions on the Desktop and in the Work queues; a payment-reminder message template; then a trial period in `suggest` mode before any acting agent (`docs/AGENTS.md`). The planned agents wait on: incoming channels, data providers, online payments and e-signature, photo upload and OCR.
 3. Screens for backup, personal-data export and erasure (API only now).
 4. `docs/GO-LIVE.md` people tasks: penetration test, hosting in India, secrets handling, a restore drill, retention and consent decisions, native-speaker review of Hindi and Telugu (including the agent screens), screen-reader checks, monitoring.
@@ -96,6 +97,7 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 
 ## Last state
 
-`main` has the database back end (`docs/DATABASE.md`) and 348 tests passing (320 before it, plus 28 for the store, the
-change tracker, the app on the database, and the reset button). Nothing uncommitted except the PDF noted above. No server
-was running on port 3000 when this was written; start it, and set `DATABASE_URL` if you want the data in PostgreSQL.
+`main` has the database back end (`docs/DATABASE.md`), verified against a real PostgreSQL 16.9 server, and 350 tests
+passing (320 before it, plus 30 for the store, the change tracker, the app on the database, the reset button and the
+password reset). Nothing uncommitted except the PDF noted above. No server was running on port 3000 when this was written;
+start it, and set `DATABASE_URL` if you want the data in PostgreSQL.

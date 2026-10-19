@@ -14,7 +14,7 @@ Requires Node.js 20+.
 ```bash
 npm install        # once: the libraries the optional parts use (email, documents, speech, the database driver)
 npm start          # http://localhost:3000
-npm test           # 348 tests: rating, the policy lifecycle, the screens, security and the database store
+npm test           # 350 tests: rating, the policy lifecycle, the screens, security and the database store
 ```
 
 Data is saved to `data/policycenter.json`. Delete that file (or use **Administration → Reset demo data**

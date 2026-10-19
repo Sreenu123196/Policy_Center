@@ -205,3 +205,23 @@ test('a database that is gone makes the store report itself degraded instead of 
   assert.equal(store.data.accounts.length, 1, 'the request that was already served still holds its data in memory');
   await store.close();
 });
+
+test('the change watcher is only in place during a unit of work, so reads pay nothing extra', async () => {
+  const { store } = world();
+  await store.load();
+  store.transaction(() => store.data.accounts.push({ id: 'acc1', lastName: 'Rivera' }));
+
+  const outside = store.data;
+  let inside = null;
+  store.transaction(() => {
+    inside = store.data;
+    inside.accounts[0].lastName = 'Riviera';
+  });
+
+  assert.notEqual(inside, outside, 'inside a unit of work the data is watched');
+  assert.equal(store.data, outside, 'outside it is the plain data');
+  await store.drain();
+  const { rows } = await store.runner.query("select doc from pc_accounts where id = 'acc1'");
+  assert.equal(rows[0].doc.lastName, 'Riviera', 'a change made inside is still saved');
+  await store.close();
+});

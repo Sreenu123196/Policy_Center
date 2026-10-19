@@ -35,7 +35,10 @@ class PostgresStore {
     this.tracker = new ChangeTracker(KINDS);
     this.wal = this.walFile ? new WriteAheadLog(this.walFile) : null;
     this.raw = empty();
-    this.data = this.tracker.track(this.raw);
+    // The proxies that notice changes are only in place while a unit of work runs. A write must go through
+    // store.transaction anyway (the whole app does), and reads outside one then cost nothing extra: a full scan of a
+    // 409-policy book measured 0.037 ms plain against 0.525 ms through the proxies.
+    this.tracked = this.tracker.track(this.raw);
     this.known = new Map(); // table -> Set of the keys the database holds
     this.pending = []; // frames logged but not yet in the database
     this.seq = 0; // the newest frame
@@ -97,7 +100,7 @@ class PostgresStore {
       if (data[name] === undefined) data[name] = spec.kind === 'rows' ? [] : spec.kind === 'kv' ? {} : [];
     }
     this.raw = data;
-    this.data = this.tracker.track(data);
+    this.tracked = this.tracker.track(data);
   }
 
   async drain() {
@@ -121,6 +124,16 @@ class PostgresStore {
   }
 
   // ---------------------------------------------------------------- the API src/store.js also offers
+
+  // Watched only while a unit of work runs (see the constructor): the services read through this getter every time.
+  get data() {
+    return this.tracker.active ? this.tracked : this.raw;
+  }
+
+  set data(value) {
+    this.raw = value;
+    this.tracked = this.tracker.track(value);
+  }
 
   next(name) {
     this.data.seq[name] = (this.data.seq[name] || 0) + 1;
