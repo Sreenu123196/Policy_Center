@@ -133,6 +133,8 @@ const ROUTES = [
   [/^#\/policies$/, pagePolicies],
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
+  [/^#\/tickets$/, pageTickets],
+  [/^#\/ticket\/([^/]+)$/, pageTicket],
   [/^#\/claims$/, pageClaims],
   [/^#\/reports$/, pageReports],
   [/^#\/claim\/([^/]+)$/, pageClaim],
@@ -1026,6 +1028,70 @@ async function pageReports() {
       ]), 'No payment is waiting')}</div>`);
 }
 
+// ------------------------------------------------------------------ tickets
+
+const TICKET_PRIORITIES = ['Urgent', 'High', 'Normal', 'Low'];
+const TICKET_CATEGORIES = ['Claim', 'Billing', 'Policy change', 'Other'];
+
+const slaText = (sla) => (sla.hoursLeft === null ? sla.state : `${sla.state} (${sla.hoursLeft >= 0 ? `${sla.hoursLeft} h left` : `${-sla.hoursLeft} h late`})`);
+
+async function pageTickets() {
+  const view_ = S.ticketView || 'queue';
+  const list = await api('GET', view_ === 'queue' ? '/tickets/queue' : '/tickets');
+  const staff = me().authority >= 1;
+  view(`
+    <div class="page-head"><div><div class="eyebrow">Tickets</div><h1>Tickets</h1></div>
+      <div class="toolbar"><button class="btn primary" data-action="new-ticket">New ticket</button></div></div>
+    <div class="card">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="${view_ === 'queue'}" class="${view_ === 'queue' ? 'active' : ''}" data-action="ticket-view" data-view="queue">Open queue</button>
+        <button role="tab" aria-selected="${view_ === 'all'}" class="${view_ === 'all' ? 'active' : ''}" data-action="ticket-view" data-view="all">All tickets</button>
+      </div>
+      ${view_ === 'queue' ? '<p class="muted">Open tickets: premium customers first, then priority, then the earliest response deadline.</p>' : ''}
+      ${table(['Ticket', 'Customer', 'Subject', 'Category', 'Priority', 'Status', 'Assigned to', 'Response deadline'], list.map((t) => [
+        `<a href="#/ticket/${esc(t.id)}">${esc(t.ticketNumber)}</a>`,
+        `${esc(t.customer)}${t.premiumCustomer ? ' <span class="badge b-active">Premium</span>' : ''}`,
+        esc(t.subject), esc(t.category), badge(t.priority), badge(t.status), esc(t.assignedToName || '—'),
+        `<span class="${t.sla.state === 'Breached' || t.sla.state === 'Missed' ? 'warning' : ''}">${esc(slaText(t.sla))}</span>`,
+      ]), 'No tickets')}
+      ${staff ? '' : '<p class="muted">You see the tickets of your own customers.</p>'}
+    </div>`);
+}
+
+async function pageTicket(id) {
+  S.ticket = await api('GET', `/tickets/${id}`);
+  renderTicket();
+}
+
+function renderTicket() {
+  const t = S.ticket;
+  const staff = me().authority >= 1;
+  const assignees = S.meta.users.filter((x) => x.authority >= 1);
+  view(`
+    <div class="page-head"><div>
+      <div class="eyebrow">Ticket</div>
+      <h1>${esc(t.ticketNumber)} ${badge(t.status)} ${badge(t.priority)}</h1>
+      <div class="meta-row">${esc(t.subject)} · ${accountLink(t.accountId, t.customer)} (${esc(t.accountNumber)})${t.premiumCustomer ? ' <span class="badge b-active">Premium customer</span>' : ''}${t.policyId ? ` · <a href="#/policy/${esc(t.policyId)}">policy</a>` : ''}${t.claimId ? ` · <a href="#/claim/${esc(t.claimId)}">claim</a>` : ''}</div></div>
+      <div class="toolbar">${staff ? t.nextStatuses.map((to) => `<button class="btn" data-action="ticket-status" data-to="${esc(to)}">Move to ${esc(to)}</button>`).join('') : ''}</div></div>
+    <div class="tiles">
+      <div class="tile accent"><div class="label">Response deadline</div><div class="value" style="font-size:18px">${esc(slaText(t.sla))}</div><div class="muted">${esc(when(t.slaDueAt))}</div></div>
+      <div class="tile"><div class="label">Category</div><div class="value" style="font-size:18px">${esc(t.category)}</div></div>
+      <div class="tile"><div class="label">Assigned to</div><div class="value" style="font-size:18px">${esc(t.assignedToName || 'Nobody yet')}</div></div>
+    </div>
+    ${t.description ? `<div class="card"><h2>Description</h2><p>${esc(t.description)}</p></div>` : ''}
+    ${staff && ['Open', 'Assigned'].includes(t.status) ? `<div class="card"><h2>Assign</h2><form class="toolbar" data-form="ticket-assign">
+        ${field('Assign to', `<select name="assigneeId">${assignees.map((x) => `<option value="${esc(x.id)}" ${x.id === t.assignedTo ? 'selected' : ''}>${esc(x.name)} (${esc(x.role)})</option>`).join('')}</select>`)}
+        <button class="btn" style="align-self:flex-end">Assign</button></form></div>` : ''}
+    <div class="card"><h2>Notes</h2>
+      ${t.notes.length ? t.notes.map((n) => `<div class="note ${n.internal ? 'internal' : ''}"><div class="muted">${esc(n.byName)} · ${esc(when(n.at))}${n.internal ? ' · internal' : ''}</div><div>${esc(n.text)}</div></div>`).join('') : '<div class="empty">No notes yet</div>'}
+      <form data-form="ticket-note" style="margin-top:12px"><div class="form-errors"></div>
+        ${field('Add a note', '<textarea name="text" rows="3" required></textarea>')}
+        ${staff ? '<label class="field check"><input type="checkbox" name="internal"> <span>Internal: not shown to the customer</span></label>' : ''}
+        <div class="actions"><button class="btn primary">Save note</button></div></form>
+    </div>
+    <div class="card"><h2>History</h2>${table(['When', 'By', 'What', 'Detail'], t.history.map((h) => [esc(when(h.at)), esc(h.by), esc(h.action), esc(h.detail)]))}</div>`);
+}
+
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
@@ -1445,6 +1511,26 @@ const ACTIONS = {
       </div>
       <p class="muted">This is the amount the customer paid beyond the earned premium. It can be issued once.</p>
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Issue refund</button></div></form>`),
+  'ticket-view': (d) => { S.ticketView = d.view; pageTickets(); },
+  'ticket-status': async (d) => {
+    S.ticket = await api('POST', `/tickets/${S.ticket.id}/status`, { to: d.to });
+    toast(`Ticket moved to ${d.to}`, 'success');
+    renderTicket();
+  },
+  'new-ticket': async () => {
+    const accounts = await api('GET', '/accounts');
+    openModal(`<h2>New ticket</h2>
+      <form data-form="new-ticket"><div class="form-errors"></div>
+        <div class="form-grid">
+          ${field('Customer', `<select name="accountId" required><option value="">Choose an account</option>${accounts.map((a) => `<option value="${esc(a.id)}">${esc(a.accountNumber)} · ${esc(a.name)}</option>`).join('')}</select>`)}
+          ${field('Category', `<select name="category">${TICKET_CATEGORIES.map((c) => `<option>${esc(c)}</option>`).join('')}</select>`)}
+          ${field('Priority', `<select name="priority">${TICKET_PRIORITIES.map((c) => `<option ${c === 'Normal' ? 'selected' : ''}>${esc(c)}</option>`).join('')}</select>`)}
+          ${field('Subject', '<input name="subject" required minlength="3">')}
+        </div>
+        ${field('Description', '<textarea name="description" rows="3"></textarea>')}
+        <p class="muted">Response deadlines: Urgent 4 hours, High 1 day, Normal 2 days, Low 5 days.</p>
+        <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Create ticket</button></div></form>`);
+  },
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1581,6 +1667,21 @@ const FORMS = {
     toast('Refund issued', 'success');
     await loadPolicy(S.policy.id);
     renderPolicy();
+  },
+  'new-ticket': async (fd) => {
+    const t = await api('POST', '/tickets', { accountId: fd.get('accountId'), category: fd.get('category'), priority: fd.get('priority'), subject: fd.get('subject'), description: fd.get('description') });
+    closeModal();
+    toast(`Ticket ${t.ticketNumber} created`, 'success');
+    location.hash = `#/ticket/${t.id}`;
+  },
+  'ticket-assign': async (fd) => {
+    S.ticket = await api('POST', `/tickets/${S.ticket.id}/assign`, { assigneeId: fd.get('assigneeId') });
+    toast('Ticket assigned', 'success');
+    renderTicket();
+  },
+  'ticket-note': async (fd) => {
+    S.ticket = await api('POST', `/tickets/${S.ticket.id}/notes`, { text: fd.get('text'), internal: fd.get('internal') === 'on' });
+    renderTicket();
   },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });

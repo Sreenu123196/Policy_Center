@@ -129,3 +129,18 @@ test('claims: only underwriting staff move claims between stages', () => {
   const claim = pc.openClaim(policy.id, { lossDate: '2026-03-01', lossType: 'Water' }, users.agent);
   assert.throws(() => pc.moveClaim(claim.id, { to: 'Under Review' }, users.agent), /authority/);
 });
+
+test('tickets: the view says which stages the ticket can move to next, so a screen never offers a move the server refuses', () => {
+  const { pc, users, acct, run } = book();
+  const ticket = run(() => pc.createTicket({ accountId: acct.id, subject: 'Where is my ID card', priority: 'Normal' }, users.uw));
+  const next = () => pc.ticketView(ticket, users.uw).nextStatuses;
+  assert.deepEqual(next(), []); // an open ticket is assigned first, not moved
+  run(() => pc.assignTicket(ticket.id, 'uw', users.uw));
+  assert.deepEqual(next(), ['In Progress']);
+  // Every move the view offers is accepted, all the way to Closed.
+  for (const to of ['In Progress', 'Resolved', 'Closed']) {
+    assert.ok(next().includes(to), `${ticket.status} offers ${to}`);
+    run(() => pc.moveTicket(ticket.id, { to }, users.uw));
+  }
+  assert.deepEqual(next(), []);
+});

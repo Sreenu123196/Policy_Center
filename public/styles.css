@@ -251,3 +251,5 @@ pre.payload { margin: 0; font-size: 11px; white-space: pre-wrap; word-break: bre
 .pie-legend li { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
 .pie-legend li .muted { margin-left: auto; white-space: nowrap; }
 .swatch { width: 12px; height: 12px; border-radius: 3px; flex: none; display: inline-block; }
+.note { border-left: 3px solid var(--border); padding: 4px 10px; margin: 8px 0; }
+.note.internal { border-left-color: var(--warning); background: var(--warning-soft); }

@@ -1486,6 +1486,7 @@ class PolicyCenter {
       premiumCustomer: this.premiumCustomer(t.accountId),
       assignedToName: t.assignedTo ? (USERS.find((u) => u.id === t.assignedTo) || { name: t.assignedTo }).name : null,
       sla: this.slaOf(t),
+      nextStatuses: TICKET_TRANSITIONS[t.status] || [],
       notes: notes.map((n) => ({ ...n })),
     };
   }
