@@ -81,6 +81,7 @@ const MATRIX = {
   'POST /policies/:id/audit': ['agent'],
   'POST /jobs/:id/audit-actuals': ['agent'],
   'POST /policies/:id/rewrite': ['agent'],
+  'GET /admin/metrics': ['agent', 'uw', 'exec'],
   'GET /queues': [],
   'GET /documents/:id/render': [],
   'GET /documents/:id/view': [],
@@ -131,7 +132,7 @@ const MATRIX = {
 };
 
 // Sign-in routes need no session; /auth/password and /auth/me are checked in test/auth.test.js.
-const PUBLIC = ['GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password'];
+const PUBLIC = ['GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password'];
 // The speech route calls an outside service; with none set up it answers 502 to everybody who is allowed.
 const OUTSIDE = ['POST /speech'];
 

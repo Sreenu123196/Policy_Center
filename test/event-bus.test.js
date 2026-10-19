@@ -192,3 +192,37 @@ test('collections: a missed payment and a cancellation request each become one a
   events.run({ now: later(60) });
   assert.equal(pc.db.activities.filter((a) => a.type === 'Collections').length, 2);
 });
+
+// ---- batches: a backlog must not take a unit of work (a copy and a save of all the data) per event
+
+test('a backlog is worked off in a handful of units of work, not one per event', () => {
+  const { events, emit, pc } = bus();
+  const seen = [];
+  events.register('a', (e) => seen.push(e.payload.n));
+  for (let n = 1; n <= 250; n++) emit('PolicyIssued', n);
+  let units = 0;
+  const original = pc.store.transaction.bind(pc.store);
+  pc.store.transaction = (fn) => { units++; return original(fn); };
+  const result = events.run({ now: T0, limit: 1000 })[0];
+  assert.equal(result.handled, 250);
+  assert.deepEqual(seen, Array.from({ length: 250 }, (_, i) => i + 1));
+  assert.ok(units <= 5, `250 events took ${units} units of work`);
+});
+
+test('a failing event in the middle of a batch: the ones before it are handled once, the failing one is pinned, the rest wait', () => {
+  const { events, emit, run } = bus();
+  const calls = [];
+  events.register('a', (e) => {
+    calls.push(e.payload.n);
+    if (e.payload.n === 5 && calls.filter((n) => n === 5).length === 1) throw new Error('fails the first time');
+  });
+  for (let n = 1; n <= 10; n++) emit('PolicyIssued', n);
+  const first = run({ backoffSeconds: 30 })[0];
+  assert.equal(first.handled, 4);
+  assert.deepEqual([first.blockedOn.attempts, first.blockedOn.retryAt], [1, later(30).toISOString()]);
+  assert.deepEqual(calls.slice(0, 5), [1, 2, 3, 4, 5], 'the batch ran in order up to the failing event');
+  assert.equal(calls.filter((n) => n === 5).length, 1, 'the failing handler ran once in that run');
+  const second = run({ now: later(31) })[0];
+  assert.equal(second.handled, 6);
+  assert.equal(calls.filter((n) => n === 5).length, 2);
+});

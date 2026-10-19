@@ -24,7 +24,7 @@ const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policyc
 const PUBLIC = path.join(__dirname, 'public');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 
-const store = new Store(DATA_FILE);
+const store = new Store(DATA_FILE, { reuseSnapshot: true });
 const pc = new PolicyCenter(store);
 const reseed = () => seed(pc);
 if (store.isEmpty()) {
@@ -40,7 +40,8 @@ bus.register('collections', collectionsConsumer(pc));
 bus.register('claims-queue', claimsQueueConsumer(pc));
 bus.register('accounting', accountingConsumer(new Accounting(pc)));
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus });
-bus.run(); // events written before this start
+// Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
+while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }
 
 console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode === 'claude' ? ` (${chatbot.status().model})` : ''}`);
 const voice = speech.status();

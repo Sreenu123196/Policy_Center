@@ -7,6 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test test/*.test.js",
+    "load-test": "node scripts/load-test.js",
     "generate": "node scripts/generate-test-data.js",
     "reset-manager": "node scripts/reset-manager.js"
   },

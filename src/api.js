@@ -36,6 +36,17 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   const reports = new Reports(pc, billing);
   const documents = new Documents(pc, messaging);
   const accounting = new Accounting(pc);
+  // The consumers run right after the response has gone, never inside the request: a person who saves something does not wait
+  // for the queues to be filled. Several writes in a row ask once.
+  let busAsked = false;
+  const runBusSoon = () => {
+    if (!bus || busAsked) return;
+    busAsked = true;
+    setImmediate(() => {
+      busAsked = false;
+      try { bus.run(); } catch (err) { console.error('The event consumers failed:', err); }
+    });
+  };
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -45,6 +56,21 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   };
 
   // Setup: until the first account has a password, the app asks the first person to choose one.
+  // Is the server up? No sign-in, nothing private: for a load balancer or a container health check.
+  route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
+  // How the server is doing (UW managers): memory, how many records, what saving the data costs.
+  route('GET', '/admin/metrics', ({ user }) => {
+    pc.requireAuthority(user, 2, 'see server metrics');
+    const mb = (n) => Math.round((n / 1048576) * 10) / 10;
+    const mem = process.memoryUsage();
+    const d = pc.db;
+    const s = store.stats;
+    return {
+      uptimeSeconds: Math.round(process.uptime()), rssMb: mb(mem.rss), heapUsedMb: mb(mem.heapUsed),
+      records: { accounts: d.accounts.length, policies: d.policies.length, jobs: d.jobs.length, invoices: d.invoices.length, claims: d.claims.length, events: d.events.length, ledgerEntries: d.ledger.length },
+      store: { saves: s.saves, lastSaveMs: Math.round(s.lastSaveMs * 10) / 10, maxSaveMs: Math.round(s.maxSaveMs * 10) / 10, averageSaveMs: s.saves ? Math.round((s.totalSaveMs / s.saves) * 10) / 10 : 0, fileMb: mb(s.lastSaveBytes) },
+    };
+  });
   route('GET', '/auth/status', () => ({ setupNeeded: pc.setupNeeded() }), { isPublic: true });
   route('POST', '/auth/setup', (ctx) => {
     const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });
@@ -332,7 +358,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
       const etag = etagFor(pc, sub);
       if (etag) res.setHeader('ETag', etag);
       // The consumers run after the change is saved, never inside it: a failing consumer cannot undo the change.
-      if (bus && !found.readOnly && !sub.startsWith('/admin/events')) bus.run();
+      if (bus && !found.readOnly && !sub.startsWith('/admin/events')) runBusSoon();
       if (ctx.setCookie) res.setHeader('Set-Cookie', ctx.setCookie);
       send(statusFor, result);
     } catch (err) {
