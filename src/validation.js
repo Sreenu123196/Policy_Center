@@ -71,6 +71,49 @@ function validatePersonalAuto(p, add) {
   if (umLimit && order.indexOf(umLimit) > order.indexOf(biLimit)) add('line.lineCoverages', 'Uninsured Motorist limit cannot exceed the Bodily Injury limit');
 }
 
+function validateTwoWheeler(p, add) {
+  const { drivers, vehicles, answers } = p.line;
+  const pm = PRODUCTS.TwoWheeler;
+  const effYear = D.yearOf(p.effectiveDate);
+  if (!drivers.length) add('line.drivers', 'At least one rider is required');
+  if (!vehicles.length) add('line.vehicles', 'At least one bike is required');
+  if (vehicles.length > 4) add('line.vehicles', 'A two-wheeler policy can have at most 4 bikes');
+
+  drivers.forEach((d, i) => {
+    const who = `Rider ${i + 1}${d.firstName ? ` (${d.firstName} ${d.lastName || ''})`.trimEnd() : ''}`;
+    const at = (f) => `line.drivers.${i}.${f}`;
+    if (blank(d.firstName)) add(at('firstName'), `${who}: first name is required`);
+    if (blank(d.lastName)) add(at('lastName'), `${who}: last name is required`);
+    const age = D.ageOn(d.dob, p.effectiveDate);
+    if (age === null) add(at('dob'), `${who}: date of birth is required`);
+    else if (age < 16) add(at('dob'), `${who}: must be at least 16 on the effective date`);
+    if (blank(d.licenseNumber)) add(at('licenseNumber'), `${who}: licence number is required`);
+    if (!STATES[d.licenseState] && !/^[A-Z]{2}$/.test(d.licenseState || '')) add(at('licenseState'), `${who}: licence state is required`);
+    if (!isInt(d.yearsLicensed, 0, 90) || (age !== null && d.yearsLicensed > age - 14)) add(at('yearsLicensed'), `${who}: years licensed is not valid for the rider's age`);
+    if (!isInt(d.accidents, 0, 20)) add(at('accidents'), `${who}: at-fault accidents must be a number 0-20`);
+    if (!isInt(d.violations, 0, 20)) add(at('violations'), `${who}: violations must be a number 0-20`);
+  });
+
+  vehicles.forEach((v, i) => {
+    const what = `Bike ${i + 1}${v.make ? ` (${v.year || ''} ${v.make} ${v.model || ''})`.replace(/\s+\)/, ')') : ''}`;
+    const at = (f) => `line.vehicles.${i}.${f}`;
+    if (!isInt(v.year, 1990, effYear + 1)) add(at('year'), `${what}: model year must be between 1990 and ${effYear + 1}`);
+    if (blank(v.make)) add(at('make'), `${what}: make is required`);
+    if (blank(v.model)) add(at('model'), `${what}: model is required`);
+    if (!VIN.test(v.vin || '')) add(at('vin'), `${what}: VIN must be 17 characters (no I, O or Q)`);
+    if (!isInt(v.engineCc, 49, 2500)) add(at('engineCc'), `${what}: engine size must be 49-2,500 cc`);
+    if (!isInt(v.annualMiles, 0, 60000)) add(at('annualMiles'), `${what}: annual mileage must be 0-60,000`);
+    if (!ZIP.test(v.garagingZip || '')) add(at('garagingZip'), `${what}: garaging ZIP must be 5 digits`);
+    const physical = v.coverages.TWCollisionCov?.selected || v.coverages.TWComprehensiveCov?.selected;
+    if (physical && !isInt(v.marketValue, 200, 200000)) add(at('marketValue'), `${what}: market value is required for physical damage coverage`);
+    if (v.coverages.TWCollisionCov?.selected && !v.coverages.TWComprehensiveCov?.selected) add(at('coverages'), `${what}: Collision requires Comprehensive`);
+  });
+
+  for (const q of pm.questions) {
+    if (!['yes', 'no'].includes((answers || {})[q.code])) add(`line.answers.${q.code}`, `Answer the question: ${q.text}`);
+  }
+}
+
 function validateHomeowners(p, add) {
   const { form, dwelling: d, coverages: c } = p.line;
   const effYear = D.yearOf(p.effectiveDate);
@@ -213,6 +256,7 @@ function validatePeriod(product, p, { jobType, today }) {
   if (jobType === 'Submission' && p.effectiveDate > D.addDays(today, 120)) add('effectiveDate', 'Effective date cannot be more than 120 days in the future');
   if (!PRODUCTS[product].paymentPlans.some((pl) => pl.code === p.paymentPlan)) add('paymentPlan', 'Payment plan is required');
   if (product === 'PersonalAuto') validatePersonalAuto(p, add);
+  else if (product === 'TwoWheeler') validateTwoWheeler(p, add);
   else if (product === 'CommercialAuto') validateCommercialAuto(p, add);
   else if (product === 'GeneralLiability') validateGeneralLiability(p, add);
   else if (product === 'CommercialProperty') validateCommercialProperty(p, add);

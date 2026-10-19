@@ -329,7 +329,53 @@ const UMBRELLA = {
   vehicleCoverages: [],
 };
 
-const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP, Businessowners: BUSINESSOWNERS, Umbrella: UMBRELLA };
+const TWO_WHEELER = {
+  code: 'TwoWheeler',
+  name: 'Two-Wheeler (motorcycle and scooter)',
+  prefix: 'TW',
+  termMonths: 12,
+  paymentPlans: [
+    { code: 'PaidInFull', name: 'Paid in full', installments: 1, installmentFee: 0 },
+    { code: 'Quarterly', name: 'Quarterly (4 installments)', installments: 4, installmentFee: 3 },
+  ],
+  usages: ['Pleasure', 'Commute', 'Delivery'],
+  bikeTypes: ['Scooter', 'Commuter', 'Cruiser', 'Sport'],
+  // The question set the customer answers (yes or no). An answer equal to `trigger` raises an underwriting issue
+  // (level 1 underwriter, 2 UW manager, null = cannot be approved). The answers also feed rating where noted.
+  questions: [
+    { code: 'modified', text: "Has the engine or exhaust been changed from the maker's specification?", trigger: 'yes', issue: { code: 'TW_MODIFIED', name: 'Modified bike', description: 'The bike has been modified from the maker\'s specification', blockingPoint: 'BlocksBind', level: 1 } },
+    { code: 'racing', text: 'Is the bike used for racing, stunts or track days?', trigger: 'yes', issue: { code: 'TW_RACING', name: 'Racing or stunt use', description: 'Racing, stunt or track use is outside appetite', blockingPoint: 'BlocksQuote', level: null } },
+    { code: 'priorLapse', text: 'Was there a gap of more than 30 days in your insurance in the last 3 years?', trigger: 'yes', issue: { code: 'TW_PRIOR_LAPSE', name: 'Lapse in prior cover', description: 'There was a gap of more than 30 days in prior insurance', blockingPoint: 'BlocksBind', level: 1 } },
+    { code: 'licenseSuspended', text: 'Has any rider had a licence suspended or revoked in the last 5 years?', trigger: 'yes', issue: { code: 'TW_LICENSE_SUSPENDED', name: 'Licence suspension', description: 'A rider had a licence suspended or revoked in the last 5 years', blockingPoint: 'BlocksBind', level: 2 } },
+    { code: 'keptOutdoors', text: 'Is the bike kept outdoors overnight? (raises the theft and weather charge)', trigger: null },
+  ],
+  lineCoverages: [
+    {
+      code: 'TWLiabilityCov', name: 'Third-party Liability', category: 'Liability', existence: 'Required',
+      terms: [{ code: 'limit', name: 'Limit (per person / per accident)', type: 'option', options: [opt('15/30', '$15K / $30K'), opt('25/50', '$25K / $50K'), opt('50/100', '$50K / $100K')], default: '25/50' }],
+    },
+    {
+      code: 'TWPersonalAccidentCov', name: 'Rider Personal Accident', category: 'Liability', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([10000, 25000]), default: '10000' }],
+    },
+  ],
+  vehicleCoverages: [
+    {
+      code: 'TWCollisionCov', name: 'Collision', category: 'Physical Damage', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([250, 500, 1000]), default: '500' }],
+    },
+    {
+      code: 'TWComprehensiveCov', name: 'Comprehensive (theft, fire, weather)', category: 'Physical Damage', existence: 'Electable', defaultSelected: true,
+      terms: [{ code: 'deductible', name: 'Deductible', type: 'option', options: moneyOpts([100, 250, 500]), default: '250' }],
+    },
+    {
+      code: 'TWAccessoriesCov', name: 'Accessories and Safety Gear', category: 'Optional', existence: 'Electable',
+      terms: [{ code: 'limit', name: 'Limit', type: 'option', options: moneyOpts([1000, 2500, 5000]), default: '1000' }],
+    },
+  ],
+};
+
+const PRODUCTS = { PersonalAuto: PERSONAL_AUTO, Homeowners: HOMEOWNERS, CommercialAuto: COMMERCIAL_AUTO, GeneralLiability: GENERAL_LIABILITY, CommercialProperty: COMMERCIAL_PROPERTY, WorkersComp: WORKERS_COMP, Businessowners: BUSINESSOWNERS, Umbrella: UMBRELLA, TwoWheeler: TWO_WHEELER };
 
 const isAvailable = (def, ctx) =>
   (!def.states || def.states.includes(ctx.state)) && (!def.forms || def.forms.includes(ctx.form));

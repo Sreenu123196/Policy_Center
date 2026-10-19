@@ -652,6 +652,100 @@ function rateUmbrella(period, ctx) {
   return finish(book, costs, state, ctx);
 }
 
+// ---------------------------------------------------------------- Two-Wheeler
+
+function ratedRider(riders, effectiveDate, t) {
+  let best = null;
+  for (const d of riders) {
+    const age = D.ageOn(d.dob, effectiveDate);
+    let f = ageBand(t.driverAgeFactors, age)
+      * band(t.experienceFactors, d.yearsLicensed || 0)
+      * t.accidentFactors[Math.min(d.accidents || 0, 3)]
+      * Math.pow(t.violationFactor, d.violations || 0);
+    if (d.riderTraining) f *= t.trainingFactor;
+    f = round4(f);
+    if (!best || f > best.factor) best = { id: d.id, label: `${d.firstName} ${d.lastName}, age ${age}${d.riderTraining ? ', rider course' : ''}`, factor: f };
+  }
+  return best || { id: null, label: 'none', factor: 1 };
+}
+
+function rateTwoWheeler(period, ctx) {
+  const book = selectRateBook('TwoWheeler', period.effectiveDate);
+  const t = book.tables;
+  const product = PRODUCTS.TwoWheeler;
+  const state = period.state;
+  const sf = t.stateFactors[state];
+  const termF = round4(product.termMonths / 12);
+  const effYear = D.yearOf(period.effectiveDate);
+  const rd = ratedRider(period.line.drivers, period.effectiveDate, t);
+  const outdoors = (period.line.answers || {}).keptOutdoors === 'yes';
+  const costs = [];
+
+  period.line.vehicles.forEach((v, i) => {
+    const coverable = `Bike ${i + 1}: ${v.year} ${v.make} ${v.model}`;
+    const terr = territoryOf(v.garagingZip);
+    const bikeAge = Math.max(0, effYear - v.year);
+    const base = { type: 'Coverage', coverableId: v.id, coverable };
+    const bike = (ws) => ws
+      .x(`Engine ${v.engineCc} cc`, band(t.engineFactors, v.engineCc || 0))
+      .x(`Bike type: ${v.bikeType}`, t.bikeTypeFactors[v.bikeType]);
+
+    for (const def of product.lineCoverages) {
+      const cov = period.line.lineCoverages[def.code];
+      if (!cov || !cov.selected) continue;
+      const limit = cov.terms.limit;
+      const ws = bike(new Worksheet('Annual base rate', t.baseRates[def.code])
+        .x(`State factor, liability (${state})`, sf.liability)
+        .x(`Territory ${terr} (ZIP ${v.garagingZip})`, t.territoryFactors[terr])
+        .x(`Limit ${limit}`, t.limitFactors[def.code][limit])
+        .x(`Rider (${rd.label})`, rd.factor))
+        .x(`Use: ${v.usage}`, t.usageFactors[v.usage])
+        .x(`Annual mileage ${Number(v.annualMiles || 0).toLocaleString('en-US')}`, band(t.mileageFactors, v.annualMiles || 0))
+        .x(`Rate level (book ${book.version})`, book.rateLevel)
+        .x(`Term factor (${product.termMonths} months)`, termF);
+      costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue: limit }, ws));
+    }
+
+    for (const def of product.vehicleCoverages) {
+      const cov = v.coverages[def.code];
+      if (!cov || !cov.selected) continue;
+      let ws;
+      let termValue;
+      if (def.code === 'TWAccessoriesCov') {
+        termValue = cov.terms.limit;
+        ws = new Worksheet(`Flat annual charge (${termValue})`, t.flatCharges[def.code][termValue]);
+      } else {
+        termValue = cov.terms.deductible;
+        ws = new Worksheet('Annual base rate', t.baseRates[def.code])
+          .x(`State factor, physical damage (${state})`, sf.physical)
+          .x(`Territory ${terr} (ZIP ${v.garagingZip})`, t.territoryFactors[terr])
+          .x(`Deductible $${termValue}`, t.deductibleFactors[def.code][termValue])
+          .x(`Bike age ${bikeAge} yrs`, band(t.vehicleAgeFactors, bikeAge))
+          .x(`Market value ${usd(v.marketValue)}`, band(t.vehicleValueFactors, v.marketValue || 0));
+        bike(ws);
+        if (def.code === 'TWCollisionCov') ws.x(`Rider (${rd.label})`, rd.factor).x(`Use: ${v.usage}`, t.usageFactors[v.usage]);
+        if (def.code === 'TWComprehensiveCov' && outdoors) ws.x('Kept outdoors overnight', t.outdoorFactor);
+      }
+      ws.x(`Rate level (book ${book.version})`, book.rateLevel).x(`Term factor (${product.termMonths} months)`, termF);
+      costs.push(cost({ ...base, coverageCode: def.code, coverageName: def.name, termValue }, ws));
+    }
+  });
+
+  const subtotal = round2(costs.reduce((s, c) => s + c.amount, 0));
+  const discounts = [];
+  if (period.line.vehicles.length >= 2) discounts.push(['MultiBikeDiscount', 'Multi-bike discount', t.discounts.multiBike]);
+  if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  const claimFree = period.line.claimFreeRenewals || 0;
+  if (claimFree >= 1) discounts.push(['ClaimFreeDiscount', `Claim-free renewal discount (${claimFree} claim-free renewal${claimFree > 1 ? 's' : ''})`, t.claimFreeDiscounts[Math.min(claimFree, t.claimFreeDiscounts.length) - 1]]);
+  for (const [code, name, pct] of discounts) {
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${Math.round(pct * 10000) / 100}%)`, -pct);
+    costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: code, coverageName: name }, ws));
+  }
+  const result = finish(book, costs, state, ctx);
+  result.ratedDriver = rd;
+  return result;
+}
+
 function rate(product, period, ctx) {
   if (product === 'PersonalAuto') return ratePersonalAuto(period, ctx);
   if (product === 'Homeowners') return rateHomeowners(period, ctx);
@@ -661,6 +755,7 @@ function rate(product, period, ctx) {
   if (product === 'WorkersComp') return rateWorkersComp(period, ctx);
   if (product === 'Businessowners') return rateBusinessowners(period, ctx);
   if (product === 'Umbrella') return rateUmbrella(period, ctx);
+  if (product === 'TwoWheeler') return rateTwoWheeler(period, ctx);
   throw new Error(`Unknown product ${product}`);
 }
 

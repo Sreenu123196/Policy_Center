@@ -62,3 +62,12 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 - **Commission:** a rate for each producer (default 10%, kept on each entry so a new rate never restates history); statements per producer (`GET /api/producers/:code/statement`, `.csv`, `.pdf`) showing premium, rate, commission, what was paid and what is still payable; a manager pays commission (never more than is payable). A producer sees only their own statement.
 - **Not done:** tax (the written premium includes taxes; a tax payable account is not split out), accrual of unearned premium and claim reserves, multiple currencies, an export in a specific ERP format, and a payment run for several producers.
 - **Note:** the commission here is what the insurer pays its producers. The older Finance screens treat commission as income of the agency; they are separate.
+
+## Tier 3, item 10 (a): Two-Wheeler product and question sets
+
+`TwoWheeler` in `src/productModel.js`, `src/rateBooks.js` (TW-STD), `src/rating.js` (`rateTwoWheeler`), `src/validation.js`, `src/uwRules.js`, `test/two-wheeler.test.js`.
+
+- **Product:** riders and bikes. Priced per bike from the rider (age, experience, accidents, violations, rider course discount), engine size, bike type, use, mileage, value and age, with third-party liability, rider personal accident, collision, comprehensive and accessories cover. Discounts: multi-bike, paid in full, claim-free renewal. US states and dollars, like the rest of the Sim.
+- **Question sets:** a product can define `questions` (yes or no). Every question must be answered to quote, and an answer equal to the question's `trigger` raises that question's underwriting issue (level 1, level 2, or not approvable). Two-Wheeler: modified bike, racing or stunts (not approvable), a lapse in prior cover, a licence suspension. "Kept outdoors" feeds the rating instead. The mechanism is generic: add `questions` to another product and call the same pattern in its UW rules.
+- **Screens:** Riders, Two-wheelers and Questions steps; the policy summary shows riders, bikes and answers.
+- **Still to do for item 10:** multi-year terms, premium audit, rewrite.

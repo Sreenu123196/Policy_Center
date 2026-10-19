@@ -85,7 +85,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella', 'TwoWheeler'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
       },
@@ -98,7 +98,7 @@ const TOOLS = [
     input_schema: {
       type: 'object',
       properties: {
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella', 'TwoWheeler'] },
         state: { type: 'string', enum: Object.keys(STATES) },
         status: { type: 'string', enum: ['In Force', 'Scheduled', 'Expired', 'Cancelled'] },
         sort: { type: 'string', enum: ['premium_desc', 'premium_asc', 'expiration_asc', 'effective_desc'] },
@@ -146,7 +146,7 @@ const TOOLS = [
       properties: {
         from: { type: 'string', description: 'Start date, yyyy-mm-dd' },
         to: { type: 'string', description: 'End date, yyyy-mm-dd' },
-        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella'] },
+        product: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella', 'TwoWheeler'] },
       },
       required: ['from', 'to'],
       additionalProperties: false,
@@ -155,7 +155,7 @@ const TOOLS = [
   {
     name: 'get_product_rules',
     description: 'Reference information: the product model (coverages, limits, forms, payment plans), underwriting rules and authority levels, cancellation reasons and methods, and the rate books.',
-    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
+    input_schema: { type: 'object', properties: { topic: { type: 'string', enum: ['PersonalAuto', 'Homeowners', 'CommercialAuto', 'GeneralLiability', 'CommercialProperty', 'WorkersComp', 'Businessowners', 'Umbrella', 'TwoWheeler', 'underwriting', 'cancellation', 'rate_books'] } }, required: ['topic'], additionalProperties: false },
   },
 ];
 

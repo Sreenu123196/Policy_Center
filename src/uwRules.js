@@ -6,6 +6,7 @@
 //   value          numeric severity; an approval stays valid on re-quote while value <= approved value
 
 const { replacementCostEstimate } = require('./rating');
+const { PRODUCTS } = require('./productModel');
 const D = require('./dates');
 
 const LEVEL_NAMES = { 1: 'Underwriter', 2: 'UW Manager' };
@@ -185,6 +186,33 @@ function umbrellaIssues(p) {
   return out;
 }
 
+function twoWheelerIssues(p) {
+  const out = [];
+  const { drivers, vehicles, answers } = p.line;
+  const biggest = vehicles.reduce((m, v) => Math.max(m, v.engineCc || 0), 0);
+  const sport = vehicles.some((v) => v.bikeType === 'Sport');
+  for (const d of drivers) {
+    const who = `${d.firstName} ${d.lastName}`;
+    const age = D.ageOn(d.dob, p.effectiveDate);
+    if (age < 21 && biggest > 250) out.push(issue('TW_YOUNG_BIG_BIKE', 'Young rider on a larger bike', `${who} is ${age} and the policy has a bike over 250 cc (${biggest} cc)`, 'BlocksBind', 1, biggest, d.id));
+    if (age < 25 && sport) out.push(issue('TW_YOUNG_SPORT', 'Young rider on a sport bike', `${who} is ${age} and the policy has a sport bike`, 'BlocksBind', 1, 25 - age, d.id));
+    if (d.accidents >= 3) out.push(issue('TW_ACCIDENT_HISTORY', 'Accident history', `${who} has ${d.accidents} at-fault accidents in 3 years`, 'BlocksQuote', 2, d.accidents, d.id));
+    else if (d.accidents === 2) out.push(issue('TW_ACCIDENT_HISTORY', 'Accident history', `${who} has 2 at-fault accidents in 3 years`, 'BlocksQuote', 1, 2, d.id));
+    if (d.violations >= 4) out.push(issue('TW_MAJOR_VIOLATIONS', 'Excessive violations', `${who} has ${d.violations} violations in 3 years; outside appetite`, 'BlocksQuote', null, d.violations, d.id));
+  }
+  vehicles.forEach((v, i) => {
+    const what = `Bike ${i + 1} (${v.year} ${v.make} ${v.model})`;
+    if (v.usage === 'Delivery') out.push(issue('TW_DELIVERY_USE', 'Delivery use', `${what} is used for deliveries`, 'BlocksBind', 1, 1, v.id));
+    if (v.engineCc > 1000) out.push(issue('TW_LARGE_ENGINE', 'Very large engine', `${what} has a ${v.engineCc} cc engine; UW Manager approval`, 'BlocksBind', 2, v.engineCc, v.id));
+    if (v.marketValue > 25000) out.push(issue('TW_HIGH_VALUE', 'High-value bike', `${what} is valued at $${v.marketValue.toLocaleString('en-US')}`, 'BlocksBind', 1, v.marketValue, v.id));
+  });
+  // The question set: an answer that matches a question's trigger raises that question's issue.
+  for (const q of PRODUCTS.TwoWheeler.questions) {
+    if (q.trigger && (answers || {})[q.code] === q.trigger) out.push(issue(q.issue.code, q.issue.name, q.issue.description, q.issue.blockingPoint, q.issue.level, 1));
+  }
+  return out;
+}
+
 function evaluateUW(product, period, { jobType, today }) {
   const issues = product === 'PersonalAuto' ? personalAutoIssues(period)
     : product === 'CommercialAuto' ? commercialAutoIssues(period)
@@ -192,7 +220,8 @@ function evaluateUW(product, period, { jobType, today }) {
     : product === 'CommercialProperty' ? commercialPropertyIssues(period)
     : product === 'WorkersComp' ? workersCompIssues(period)
     : product === 'Businessowners' ? businessownersIssues(period)
-    : product === 'Umbrella' ? umbrellaIssues(period) : homeownersIssues(period);
+    : product === 'Umbrella' ? umbrellaIssues(period)
+    : product === 'TwoWheeler' ? twoWheelerIssues(period) : homeownersIssues(period);
   if (jobType === 'Submission') {
     const back = D.daysBetween(period.effectiveDate, today);
     if (back > 5) issues.push(issue('BACKDATED_EFFECTIVE_DATE', 'Backdated coverage', `Effective date is ${back} days in the past`, 'BlocksBind', 1, back));

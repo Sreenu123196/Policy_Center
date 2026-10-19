@@ -426,6 +426,12 @@ class PolicyCenter {
       period.line = { businessName: '', claimsLast5Years: 0, exposures: [], lineCoverages: {} };
     } else if (product === 'CommercialAuto') {
       period.line = { businessName: '', drivers: [], vehicles: [], lineCoverages: {} };
+    } else if (product === 'TwoWheeler') {
+      period.line = {
+        drivers: [{ firstName: account.firstName, lastName: account.lastName, dob: account.dob, licenseNumber: '', licenseState: account.address.state, yearsLicensed: null, accidents: 0, violations: 0, riderTraining: false }],
+        vehicles: [],
+        answers: {},
+      };
     } else if (product === 'PersonalAuto') {
       period.line = {
         drivers: [{ firstName: account.firstName, lastName: account.lastName, dob: account.dob, licenseNumber: '', licenseState: account.address.state, yearsLicensed: null, accidents: 0, violations: 0, goodStudent: false }],
@@ -447,6 +453,42 @@ class PolicyCenter {
   }
 
   normalizeLine(product, line, period, prevLine) {
+    if (product === 'TwoWheeler') {
+      const pm = PRODUCTS.TwoWheeler;
+      const ctx = { state: period.state };
+      return {
+        drivers: (line.drivers || []).map((d) => ({
+          id: d.id || this.store.id('drv'),
+          firstName: str(d.firstName),
+          lastName: str(d.lastName),
+          dob: str(d.dob),
+          licenseNumber: str(d.licenseNumber).toUpperCase(),
+          licenseState: str(d.licenseState).toUpperCase(),
+          yearsLicensed: int(d.yearsLicensed),
+          accidents: int(d.accidents) ?? 0,
+          violations: int(d.violations) ?? 0,
+          riderTraining: !!d.riderTraining,
+        })),
+        vehicles: (line.vehicles || []).map((v) => ({
+          id: v.id || this.store.id('veh'),
+          year: int(v.year),
+          make: str(v.make),
+          model: str(v.model),
+          vin: str(v.vin).toUpperCase(),
+          engineCc: int(v.engineCc),
+          bikeType: pm.bikeTypes.includes(v.bikeType) ? v.bikeType : 'Commuter',
+          usage: pm.usages.includes(v.usage) ? v.usage : 'Commute',
+          annualMiles: int(v.annualMiles),
+          marketValue: int(v.marketValue),
+          garagingZip: str(v.garagingZip),
+          coverages: normalizeCoverages(pm.vehicleCoverages, v.coverages, ctx),
+        })),
+        // An answer is yes or no; anything else counts as not answered.
+        answers: Object.fromEntries(pm.questions.map((q) => [q.code, ['yes', 'no'].includes((line.answers || {})[q.code]) ? line.answers[q.code] : ''])),
+        lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+        claimFreeRenewals: prevLine ? prevLine.claimFreeRenewals || 0 : 0,
+      };
+    }
     if (product === 'PersonalAuto') {
       const pm = PRODUCTS.PersonalAuto;
       const ctx = { state: period.state };
@@ -1054,7 +1096,7 @@ class PolicyCenter {
   // Feeds the claims record into the renewal's risk: a claim-free term adds one to the claim-free renewals (the discount
   // in rating); a claim resets that count and adds to the loss history the rating and underwriting rules read.
   applyClaimExperience(product, line, experience) {
-    if (product === 'PersonalAuto') line.claimFreeRenewals = experience.claims === 0 ? (line.claimFreeRenewals || 0) + 1 : 0;
+    if (product === 'PersonalAuto' || product === 'TwoWheeler') line.claimFreeRenewals = experience.claims === 0 ? (line.claimFreeRenewals || 0) + 1 : 0;
     else if (product === 'Homeowners') line.dwelling.priorClaims = (line.dwelling.priorClaims || 0) + experience.claims;
     else if (typeof line.claimsLast5Years === 'number') line.claimsLast5Years += experience.claims;
   }

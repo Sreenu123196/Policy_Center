@@ -208,6 +208,38 @@ const UMB_TABLES = {
   policyFee: 50,
 };
 
+// Two-Wheeler: priced per bike from the rider, the engine size, the bike type, use and value. Demonstration values, not filed rates.
+const TW_TABLES = {
+  baseRates: { TWLiabilityCov: 150, TWPersonalAccidentCov: 40, TWCollisionCov: 280, TWComprehensiveCov: 140 },
+  flatCharges: { TWAccessoriesCov: { 1000: 22, 2500: 48, 5000: 85 } },
+  stateFactors: {
+    CA: { liability: 1.18, physical: 1.12 }, FL: { liability: 1.35, physical: 1.15 }, IL: { liability: 1.0, physical: 0.98 },
+    NY: { liability: 1.3, physical: 1.2 }, OH: { liability: 0.82, physical: 0.9 }, TX: { liability: 1.05, physical: 1.1 },
+  },
+  territoryFactors: { 1: 0.92, 2: 0.97, 3: 1.0, 4: 1.06, 5: 1.14 },
+  limitFactors: { TWLiabilityCov: { '15/30': 0.85, '25/50': 1.0, '50/100': 1.2 }, TWPersonalAccidentCov: { 10000: 1.0, 25000: 1.6 } },
+  deductibleFactors: { TWCollisionCov: { 250: 1.15, 500: 1.0, 1000: 0.85 }, TWComprehensiveCov: { 100: 1.25, 250: 1.1, 500: 1.0 } },
+  driverAgeFactors: [
+    { min: 0, max: 20, f: 2.4 }, { min: 21, max: 24, f: 1.7 }, { min: 25, max: 29, f: 1.2 },
+    { min: 30, max: 59, f: 1.0 }, { min: 60, max: 69, f: 1.1 }, { min: 70, max: 200, f: 1.35 },
+  ],
+  experienceFactors: [{ max: 2, f: 1.3 }, { max: 5, f: 1.1 }, { f: 1.0 }],
+  accidentFactors: { 0: 1.0, 1: 1.4, 2: 1.9, 3: 2.5 },
+  violationFactor: 1.15,
+  trainingFactor: 0.9,
+  engineFactors: [{ max: 125, f: 0.7 }, { max: 250, f: 0.85 }, { max: 500, f: 1.0 }, { max: 750, f: 1.35 }, { max: 1000, f: 1.7 }, { f: 2.2 }],
+  bikeTypeFactors: { Scooter: 0.8, Commuter: 1.0, Cruiser: 1.1, Sport: 1.6 },
+  usageFactors: { Pleasure: 0.9, Commute: 1.0, Delivery: 1.5 },
+  mileageFactors: [{ max: 3000, f: 0.85 }, { max: 8000, f: 1.0 }, { max: 15000, f: 1.2 }, { f: 1.4 }],
+  vehicleAgeFactors: [{ max: 2, f: 1.2 }, { max: 6, f: 1.05 }, { max: 12, f: 0.9 }, { f: 0.7 }],
+  vehicleValueFactors: [{ max: 3000, f: 0.6 }, { max: 6000, f: 0.85 }, { max: 10000, f: 1.0 }, { max: 20000, f: 1.3 }, { f: 1.7 }],
+  outdoorFactor: 1.12,
+  discounts: { multiBike: 0.1, paidInFull: 0.05 },
+  claimFreeDiscounts: [0.05, 0.1, 0.15],
+  taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
+  policyFee: 20,
+};
+
 const RATE_BOOKS = [
   { code: 'PA-STD', product: 'PersonalAuto', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Personal Auto standard rate book', tables: PA_TABLES },
   { code: 'PA-STD', product: 'PersonalAuto', version: '2027.1', effectiveDate: '2027-01-01', status: 'Active', rateLevel: 1.045, description: '+4.5% overall rate level change (filed 2026-09)', tables: PA_TABLES },
@@ -219,6 +251,7 @@ const RATE_BOOKS = [
   { code: 'CP-STD', product: 'CommercialProperty', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Commercial property standard rate book', tables: CP_TABLES },
   { code: 'WC-STD', product: 'WorkersComp', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: "Workers' compensation standard rate book", tables: WC_TABLES },
   { code: 'BP-STD', product: 'Businessowners', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Businessowners standard rate book', tables: BOP_TABLES },
+  { code: 'TW-STD', product: 'TwoWheeler', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Two-Wheeler standard rate book', tables: TW_TABLES },
   { code: 'UM-STD', product: 'Umbrella', version: '2026.1', effectiveDate: '2025-01-01', status: 'Active', rateLevel: 1.0, description: 'Umbrella standard rate book', tables: UMB_TABLES },
 ];
 

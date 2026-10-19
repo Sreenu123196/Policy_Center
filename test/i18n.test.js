@@ -14,7 +14,7 @@ const read = (file) => fs.readFileSync(path.join(__dirname, '..', 'public', file
 const serverSource = fs.readdirSync(path.join(__dirname, '..', 'src')).map((f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8')).join('\n');
 const source = `${read('app.js')}\n${read('index.html')}\n${serverSource}`.replace(/\\'/g, "'");
 // Texts the screens build from a template (a word and a status), so they are not written out anywhere.
-const GENERATED = ['Refunds due', 'Refunds issued', 'Refunds withdrawn'];
+const GENERATED = ['Refunds due', 'Refunds issued', 'Refunds withdrawn', 'Remove driver', 'Remove vehicle', 'Remove rider', 'Remove bike', 'No drivers yet.', 'No vehicles yet. Add one to continue.', 'No riders yet.', 'No bikes yet. Add one to continue.'];
 
 const DEVANAGARI = /[ऀ-ॿ]/;
 const TELUGU = /[ఀ-౿]/;
