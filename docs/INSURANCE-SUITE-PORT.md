@@ -17,7 +17,7 @@ features the Sim lacks are ported, rewritten in the Sim's own plain JavaScript (
 | 9 | Cancellation settlement as a ledger: refund = what was paid beyond the earned premium (never the bare return premium), arrears when short, unpaid future invoices voided, refunds issued once by a manager, withdrawn on reinstatement | **Done** | `src/ledger.js`, `bindCancellation`, Billing tab (settlement, refunds, ledger), `test/cancellation-ledger.test.js` |
 | 10 | Screens for each of the above | **Done** | Billing tab (payments, refunds, ledger), Claims screens, Administration (event consumers), renewal claims banner |
 
-When the list is finished the separate Insurance Suite code at the repository root is removed; its history stays in git.
+The list is finished. The separate Insurance Suite code was removed from the repository; its history stays in git and its last state is the tag `insurance-suite-final`. Its two reference documents are in `reference-docs/`.
 
 ## Findings from the permissions matrix
 

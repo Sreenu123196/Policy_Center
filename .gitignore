@@ -1,22 +1,28 @@
-# Dependencies and build output
+# Dependencies (restore with npm install)
 node_modules/
-dist/
-coverage/
 
-# Secrets: real values live in .env, which is never committed. See .env.example.
+# Local speech service: its Python environment (recreate with the README steps)
+.whisper/
+
+# Runtime data: rebuilt from the demo seed on first start, or with npm run generate
+data/
+
+# Account-specific assistant settings; copy chat.config.example.json to create it
+chat.config.json
+
+# Google service-account keys must never be committed; keep them outside the project
+*service-account*.json
+*speech-key*.json
+*-credentials.json
+
+# Secrets and local environment
 .env
 .env.*
-!.env.example
 
-# Editor and operating system files
-.vscode/
-.idea/
+# Editor and OS files
+*.tmp
+*.log
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-
-# Local database files (PGlite)
-.data/
-dist-web/
+.vscode/
+.idea/
