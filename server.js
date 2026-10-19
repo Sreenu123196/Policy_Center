@@ -5,11 +5,11 @@
 //   DATA_FILE=... node server.js  -> custom data file
 
 const http = require('node:http');
-const fs = require('node:fs');
 const path = require('node:path');
 const { Store } = require('./src/store');
 const { PolicyCenter } = require('./src/policyCenter');
 const { createApi } = require('./src/api');
+const { createHandler } = require('./src/webServer');
 const { seed } = require('./src/seed');
 const { Chatbot } = require('./src/chatbot');
 const { Speech } = require('./src/speech');
@@ -22,7 +22,6 @@ const { Accounting } = require('./src/accounting');
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
 const PUBLIC = path.join(__dirname, 'public');
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
 
 const store = new Store(DATA_FILE, { reuseSnapshot: true });
 const pc = new PolicyCenter(store);
@@ -47,25 +46,6 @@ console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode ===
 const voice = speech.status();
 console.log(`Voice input: ${voice.enabled ? voice.provider : `browser speech recognition (${voice.reason})`}`);
 
-function serveStatic(pathname, res) {
-  const rel = pathname === '/' ? 'index.html' : decodeURIComponent(pathname).replace(/^\/+/, '');
-  const file = path.resolve(PUBLIC, rel);
-  if (!file.startsWith(PUBLIC + path.sep) || !fs.existsSync(file) || !fs.statSync(file).isFile()) {
-    res.writeHead(404, { 'Content-Type': 'text/plain' });
-    return res.end('Not found');
-  }
-  res.writeHead(200, { 'Content-Type': `${TYPES[path.extname(file)] || 'application/octet-stream'}; charset=utf-8`, 'Cache-Control': 'no-cache' });
-  fs.createReadStream(file).pipe(res);
-}
-
-const server = http.createServer((req, res) => {
-  const url = new URL(req.url, 'http://localhost');
-  if (url.pathname.startsWith('/api/') || url.pathname === '/api') return api(req, res, url.pathname, url.searchParams);
-  if (req.method !== 'GET') {
-    res.writeHead(405);
-    return res.end();
-  }
-  serveStatic(url.pathname, res);
-});
+const server = http.createServer(createHandler({ api, publicDir: PUBLIC, trustProxy: process.env.TRUST_PROXY === '1' }));
 
 server.listen(PORT, () => console.log(`PolicyCenter Simulator running at http://localhost:${PORT}`));

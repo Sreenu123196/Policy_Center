@@ -3,6 +3,7 @@
 // the X-User header; every mutating call runs as one unit of work against the store.
 
 const crypto = require('node:crypto');
+const { stripDangerousKeys } = require('./security');
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
@@ -229,7 +230,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
       emit('done', result);
     } catch (err) {
       if (!(err instanceof AppError)) console.error(err);
-      emit('error', { error: err instanceof AppError ? err.message : `Internal error: ${err.message}`, status: err.status || 500 });
+      emit('error', { error: err instanceof AppError ? err.message : GENERIC_ERROR, status: err.status || 500 });
     }
     res.end();
   }, { readOnly: true, stream: true });
@@ -364,13 +365,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
     } catch (err) {
       if (err instanceof AppError) return send(err.status, { error: err.message, details: err.details || null });
       console.error(err);
-      send(500, { error: `Internal error: ${err.message}` });
+      send(500, { error: GENERIC_ERROR });
     }
   };
   // The list of routes, so a test can check every one of them (test/permissions-matrix.test.js).
   handle.routes = routes.map((r) => ({ method: r.method, pattern: r.pattern, isPublic: r.isPublic, readOnly: r.readOnly }));
   return handle;
 }
+
+// What a person sees when something breaks inside the server; the details go to the server log only.
+const GENERIC_ERROR = 'Something went wrong on the server. Please try again, and tell your administrator if it keeps happening.';
 
 function readBody(req, limit) {
   return new Promise((resolve, reject) => {
@@ -379,9 +383,9 @@ function readBody(req, limit) {
     req.on('data', (c) => {
       size += c.length;
       if (size > limit) {
-        reject(new AppError(413, 'Request body too large'));
-        req.destroy();
-      } else chunks.push(c);
+        if (chunks.length) chunks.length = 0;
+        reject(new AppError(413, 'Request body too large')); // later chunks are read and dropped so the answer can be sent
+      } else if (size <= limit) chunks.push(c);
     });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
@@ -392,7 +396,7 @@ async function readJson(req) {
   const text = (await readBody(req, 1e6)).toString('utf8');
   if (!text) return {};
   try {
-    return JSON.parse(text);
+    return JSON.parse(text, stripDangerousKeys);
   } catch {
     throw new AppError(400, 'Request body is not valid JSON');
   }
