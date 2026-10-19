@@ -107,6 +107,12 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   // Payments and missed payments (UW managers). A payment is applied to the oldest invoice first.
   route('GET', '/policies/:id/billing', ({ user, params }) => ({ invoices: billing.invoicesFor(params.id, user), payments: billing.paymentsFor(params.id, user), credit: billing.creditFor(params.id, user) }));
   route('POST', '/policies/:id/payments', ({ user, params, body }) => billing.receivePayment(user, { ...body, policyId: params.id }));
+  route('GET', '/policies/:id/ledger', ({ user, params }) => billing.ledgerFor(params.id, user));
+  route('POST', '/policies/:id/refunds/:refundId/issue', ({ user, params, body }) => {
+    const refund = billing.refundsFor(params.id, user).find((r) => r.id === params.refundId);
+    if (!refund) throw new AppError(404, 'Refund not found on this policy');
+    return billing.issueRefund(user, params.refundId, body);
+  });
   route('POST', '/billing/delinquency', ({ user, body }) => billing.runDelinquency(user, { asOf: body.asOf }));
 
   // Event consumers (UW managers): run them now, see the events they gave up on, and redrive one after the cause is fixed.

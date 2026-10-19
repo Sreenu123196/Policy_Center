@@ -7,11 +7,13 @@ const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
 
 const owed = (invoice) => round2(invoice.amount + (invoice.fee || 0));
 const paidOn = (invoice) => round2(invoice.paid || 0);
-const balanceOf = (invoice) => round2(owed(invoice) - paidOn(invoice));
+// A voided invoice (never paid, falling due after a cancellation) is no longer collected.
+const balanceOf = (invoice) => (invoice.voided ? 0 : round2(owed(invoice) - paidOn(invoice)));
 
 // Paid, Part paid, Overdue (past its due date and not paid), Unpaid; a return of premium is a Credit.
 function paymentStatus(invoice, today) {
   if (invoice.amount < 0) return 'Credit';
+  if (invoice.voided) return 'Void';
   if (balanceOf(invoice) <= 0) return 'Paid';
   if (invoice.dueDate < today) return 'Overdue';
   return paidOn(invoice) > 0 ? 'Part paid' : 'Unpaid';

@@ -9,6 +9,7 @@ const { validateAccount, validatePeriod } = require('./validation');
 const { evaluateUW, applyApprovals } = require('./uwRules');
 const D = require('./dates');
 const { invoiceView } = require('./invoiceView');
+const { settleCancellation } = require('./ledger');
 const { salesScope, canSeeClaimReserves, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
 
@@ -881,6 +882,7 @@ class PolicyCenter {
         policyId: policy.id,
         jobNumber: job.jobNumber,
         termNumber: job.period.termNumber,
+        createdOn: this.today(),
         dueDate: D.addMonths(startDate, Math.round(i * step)),
         amount: (each + (i === 0 ? cents - each * n : 0)) / 100,
         fee: n > 1 ? plan.installmentFee : 0,
@@ -897,6 +899,7 @@ class PolicyCenter {
       policyId: policy.id,
       jobNumber: job.jobNumber,
       termNumber: job.period.termNumber,
+      createdOn: this.today(),
       dueDate: D.addDays(this.today(), 15),
       amount: round2(amount),
       fee: 0,
@@ -981,11 +984,23 @@ class PolicyCenter {
   bindCancellation(job, user) {
     const policy = this.policy(job.policyId);
     this.assertNotCancelled(policy);
-    policy.cancellation = { ...job.cancellation, jobNumber: job.jobNumber, boundAt: this.now(), boundBy: user.id };
+    // The settlement, worked out before the return premium credit is posted: what was billed and paid decides the refund.
+    const mine = this.db.invoices.filter((i) => i.policyId === policy.id && i.amount > 0);
+    const settlement = settleCancellation({
+      billed: mine.reduce((sum, i) => sum + i.amount + (i.fee || 0), 0),
+      paid: this.db.payments.filter((p) => p.policyId === policy.id).reduce((sum, p) => sum + p.amount, 0),
+      returnPremium: -job.quote.changeAmount,
+    });
+    policy.cancellation = { ...job.cancellation, jobNumber: job.jobNumber, boundAt: this.now(), boundBy: user.id, settlement };
+    // Invoices that were never paid and fall due on or after the cancellation date are no longer collected.
+    for (const i of mine) if (i.dueDate >= job.cancellation.effectiveDate && !i.paid) Object.assign(i, { voided: true, voidedBy: job.jobNumber });
+    if (settlement.refundDue > 0) {
+      this.db.refunds.push({ id: this.store.id('ref'), refundNumber: this.store.number('REF-', 7), policyId: policy.id, jobNumber: job.jobNumber, amount: settlement.refundDue, status: 'Due', createdAt: this.now() });
+    }
     this.addTransaction(policy, job, job.quote.changeAmount, job.cancellation.effectiveDate, `Cancellation (${job.cancellation.reasonName}, ${job.cancellation.method})`);
     this.adjustmentInvoice(policy, job, job.quote.changeAmount, 'Cancellation: return premium credit');
     this.addDocument(policy, job, 'Notice of Cancellation');
-    this.publish('PolicyCancelled', this.eventPayload(policy, job, { effectiveDate: job.cancellation.effectiveDate, reason: job.cancellation.reason, returnPremium: job.quote.changeAmount }));
+    this.publish('PolicyCancelled', this.eventPayload(policy, job, { effectiveDate: job.cancellation.effectiveDate, reason: job.cancellation.reason, returnPremium: job.quote.changeAmount, refundDue: settlement.refundDue, arrears: settlement.arrears }));
     return policy;
   }
 
@@ -993,6 +1008,9 @@ class PolicyCenter {
     const policy = this.policy(job.policyId);
     if (!policy.cancellation) throw new AppError(409, 'Policy is not cancelled');
     policy.reinstatements = [...(policy.reinstatements || []), { jobNumber: job.jobNumber, cancellation: policy.cancellation, at: this.now(), by: user.id }];
+    // A refund that was not issued yet is withdrawn, and the invoices voided at cancellation are collected again.
+    for (const r of this.db.refunds) if (r.policyId === policy.id && r.status === 'Due') r.status = 'Withdrawn';
+    for (const i of this.db.invoices) if (i.policyId === policy.id && i.voidedBy === policy.cancellation.jobNumber) { i.voided = false; delete i.voidedBy; }
     policy.cancellation = null;
     this.addTransaction(policy, job, job.quote.changeAmount, job.period.editEffectiveDate, 'Reinstatement: premium restored');
     this.adjustmentInvoice(policy, job, job.quote.changeAmount, 'Reinstatement: premium restored');
@@ -1179,6 +1197,7 @@ class PolicyCenter {
       writtenPremium: billing ? round2(policy.transactions.reduce((s, t) => s + t.amount, 0)) : null,
       invoices: billing ? invoices : [],
       payments: billing ? this.db.payments.filter((x) => x.policyId === policy.id) : [],
+      refunds: billing ? this.db.refunds.filter((x) => x.policyId === policy.id) : [],
       credit: billing ? round2(this.db.payments.filter((x) => x.policyId === policy.id).reduce((sum, x) => sum + x.unapplied, 0)) : 0,
       documents: this.db.documents.filter((d) => d.policyId === policy.id),
       events: this.db.events.filter((e) => e.payload.policyNumber === policy.policyNumber).reverse(),

@@ -344,8 +344,13 @@ async function pagePolicies() {
     </div>`);
 }
 
-async function pagePolicy(id) {
+async function loadPolicy(id) {
   S.policy = await api('GET', `/policies/${id}`);
+  S.ledger = S.policy.billingHidden ? null : await api('GET', `/policies/${id}/ledger`);
+}
+
+async function pagePolicy(id) {
+  await loadPolicy(id);
   renderPolicy();
 }
 
@@ -381,6 +386,24 @@ function renderPolicy() {
     </div>`);
 }
 
+// What the customer is owed on cancelling is the refund, not the return premium: see src/ledger.js.
+function settlementBlock(p) {
+  const c = p.cancellation;
+  if (!c || !c.settlement) return '';
+  const s = c.settlement;
+  return `<div class="banner ${s.arrears > 0 ? 'warning' : 'success'}"><strong>Cancellation settlement.</strong> Billed ${money(s.billed)}, return premium ${money(s.returnPremium)}, so earned premium is ${money(s.earned)}. Paid ${money(s.paid)}.
+${s.refundDue > 0 ? `Refund due to the customer: ${money(s.refundDue)}.` : ''}${s.arrears > 0 ? `The customer still owes ${money(s.arrears)}.` : ''}${s.refundDue === 0 && s.arrears === 0 ? 'Nothing is owed either way.' : ''}</div>`;
+}
+
+function ledgerBlock() {
+  const l = S.ledger;
+  if (!l) return '';
+  return '<h3>Ledger</h3>' + table(['Date', 'Type', 'Reference', 'Description', '$Amount', '$Balance'], l.entries.map((e) => [
+    esc(e.date), esc(e.type.replace('_', ' ')), esc(e.ref), esc(e.description), `<span class="${e.amount < 0 ? 'neg' : ''}">${money(e.amount)}</span>`, money(e.balance),
+  ]), 'Nothing posted')
+    + `<div class="spread" style="margin-top:10px"><span class="muted">A positive balance is owed by the customer; a negative balance is owed to the customer.</span><strong>Balance: ${money(l.balance)}</strong></div>`;
+}
+
 const BILLING_HIDDEN = '<div class="empty">Billing is visible to UW managers only.</div>';
 
 const POLICY_TABS = {
@@ -397,10 +420,16 @@ const POLICY_TABS = {
       + table(['Invoice', 'Due', 'Job', 'Description', 'Status', 'Payment', '$Amount', '$Fee', '$Paid', '$Balance'], p.invoices.map((i) => [
         esc(i.invoiceNumber), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
       ])) + `<div class="spread" style="margin-top:10px"><span>${p.credit > 0 ? `Credit on the policy: <strong>${money(p.credit)}</strong>` : ''}</span><strong>Total billed and planned: ${money(total)} · Balance owing: ${money(balance)}</strong></div>`
+      + settlementBlock(p)
       + '<h3>Payments received</h3>'
       + table(['Payment', 'Received', 'Method', 'Reference', '$Amount', 'Applied to', '$Left over'], p.payments.map((x) => [
         esc(x.paymentNumber), esc(x.receivedOn), esc(x.method), esc(x.reference), money(x.amount), esc(x.allocations.map((a) => a.invoiceNumber).join(', ') || '-'), money(x.unapplied),
-      ]), 'No payments yet');
+      ]), 'No payments yet')
+      + (p.refunds.length ? '<h3>Refunds</h3>' + table(['Refund', 'Created', 'Status', '$Amount', 'Paid', ''], p.refunds.map((r) => [
+        esc(r.refundNumber), when(r.createdAt), badge(r.status), money(r.amount), r.paidOn ? `${esc(r.paidOn)} · ${esc(r.method)} · ${esc(r.reference)}` : '—',
+        r.status === 'Due' ? `<button class="btn small primary" data-action="issue-refund" data-id="${esc(r.id)}" data-amount="${r.amount}">Issue refund</button>` : '',
+      ])) : '')
+      + ledgerBlock();
   },
   documents: (p) => table(['Document', 'Name', 'Job', 'Created', ''], p.documents.map((d) => [
     esc(d.documentNumber), esc(d.name), esc(d.jobNumber), when(d.createdAt), `<button class="btn small" data-action="view-doc" data-id="${d.id}">View</button>`,
@@ -1371,6 +1400,15 @@ const ACTIONS = {
       </div>
       ${field('What happened', '<textarea name="description" rows="3"></textarea>')}
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Report claim</button></div></form>`),
+  'issue-refund': (d) => openModal(`<h2>Issue a refund of ${money(Number(d.amount))}</h2>
+    <form data-form="issue-refund" data-id="${esc(d.id)}"><div class="form-errors"></div>
+      <div class="form-grid">
+        ${field('Method', '<select name="method"><option>Bank transfer</option><option>Cheque</option><option>Cash</option></select>')}
+        ${field('Reference', '<input name="reference" required>')}
+        ${field('Date paid', `<input type="date" name="paidOn" value="${S.meta.today}" required>`)}
+      </div>
+      <p class="muted">This is the amount the customer paid beyond the earned premium. It can be issued once.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Issue refund</button></div></form>`),
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1500,12 +1538,19 @@ const FORMS = {
     toast(`Claim ${c.claimNumber} reported`, 'success');
     location.hash = `#/claim/${c.id}`;
   },
+  'issue-refund': async (fd, form) => {
+    await api('POST', `/policies/${S.policy.id}/refunds/${form.dataset.id}/issue`, { method: fd.get('method'), reference: fd.get('reference'), paidOn: fd.get('paidOn') });
+    closeModal();
+    toast('Refund issued', 'success');
+    await loadPolicy(S.policy.id);
+    renderPolicy();
+  },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
     closeModal();
     toast(`Payment ${payment.paymentNumber} recorded`, 'success');
     if (payment.reinstatement && payment.reinstatement.outcome === 'reinstatement_started') toast(`The payment clears what was owed: reinstatement ${payment.reinstatement.jobNumber} was started. Bind it from the policy's jobs.`, 'success');
-    S.policy = await api('GET', `/policies/${S.policy.id}`);
+    await loadPolicy(S.policy.id);
     renderPolicy();
   },
   'policy-change': async (fd) => {

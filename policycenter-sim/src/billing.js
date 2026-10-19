@@ -14,12 +14,14 @@ const { AppError } = require('./policyCenter');
 const { canSeeBilling } = require('./permissions');
 const { round2 } = require('./rating');
 const { balanceOf, paidOn, invoiceView, paymentStatus } = require('./invoiceView');
+const { ledgerEntries } = require('./ledger');
 
 // A policy cancelled for non-payment can be reinstated by a payment that clears what was owed, within this many days
 // of the cancellation date.
 const REINSTATEMENT_WINDOW_DAYS = 30;
 
 const PAYMENT_METHODS = ['Cheque', 'Card', 'Bank transfer', 'Cash'];
+const REFUND_METHODS = ['Cheque', 'Bank transfer', 'Cash'];
 
 // Days after the due date. Change the steps here, not in the code that runs them.
 const DELINQUENCY_STEPS = [
@@ -50,6 +52,43 @@ class Billing {
     this.requireBilling(user, 'see billing');
     const policy = this.pc.policy(policyId, user);
     return this.pc.db.payments.filter((p) => p.policyId === policy.id);
+  }
+
+  // The policy's ledger: charges, payments, credits, the return premium and refunds paid out, with a running balance.
+  // Positive balance: the customer owes. Negative: the customer is owed.
+  ledgerFor(policyId, user) {
+    this.requireBilling(user, 'see billing');
+    const policy = this.pc.policy(policyId, user);
+    return ledgerEntries({
+      invoices: this.pc.db.invoices.filter((i) => i.policyId === policy.id),
+      payments: this.pc.db.payments.filter((p) => p.policyId === policy.id),
+      refunds: this.pc.db.refunds.filter((r) => r.policyId === policy.id),
+    });
+  }
+
+  refundsFor(policyId, user) {
+    this.requireBilling(user, 'see billing');
+    const policy = this.pc.policy(policyId, user);
+    return this.pc.db.refunds.filter((r) => r.policyId === policy.id);
+  }
+
+  // Pays out a refund that is due, once, for exactly the amount due. Never more than the customer paid (the settlement
+  // already capped it), and never twice.
+  issueRefund(user, refundId, input) {
+    this.requireBilling(user, 'issue refunds');
+    const refund = this.pc.db.refunds.find((r) => r.id === refundId);
+    if (!refund) throw new AppError(404, 'Refund not found');
+    this.pc.policy(refund.policyId, user);
+    const errors = [];
+    if (!REFUND_METHODS.includes(input.method)) errors.push(`The refund method must be one of ${REFUND_METHODS.join(', ')}`);
+    if (!D.isDate(input.paidOn)) errors.push('The date paid must be yyyy-mm-dd');
+    if (!String(input.reference || '').trim()) errors.push('A reference is required');
+    if (errors.length > 0) throw new AppError(422, errors.join('; '), { errors: errors.map((message) => ({ message })) });
+    if (refund.status !== 'Due') throw new AppError(409, `Refund ${refund.refundNumber} is ${refund.status}, not due`);
+    Object.assign(refund, { status: 'Issued', method: input.method, reference: String(input.reference).trim(), paidOn: input.paidOn, issuedBy: user.id, issuedAt: this.pc.now() });
+    const policy = this.pc.policy(refund.policyId);
+    this.pc.publish('RefundIssued', { policyNumber: policy.policyNumber, refundNumber: refund.refundNumber, amount: refund.amount });
+    return refund;
   }
 
   // The money received for the policy that is not on any invoice yet.
@@ -171,4 +210,4 @@ class Billing {
   }
 }
 
-module.exports = { Billing, PAYMENT_METHODS, DELINQUENCY_STEPS, REINSTATEMENT_WINDOW_DAYS, invoiceView, paymentStatus };
+module.exports = { Billing, PAYMENT_METHODS, REFUND_METHODS, DELINQUENCY_STEPS, REINSTATEMENT_WINDOW_DAYS, invoiceView, paymentStatus };

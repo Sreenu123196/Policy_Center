@@ -54,6 +54,8 @@ const MATRIX = {
   'POST /policies/:id/reinstate': [],
   'POST /policies/:id/renew': [],
   'GET /policies/:id/billing': ['agent', 'uw', 'exec'],
+  'GET /policies/:id/ledger': ['agent', 'uw', 'exec'],
+  'POST /policies/:id/refunds/:refundId/issue': ['agent', 'uw', 'exec'],
   'POST /policies/:id/payments': ['agent', 'uw', 'exec'],
   'POST /billing/delinquency': ['agent', 'uw', 'exec'],
   'GET /admin/events/dead': ['agent', 'uw', 'exec'],
@@ -172,7 +174,7 @@ test('each role is let in, or refused, exactly as the matrix says', async () => 
 
 test('the dangerous doors are narrow: payments, staff, finance, event redrive and demo reset are for the UW manager only', () => {
   const managerOnly = (key) => assert.deepEqual(MATRIX[key], ['agent', 'uw', 'exec'], key);
-  for (const key of ['POST /policies/:id/payments', 'GET /policies/:id/billing', 'POST /billing/delinquency', 'GET /staff', 'POST /staff', 'POST /finance/commission', 'GET /finance/report', 'POST /admin/events/dead/:consumer/:eventId/redrive', 'POST /admin/reset']) managerOnly(key);
+  for (const key of ['POST /policies/:id/payments', 'GET /policies/:id/billing', 'GET /policies/:id/ledger', 'POST /policies/:id/refunds/:refundId/issue', 'POST /billing/delinquency', 'GET /staff', 'POST /staff', 'POST /finance/commission', 'GET /finance/report', 'POST /admin/events/dead/:consumer/:eventId/redrive', 'POST /admin/reset']) managerOnly(key);
   // An agent can never move money, change a reserve or a claim stage.
   for (const key of ['POST /claims/:id/exposures/:number/payments', 'POST /claims/:id/exposures/:number/reserve', 'POST /claims/:id/payments/:paymentId/approve', 'POST /claims/:id/stage']) assert.ok(MATRIX[key].includes('agent'), key);
 });

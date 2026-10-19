@@ -14,8 +14,8 @@ features the Sim lacks are ported, rewritten in the Sim's own plain JavaScript (
 | 6 | Idempotency-Key on POSTs (same key and request: first answer replayed, work done once; a different request: 422); ETag and If-Match on accounts and jobs (stale edit: 412); the screens send both | **Done** | `src/api.js`, `public/app.js`, `test/api-safety.test.js` |
 | 7 | A permissions matrix test: every route against every role (the table must list every route, so a new route forces a decision) | **Done** | `test/permissions-matrix.test.js` |
 | 8 | At renewal the policy's own claims of the ending term feed the new risk: claim-free renewal discount (5% / 10% / 15%) for Personal Auto, loss history for Homeowners and the business lines; shown on the renewal job | **Done** | `claimExperience` and `applyClaimExperience` in `src/policyCenter.js`, `test/renewal-claims.test.js` |
-| 9 | Cancellation refund netting as a small ledger | To do | |
-| 10 | Screens for each of the above | With each feature | `public/app.js` |
+| 9 | Cancellation settlement as a ledger: refund = what was paid beyond the earned premium (never the bare return premium), arrears when short, unpaid future invoices voided, refunds issued once by a manager, withdrawn on reinstatement | **Done** | `src/ledger.js`, `bindCancellation`, Billing tab (settlement, refunds, ledger), `test/cancellation-ledger.test.js` |
+| 10 | Screens for each of the above | **Done** | Billing tab (payments, refunds, ledger), Claims screens, Administration (event consumers), renewal claims banner |
 
 When the list is finished the separate Insurance Suite code at the repository root is removed; its history stays in git.
 
