@@ -874,6 +874,7 @@ class PolicyCenter {
     const n = plan.installments;
     const step = pm.termMonths / n;
     const cents = Math.round(total * 100);
+    let fees = 0;
     const each = Math.floor(cents / n);
     for (let i = 0; i < n; i++) {
       this.db.invoices.push({
@@ -888,7 +889,9 @@ class PolicyCenter {
         fee: n > 1 ? plan.installmentFee : 0,
         description: n > 1 ? `${plan.name}: installment ${i + 1} of ${n}` : 'Paid in full',
       });
+      fees = round2(fees + (n > 1 ? plan.installmentFee : 0));
     }
+    return fees;
   }
 
   adjustmentInvoice(policy, job, amount, description) {
@@ -926,6 +929,7 @@ class PolicyCenter {
       type,
       topic: type.startsWith('Account') ? 'account-events' : 'policy-events',
       occurredAt: this.now(),
+      businessDate: this.today(),
       status: 'Pending',
       payload,
     });
@@ -952,10 +956,10 @@ class PolicyCenter {
     job.policyId = policy.id;
     const v = this.addVersion(policy, job, user);
     this.addTransaction(policy, job, job.quote.total, job.period.effectiveDate, 'New business premium');
-    this.scheduleInstallments(policy, job, job.quote.total, job.period.effectiveDate);
+    const installmentFees = this.scheduleInstallments(policy, job, job.quote.total, job.period.effectiveDate);
     this.addDocument(policy, job, 'Declarations Page', v.versionId);
     this.addDocument(policy, job, job.product === 'PersonalAuto' ? 'Auto ID Cards' : 'Evidence of Insurance', v.versionId);
-    this.publish('PolicyIssued', this.eventPayload(policy, job, { accountNumber: account.accountNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total }));
+    this.publish('PolicyIssued', this.eventPayload(policy, job, { accountNumber: account.accountNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total, installmentFees }));
     return policy;
   }
 
@@ -975,9 +979,9 @@ class PolicyCenter {
     this.assertNotCancelled(policy);
     const v = this.addVersion(policy, job, user);
     this.addTransaction(policy, job, job.quote.total, v.effectiveDate, `Renewal premium (term ${v.termNumber})`);
-    this.scheduleInstallments(policy, job, job.quote.total, v.effectiveDate);
+    const installmentFees = this.scheduleInstallments(policy, job, job.quote.total, v.effectiveDate);
     this.addDocument(policy, job, 'Renewal Declarations Page', v.versionId);
-    this.publish('PolicyRenewed', this.eventPayload(policy, job, { termNumber: v.termNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total }));
+    this.publish('PolicyRenewed', this.eventPayload(policy, job, { termNumber: v.termNumber, effectiveDate: v.effectiveDate, expirationDate: v.expirationDate, totalCost: job.quote.total, installmentFees }));
     return policy;
   }
 

@@ -88,7 +88,7 @@ test('a payment is recorded with who took it, is announced as an event, and is n
   const [payment] = billing.paymentsFor(policy.id, users.uwm);
   assert.deepEqual({ amount: payment.amount, by: payment.receivedBy, method: payment.method }, { amount: 250, by: users.uwm.id, method: 'Cheque' });
   const event = pc.db.events.find((e) => e.type === 'PaymentReceived');
-  assert.deepEqual(event.payload, { policyNumber: pc.policy(policy.id).policyNumber, paymentNumber: result.paymentNumber, amount: 250 });
+  assert.deepEqual(event.payload, { policyNumber: pc.policy(policy.id).policyNumber, paymentNumber: result.paymentNumber, amount: 250, receivedOn: pc.today() });
 });
 
 test('a missed payment: a notice after the grace days, then a request to cancel for non-payment, each only once', () => {

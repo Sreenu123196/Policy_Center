@@ -86,4 +86,9 @@ function claimsQueueConsumer(pc) {
   };
 }
 
-module.exports = { collectionsConsumer, claimsQueueConsumer };
+// Accounting: every business event that moves money becomes a balanced journal entry, once (src/accounting.js).
+function accountingConsumer(accounting) {
+  return (event) => void accounting.postFromEvent(event);
+}
+
+module.exports = { collectionsConsumer, claimsQueueConsumer, accountingConsumer };

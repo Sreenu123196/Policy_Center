@@ -87,7 +87,7 @@ class Billing {
     if (refund.status !== 'Due') throw new AppError(409, `Refund ${refund.refundNumber} is ${refund.status}, not due`);
     Object.assign(refund, { status: 'Issued', method: input.method, reference: String(input.reference).trim(), paidOn: input.paidOn, issuedBy: user.id, issuedAt: this.pc.now() });
     const policy = this.pc.policy(refund.policyId);
-    this.pc.publish('RefundIssued', { policyNumber: policy.policyNumber, refundNumber: refund.refundNumber, amount: refund.amount });
+    this.pc.publish('RefundIssued', { policyNumber: policy.policyNumber, refundNumber: refund.refundNumber, amount: refund.amount, paidOn: refund.paidOn });
     return refund;
   }
 
@@ -139,7 +139,7 @@ class Billing {
       unapplied: remaining,
     };
     this.pc.db.payments.push(payment);
-    this.pc.publish('PaymentReceived', { policyNumber: policy.policyNumber, paymentNumber: payment.paymentNumber, amount });
+    this.pc.publish('PaymentReceived', { policyNumber: policy.policyNumber, paymentNumber: payment.paymentNumber, amount, receivedOn: payment.receivedOn });
     return { ...payment, reinstatement: this.reinstateIfCleared(policy, payment, user) };
   }
 

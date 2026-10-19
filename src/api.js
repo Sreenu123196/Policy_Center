@@ -11,6 +11,7 @@ const { Insights } = require('./insights');
 const { Billing } = require('./billing');
 const { Reports } = require('./reports');
 const { Documents } = require('./documents');
+const { Accounting } = require('./accounting');
 const { ClaimMoney, RESERVE_LIMITS, PAYMENT_LIMITS, COST_TYPES, CLAIMANT_KINDS } = require('./claimMoney');
 
 const hash = (v) => crypto.createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
@@ -34,6 +35,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   const claimMoney = new ClaimMoney(pc);
   const reports = new Reports(pc, billing);
   const documents = new Documents(pc, messaging);
+  const accounting = new Accounting(pc);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -142,6 +144,33 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   route('POST', '/documents/:id/sign', ({ user, params, body }) => documents.sign(user, params.id, body));
   route('GET', '/documents/:id/verify', ({ user, params }) => documents.verify(user, params.id));
   route('POST', '/documents/:id/deliver', ({ user, params, body }) => documents.deliver(user, params.id, body));
+  // Accounting (UW managers): trial balance, journal, general ledger export, reconciliation, month close, producers and commission.
+  route('GET', '/accounting/trial-balance', ({ user, query }) => accounting.trialBalance(user, { asOf: query.get('asOf') || undefined }));
+  route('GET', '/accounting/journal', ({ user, query }) => accounting.journal(user, { from: query.get('from') || undefined, to: query.get('to') || undefined, account: query.get('account') || undefined }));
+  route('GET', '/accounting/gl.csv', ({ user, query }, res) => {
+    const csv = accounting.glCsv(user, { from: query.get('from') || undefined, to: query.get('to') || undefined });
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="general-ledger.csv"', 'Cache-Control': 'no-store' });
+    res.end(csv);
+  }, { stream: true });
+  route('GET', '/accounting/reconciliation', ({ user }) => accounting.reconciliation(user));
+  route('GET', '/accounting/closings', ({ user }) => accounting.verifyClosings(user));
+  route('POST', '/accounting/closings', ({ user, body }) => accounting.closeMonth(user, body.month));
+  route('GET', '/accounting/producers', ({ user }) => accounting.producers(user));
+  route('POST', '/accounting/producers/:code/rate', ({ user, params, body }) => accounting.setProducerRate(user, params.code, body.percent));
+  route('POST', '/accounting/producers/:code/payments', ({ user, params, body }) => accounting.payCommission(user, { ...body, producerCode: params.code }));
+  // Commission statements: a manager for any producer, a producer for their own.
+  const range = (query) => ({ from: query.get('from') || undefined, to: query.get('to') || undefined });
+  route('GET', '/producers/:code/statement', ({ user, params, query }) => accounting.statement(user, params.code, range(query)));
+  route('GET', '/producers/:code/statement.csv', ({ user, params, query }, res) => {
+    const csv = accounting.statementCsv(user, params.code, range(query));
+    res.writeHead(200, { 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': `attachment; filename="commission-${params.code}.csv"`, 'Cache-Control': 'no-store' });
+    res.end(csv);
+  }, { stream: true });
+  route('GET', '/producers/:code/statement.pdf', async ({ user, params, query }, res) => {
+    const pdf = await accounting.statementPdf(user, params.code, range(query));
+    res.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Disposition': `attachment; filename="commission-${params.code}.pdf"`, 'Content-Length': pdf.length });
+    res.end(pdf);
+  }, { stream: true });
   route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true', type: query.get('type') || undefined }));
   // Work queues: what waits in each queue, taking an item, and a manager giving one to a person.
   route('GET', '/queues', ({ user }) => pc.queueSummary(user));

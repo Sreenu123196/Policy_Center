@@ -160,6 +160,9 @@ const ROUTES = [
   [/^#\/policies$/, pagePolicies],
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
+  [/^#\/accounting$/, pageAccounting],
+  [/^#\/commission$/, () => pageCommission(null)],
+  [/^#\/commission\/([^/]+)$/, pageCommission],
   [/^#\/queues$/, pageQueues],
   [/^#\/tickets$/, pageTickets],
   [/^#\/ticket\/([^/]+)$/, pageTicket],
@@ -1152,6 +1155,68 @@ async function pageQueues() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ accounting and commission
+
+const ACCT_TABS = [['tb', 'Trial balance'], ['journal', 'Journal'], ['recon', 'Reconciliation'], ['close', 'Month close'], ['comm', 'Commission'], ['export', 'Export']];
+
+async function pageAccounting() {
+  const tab = S.acctTab || 'tb';
+  let body = '';
+  if (tab === 'tb') {
+    const asOf = S.acctAsOf || S.meta.today;
+    const tb = await api('GET', `/accounting/trial-balance?asOf=${encodeURIComponent(asOf)}`);
+    body = `<form class="toolbar" data-form="acct-asof">${field('As of', `<input type="date" name="asOf" value="${esc(asOf)}">`)}<button class="btn small" style="align-self:flex-end">Show</button></form>
+      ${table(['Code', 'Account', 'Type', '$Debit', '$Credit', '$Balance'], tb.accounts.map((a) => [esc(a.code), esc(a.name), esc(a.type), money(a.debit), money(a.credit), money(a.balance)]))}
+      <div class="spread"><span class="${tb.balanced ? '' : 'warning'}">${tb.balanced ? 'The books balance: total debits equal total credits.' : 'The books do not balance.'}</span><strong>Debits ${money(tb.totalDebit)} · Credits ${money(tb.totalCredit)}</strong></div>`;
+  } else if (tab === 'journal') {
+    const from = S.acctFrom || '';
+    const to = S.acctTo || '';
+    const entries = await api('GET', `/accounting/journal?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+    body = `<form class="toolbar" data-form="acct-range">${field('From', `<input type="date" name="from" value="${esc(from)}">`)}${field('To', `<input type="date" name="to" value="${esc(to)}">`)}<button class="btn small" style="align-self:flex-end">Show</button></form>
+      ${table(['Date', 'Journal', 'Description', 'Reference', 'Lines'], entries.map((e) => [esc(e.date) + (e.latePosted ? ` <span class="badge b-pending" title="Dated ${esc(e.originalDate)}, posted in the next open month">Late</span>` : ''), esc(e.journalNumber), esc(e.description), esc(e.reference),
+        e.lines.map((l) => `${esc(l.account)} ${l.debit ? `Dr ${money(l.debit)}` : `Cr ${money(l.credit)}`}`).join('<br>')]), 'No entries yet')}`;
+  } else if (tab === 'recon') {
+    const r = await api('GET', '/accounting/reconciliation');
+    body = `<div class="tiles"><div class="tile"><div class="label">Premium receivable in the books</div><div class="value">${money(r.glReceivable)}</div></div>
+      <div class="tile"><div class="label">Customers' ledgers added up</div><div class="value">${money(r.customerBalances)}</div></div>
+      <div class="tile ${r.difference === 0 ? 'accent' : ''}"><div class="label">Difference</div><div class="value">${money(r.difference)}</div></div></div>
+      ${r.difference === 0 && r.differences.length === 0 ? '<div class="banner success">The books agree with every customer ledger.</div>' : table(['Policy', '$Books', '$Customer ledger', '$Difference'], r.differences.map((d) => [esc(d.policyNumber), money(d.books), money(d.ledger), money(d.difference)]))}`;
+  } else if (tab === 'close') {
+    const closings = await api('GET', '/accounting/closings');
+    body = `<p class="muted">Closing a month locks it. A payment or refund dated in a closed month is posted in the next open month and marked Late. A closed month that is changed afterwards is reported here.</p>
+      ${table(['Month', 'Closed', 'By', 'Entries', 'Check'], closings.map((c) => [esc(c.month), when(c.closedAt), esc(c.closedBy), c.entryCount, c.valid ? '<span class="badge b-active">Matches</span>' : `<span class="badge b-cancelled">Changed</span> ${esc(c.problem)}`]), 'No month is closed yet')}
+      <form class="toolbar" data-form="acct-close" style="margin-top:12px"><div class="form-errors" role="alert"></div>${field('Close month', '<input name="month" placeholder="2026-03" pattern="\\d{4}-\\d{2}" required>')}<button class="btn primary" style="align-self:flex-end">Close month</button></form>`;
+  } else if (tab === 'comm') {
+    const producers = await api('GET', '/accounting/producers');
+    body = `${table(['Producer', 'Name', 'Rate', '$Earned', '$Paid', '$Payable', ''], producers.map((p) => [esc(p.code), esc(p.name), `${p.ratePercent}%`, money(p.earned), money(p.paid), money(p.payable),
+      `<button class="btn small" data-action="set-rate" data-code="${esc(p.code)}" data-rate="${p.ratePercent}">Rate</button> <button class="btn small" data-action="pay-commission" data-code="${esc(p.code)}" data-payable="${p.payable}">Pay</button> <a class="btn small" href="#/commission/${esc(p.code)}">Statement</a>`]))}
+      <p class="muted">A new rate applies to new business. Entries already posted keep the rate they were posted with.</p>`;
+  } else {
+    body = `<form class="toolbar" data-form="acct-export">${field('From', '<input type="date" name="from">')}${field('To', '<input type="date" name="to">')}<button class="btn primary" style="align-self:flex-end">Download general ledger (CSV)</button></form>
+      <p class="muted">One line per journal line: Date, Journal, Account, Account name, Debit, Credit, Description, Reference, Producer. Text that a spreadsheet could run as a formula is made plain text.</p>`;
+  }
+  view(`<div class="eyebrow">Finance</div><h1>Accounting</h1>
+    <div class="card"><div class="tabs" role="tablist">${ACCT_TABS.map(([k, n]) => `<button role="tab" aria-selected="${tab === k}" class="${tab === k ? 'active' : ''}" data-action="acct-tab" data-tab="${k}">${n}</button>`).join('')}</div>${body}</div>`);
+}
+
+async function pageCommission(code) {
+  const u = me();
+  const own = code || u.producerCode;
+  const range = S.commRange || {};
+  const q = `from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`;
+  const s = await api('GET', `/producers/${encodeURIComponent(own)}/statement?${q}`);
+  view(`<div class="eyebrow">Commission</div><h1>Commission statement: ${esc(s.producerName)} (${esc(s.producerCode)})</h1>
+    <div class="tiles"><div class="tile"><div class="label">Rate</div><div class="value">${s.ratePercent}%</div></div>
+      <div class="tile"><div class="label">Earned</div><div class="value">${money(s.earned)}</div></div>
+      <div class="tile"><div class="label">Paid</div><div class="value">${money(s.paid)}</div></div>
+      <div class="tile accent"><div class="label">Payable</div><div class="value">${money(s.payable)}</div></div></div>
+    <div class="card"><form class="toolbar" data-form="comm-range" data-code="${esc(own)}">${field('From', `<input type="date" name="from" value="${esc(range.from || '')}">`)}${field('To', `<input type="date" name="to" value="${esc(range.to || '')}">`)}<button class="btn small" style="align-self:flex-end">Show</button>
+        <a class="btn small" style="align-self:flex-end" href="/api/producers/${esc(own)}/statement.csv?${q}">Download CSV</a> <a class="btn small" style="align-self:flex-end" href="/api/producers/${esc(own)}/statement.pdf?${q}">Download PDF</a></form>
+      ${table(['Date', 'Policy', 'Transaction', '$Premium', 'Rate', '$Commission'], s.lines.map((l) => [esc(l.date), esc(l.policyNumber), esc(l.transaction), money(l.premium), `${Math.round(l.rate * 10000) / 100}%`, money(l.commission)]), 'No commission in this period')}
+      <h3>Payments to the producer</h3>
+      ${table(['Date', 'Reference', 'Method', '$Amount'], s.payments.map((p) => [esc(p.date), esc(p.reference), esc(p.method), money(p.amount)]), 'Nothing paid in this period')}</div>`);
+}
+
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
@@ -1625,6 +1690,22 @@ const ACTIONS = {
         <p class="muted">Email sends the document itself. WhatsApp sends a short approved message that the document is ready.</p>
         <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Send</button></div></form>`);
   },
+  'acct-tab': (d) => { S.acctTab = d.tab; pageAccounting(); },
+  'set-rate': (d) => openModal(`<h2>Commission rate for ${esc(d.code)}</h2>
+    <form data-form="set-rate" data-code="${esc(d.code)}"><div class="form-errors" role="alert"></div>
+      ${field('Rate (percent of written premium)', `<input type="number" name="percent" min="0" max="100" step="0.1" value="${esc(d.rate)}" required>`)}
+      <p class="muted">The new rate applies to new business. Entries already posted keep their rate.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Save rate</button></div></form>`),
+  'pay-commission': (d) => openModal(`<h2>Pay commission to ${esc(d.code)}</h2>
+    <form data-form="pay-commission" data-code="${esc(d.code)}"><div class="form-errors" role="alert"></div>
+      <div class="form-grid">
+        ${field('Amount ($)', `<input type="number" name="amount" min="0.01" max="${esc(d.payable)}" step="0.01" required>`)}
+        ${field('Method', '<select name="method"><option>Bank transfer</option><option>Cheque</option><option>Cash</option></select>')}
+        ${field('Reference', '<input name="reference" required>')}
+        ${field('Date paid', `<input type="date" name="paidOn" value="${S.meta.today}" required>`)}
+      </div>
+      <p class="muted">Payable now: ${money(Number(d.payable))}. A larger payment is refused.</p>
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Pay</button></div></form>`),
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1795,6 +1876,18 @@ const FORMS = {
     closeModal();
     toast(m.status === 'Sent' ? `Sent by ${m.channel} to ${m.to}` : `Could not send: ${m.error}`, m.status === 'Sent' ? 'success' : 'error');
   },
+  'acct-asof': (fd) => { S.acctAsOf = String(fd.get('asOf') || ''); pageAccounting(); },
+  'acct-range': (fd) => { S.acctFrom = String(fd.get('from') || ''); S.acctTo = String(fd.get('to') || ''); pageAccounting(); },
+  'acct-close': async (fd) => { const c = await api('POST', '/accounting/closings', { month: String(fd.get('month') || '').trim() }); toast(`${c.month} closed (${c.entryCount} entries)`, 'success'); pageAccounting(); },
+  'acct-export': (fd) => { location.href = `/api/accounting/gl.csv?from=${encodeURIComponent(fd.get('from') || '')}&to=${encodeURIComponent(fd.get('to') || '')}`; },
+  'set-rate': async (fd, form) => { await api('POST', `/accounting/producers/${encodeURIComponent(form.dataset.code)}/rate`, { percent: Number(fd.get('percent')) }); closeModal(); toast('Rate saved', 'success'); pageAccounting(); },
+  'pay-commission': async (fd, form) => {
+    const r = await api('POST', `/accounting/producers/${encodeURIComponent(form.dataset.code)}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), paidOn: fd.get('paidOn') });
+    closeModal();
+    toast(`Paid ${money(r.amount)}; ${money(r.payable)} is still payable`, 'success');
+    pageAccounting();
+  },
+  'comm-range': (fd, form) => { S.commRange = { from: String(fd.get('from') || ''), to: String(fd.get('to') || '') }; pageCommission(form.dataset.code); },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
     closeModal();
@@ -2419,6 +2512,8 @@ async function boot() {
   setSignedOutChrome(false);
   document.getElementById('whoami').textContent = `${S.me.name} · ${S.me.role}`;
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
   document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="reports"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.getElementById('signout').onclick = async () => {
