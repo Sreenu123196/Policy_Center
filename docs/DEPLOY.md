@@ -83,16 +83,23 @@ normal first start). Then check, in this order:
 
 ## Notes from the first deployment (learned the hard way)
 
-- **A 401 on every path is Netlify's access wall, not a missing file.** The deploy can succeed and every URL still answer
-  401 with a login redirect (`app.netlify.com/edge-access`). Teams can enforce *"Netlify SSO for all sites"*
-  (`site_sso_login: true`, context `all`); the per-site switch is ignored while that is on. Turn it off under
-  **Team settings → Security → Site protection / Netlify SSO**, then check `curl -I https://<site>/`.
+- **A 401 on every path is Netlify's *project visibility*, not a missing file.** The deploy succeeds and every URL still
+  answers 401 with a redirect to `app.netlify.com/edge-access`. Netlify makes new projects **private by default** on
+  credit-based teams (teams created on or after 28 July 2026). The fix is per project: **Project configuration → General
+  → Visitor access → Project visibility → Public**, then Save. There is also a **Make public** button once the project has
+  a production deploy. Changing the team default (**Team settings → General → Visitor access**) only affects *new*
+  projects — existing ones keep their visibility, which is why flipping the team setting first did nothing. The API's
+  older `sso_login` / `sso_login_context` fields are not it, and writes to them are silently ignored. Docs:
+  <https://docs.netlify.com/manage/security/secure-access-to-sites/project-visibility/>
 - **`netlify deploy` runs the build in `netlify.toml` first.** In a fresh shell without `API_ORIGIN` the build script stops
   on purpose and the deploy fails with "Error while running build". Export `API_ORIGIN` in the same shell, or deploy the
   already-built directory with `--no-build`.
-- **This site is deployed manually** (`netlify deploy --prod --dir=public`), because linking a Git repository needs the
-  Netlify GitHub App authorization in a browser. To switch to deploys on every push: Netlify → *Site configuration →
-  Build & deploy → Link repository*, and set `API_ORIGIN` as a **site environment variable** so the build on Netlify has it.
+- **This project is deployed manually** (`netlify deploy --prod --dir=public`), because linking a Git repository needs the
+  Netlify GitHub App authorization in a browser. To switch to deploys on every push: Netlify → *Project configuration →
+  Build & deploy → Link repository*, and set `API_ORIGIN` as a **project environment variable** so the build on Netlify
+  has it.
+- **A proxy to a host that does not exist yet returns 404, not a build error.** `/api/health` answering 404 while the
+  pages answer 200 is the useful check that the proxy is wired and only the API is missing.
 - **The site name** can only be changed in the UI (*Site configuration → Site details → Change site name*); the API
   refuses it. After renaming, update `ALLOWED_ORIGINS` on the API and `API_ORIGIN` on the site, then redeploy both sides.
 
