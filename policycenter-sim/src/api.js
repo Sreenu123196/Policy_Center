@@ -35,7 +35,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
   const route = (method, pattern, handler, { readOnly = method === 'GET', stream = false, raw = false, isPublic = false } = {}) => {
     const re = new RegExp(`^${pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)')}$`);
-    routes.push({ method, re, handler, readOnly, stream, raw, isPublic });
+    routes.push({ method, pattern, re, handler, readOnly, stream, raw, isPublic });
   };
 
   // Setup: until the first account has a password, the app asks the first person to choose one.
@@ -202,7 +202,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
     return { ok: true };
   });
 
-  return async function handle(req, res, pathname, query) {
+  const handle = async function handle(req, res, pathname, query) {
     const send = (status, payload) => {
       res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' });
       res.end(JSON.stringify(payload));
@@ -279,6 +279,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
       send(500, { error: `Internal error: ${err.message}` });
     }
   };
+  // The list of routes, so a test can check every one of them (test/permissions-matrix.test.js).
+  handle.routes = routes.map((r) => ({ method: r.method, pattern: r.pattern, isPublic: r.isPublic, readOnly: r.readOnly }));
+  return handle;
 }
 
 function readBody(req, limit) {

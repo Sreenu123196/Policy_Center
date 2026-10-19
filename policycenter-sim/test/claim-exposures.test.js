@@ -26,6 +26,15 @@ function claim() {
   return { ...env, claim: c, money, exposure, approve };
 }
 
+test('an insurance executive can read a claim but not change its exposures, reserves or payments', () => {
+  const { money, exposure, run, claim: c, pc } = claim();
+  exposure();
+  const executive = pc.user('venkatesh');
+  assert.throws(() => run(() => money.addExposure(executive, c.id, { coverage: 'Collision', claimantName: 'X', claimantKind: 'insured' })), (e) => e.status === 403);
+  assert.throws(() => run(() => money.setExposureReserve(executive, c.id, 1, 100)), (e) => e.status === 403);
+  assert.ok(pc.claimView(pc.claim(c.id), executive).exposures.length === 1); // reading is fine
+});
+
 test('an exposure is added by staff to a claim under review, with a number, a claimant and a cover', () => {
   const { money, exposure, users, run, claim: c, pc } = claim();
   const first = exposure();

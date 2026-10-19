@@ -13,6 +13,7 @@
 
 const { AppError } = require('./policyCenter');
 const { round2 } = require('./rating');
+const { levelOf } = require('./permissions');
 
 const RESERVE_LIMITS = { 1: 25000, 2: 250000 }; // by authority level
 const PAYMENT_LIMITS = { 1: 5000, 2: 50000 };
@@ -31,6 +32,8 @@ class ClaimMoney {
 
   load(user, claimId) {
     this.pc.requireAuthority(user, 1, 'work on claim exposures and payments');
+    // An insurance executive reads claims (status and amounts paid) but does not change them or move money.
+    if (levelOf(user) === 'executive') throw new AppError(403, `${user.role} can read claims but cannot change exposures, reserves or payments`);
     const claim = this.pc.claim(claimId, user);
     claim.exposures = claim.exposures || [];
     claim.pendingPayments = claim.pendingPayments || [];
