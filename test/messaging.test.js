@@ -64,11 +64,11 @@ test('messages: nothing is sent without confirmation', () => {
   assert.equal(sent.email.length, 0);
 });
 
-test('messages: a confirmed email is sent in the chosen language and saved on the customer record', () => {
+test('messages: a confirmed email is sent in the chosen language and saved on the customer record', async () => {
   const { pc, users, acct, policy } = customerWithPolicy();
   const { sent, transports } = fakeTransports();
   const m = new Messaging(pc, { transports });
-  const rec = m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'lapse', language: 'te', confirm: true }, users.agent);
+  const rec = await m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'lapse', language: 'te', confirm: true }, users.agent);
   assert.equal(rec.status, 'Sent');
   assert.match(rec.messageNumber, /^MSG-\d{7}$/);
   assert.equal(sent.email.length, 1);
@@ -80,11 +80,11 @@ test('messages: a confirmed email is sent in the chosen language and saved on th
   assert.equal(onRecord[0].providerId, 'email-1');
 });
 
-test('messages: WhatsApp uses the phone number and the template parameters in order', () => {
+test('messages: WhatsApp uses the phone number and the template parameters in order', async () => {
   const { pc, users, acct, policy } = customerWithPolicy();
   const { sent, transports } = fakeTransports();
   const m = new Messaging(pc, { transports });
-  m.send({ accountId: acct.id, policyId: policy.id, channel: 'whatsapp', template: 'renewal', language: 'en', confirm: true }, users.agent);
+  await m.send({ accountId: acct.id, policyId: policy.id, channel: 'whatsapp', template: 'renewal', language: 'en', confirm: true }, users.agent);
   assert.equal(sent.whatsapp[0].to, '919876543210');
   assert.equal(sent.whatsapp[0].template, 'renewal');
   assert.equal(sent.whatsapp[0].params[0], 'Ravi Insured');
@@ -99,11 +99,11 @@ test('messages: a channel that is not set up refuses to send, with the reason', 
   assert.equal(m.status().channels.whatsapp.enabled, false);
 });
 
-test('messages: a provider failure is saved as Failed, with the error', () => {
+test('messages: a provider failure is saved as Failed, with the error', async () => {
   const { pc, users, acct, policy } = customerWithPolicy();
   const { transports } = fakeTransports({ fail: true });
   const m = new Messaging(pc, { transports });
-  const rec = m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'renewal', language: 'en', confirm: true }, users.agent);
+  const rec = await m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'renewal', language: 'en', confirm: true }, users.agent);
   assert.equal(rec.status, 'Failed');
   assert.equal(rec.error, 'provider timed out');
   assert.equal(pc.accountDetail(acct.id, users.agent).messages[0].status, 'Failed');
@@ -117,7 +117,7 @@ test('messages: agents message only their own customers', () => {
   assert.throws(() => m.messagesFor(acct.id, pc.user('agent2')), /not found/i);
 });
 
-test('messages: claim updates use the claim, never show reserves, and write the status in the language', () => {
+test('messages: claim updates use the claim, never show reserves, and write the status in the language', async () => {
   const { pc, users, acct, policy } = customerWithPolicy();
   const claim = pc.openClaim(policy.id, { lossDate: '2026-03-01', lossType: 'Theft' }, users.agent);
   pc.moveClaim(claim.id, { to: 'Under Review' }, users.uw);
@@ -126,7 +126,7 @@ test('messages: claim updates use the claim, never show reserves, and write the 
   pc.payClaim(claim.id, { amount: 300 }, users.uw);
   const { sent, transports } = fakeTransports();
   const m = new Messaging(pc, { transports });
-  m.send({ accountId: acct.id, claimId: claim.id, channel: 'email', template: 'claim_update', language: 'hi', confirm: true }, users.agent);
+  await m.send({ accountId: acct.id, claimId: claim.id, channel: 'email', template: 'claim_update', language: 'hi', confirm: true }, users.agent);
   assert.match(sent.email[0].text, new RegExp(claim.claimNumber));
   assert.match(sent.email[0].text, /\$300\.00/);
   assert.doesNotMatch(sent.email[0].text, /5000/);
@@ -139,4 +139,19 @@ test('messages: a template that needs a policy or a claim is refused without one
   const m = new Messaging(pc, { transports });
   assert.throws(() => m.preview({ accountId: acct.id, channel: 'email', template: 'renewal', language: 'en' }, users.agent), /needs a policy/);
   assert.throws(() => m.preview({ accountId: acct.id, channel: 'email', template: 'claim_update', language: 'en' }, users.agent), /needs a claim/);
+});
+
+test('messages: a real (asynchronous) mail server that refuses is waited for, and saved as Failed without crashing the server', async () => {
+  const { pc, users, acct, policy } = customerWithPolicy();
+  const transports = {
+    email: { status: () => ({ enabled: true }), send: async () => { await new Promise((r) => setTimeout(r, 20)); throw new Error('535 Username and Password not accepted'); } },
+    whatsapp: { status: () => ({ enabled: false, reason: 'off' }), send: () => {} },
+  };
+  const m = new Messaging(pc, { transports });
+  const rec = await m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'renewal', language: 'en', confirm: true }, users.agent);
+  assert.equal(rec.status, 'Failed');
+  assert.match(rec.error, /535/);
+  const ok = { email: { status: () => ({ enabled: true }), send: async () => { await new Promise((r) => setTimeout(r, 20)); return { id: 'gmail-1' }; } }, whatsapp: transports.whatsapp };
+  const sent = await new Messaging(pc, { transports: ok }).send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'renewal', language: 'en', confirm: true }, users.agent);
+  assert.deepEqual([sent.status, sent.providerId], ['Sent', 'gmail-1']);
 });

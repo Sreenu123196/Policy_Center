@@ -160,22 +160,31 @@ class Messaging {
     const st = transport ? transport.status() : { enabled: false, reason: 'not set up on the server' };
     if (!st.enabled) throw new AppError(422, `${m.channel === 'email' ? 'Email' : 'WhatsApp'} is not set up: ${st.reason}`);
     if (!m.to) throw new AppError(422, m.channel === 'email' ? 'This customer has no email address' : 'This customer needs a valid phone number (digits, with country code for non-Indian numbers)');
-    const record = {
-      id: this.pc.store.id('msg'), messageNumber: this.pc.store.number('MSG-', 7),
-      accountId: m.accountId, policyId: m.policyId, claimId: m.claimId,
-      channel: m.channel, template: m.template, language: m.language, to: m.to,
-      subject: m.channel === 'email' ? m.subject : null, body: m.body,
-      status: 'Sent', providerId: null, error: null, sentBy: user.id, sentByName: user.name, sentAt: this.pc.now(),
-    };
+    return this.dispatch(m, transport, user);
+  }
+
+  // The real transports are asynchronous (they wait for the mail server), so the wait happens outside any unit of work and the record
+  // is saved afterwards. A refusal by the mail server is saved as a Failed message and shown to the person, never thrown past the server.
+  async dispatch(m, transport, user) {
+    let providerId = null;
+    let error = null;
     try {
-      const res = transport.send({ to: m.to, subject: m.subject, text: m.body, template: m.template, language: m.language, params: m.params });
-      record.providerId = res && res.id ? res.id : null;
+      const res = await transport.send({ to: m.to, subject: m.subject, text: m.body, template: m.template, language: m.language, params: m.params });
+      providerId = res && res.id ? res.id : null;
     } catch (err) {
-      record.status = 'Failed';
-      record.error = err.message;
+      error = err.message;
     }
-    this.pc.db.messages.push(record);
-    return record;
+    return this.pc.store.transaction(() => {
+      const record = {
+        id: this.pc.store.id('msg'), messageNumber: this.pc.store.number('MSG-', 7),
+        accountId: m.accountId, policyId: m.policyId, claimId: m.claimId,
+        channel: m.channel, template: m.template, language: m.language, to: m.to,
+        subject: m.channel === 'email' ? m.subject : null, body: m.body,
+        status: error ? 'Failed' : 'Sent', providerId, error, sentBy: user.id, sentByName: user.name, sentAt: this.pc.now(),
+      };
+      this.pc.db.messages.push(record);
+      return record;
+    });
   }
 
   messagesFor(accountId, user) {

@@ -192,7 +192,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, { stream: true });
   route('POST', '/documents/:id/sign', ({ user, params, body }) => documents.sign(user, params.id, body));
   route('GET', '/documents/:id/verify', ({ user, params }) => documents.verify(user, params.id));
-  route('POST', '/documents/:id/deliver', ({ user, params, body }) => documents.deliver(user, params.id, body));
+  route('POST', '/documents/:id/deliver', ({ user, params, body }) => documents.deliver(user, params.id, body), { readOnly: true });
   // Accounting (UW managers): trial balance, journal, general ledger export, reconciliation, month close, producers and commission.
   route('GET', '/accounting/trial-balance', ({ user, query }) => accounting.trialBalance(user, { asOf: query.get('asOf') || undefined }));
   route('GET', '/accounting/journal', ({ user, query }) => accounting.journal(user, { from: query.get('from') || undefined, to: query.get('to') || undefined, account: query.get('account') || undefined }));
@@ -300,7 +300,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Customer messages (email and WhatsApp). Sending needs confirm: true in the body.
   route('GET', '/messages/status', () => (messaging ? messaging.status() : { channels: {}, templates: [] }));
   route('POST', '/messages/preview', ({ user, body }) => messaging.preview(body, user), { readOnly: true });
-  route('POST', '/messages/send', ({ user, body }) => messaging.send(body, user));
+  // Sending waits for the mail server, so these two save their own record afterwards instead of running inside a unit of work.
+  route('POST', '/messages/send', ({ user, body }) => messaging.send(body, user), { readOnly: true });
   route('GET', '/accounts/:id/messages', ({ user, params }) => messaging.messagesFor(params.id, user));
   route('POST', '/admin/reset', ({ user }) => {
     pc.requireAuthority(user, 2, 'reset demo data');

@@ -96,11 +96,11 @@ test('verification says whether a signed document still matches its fingerprint'
   assert.equal(documents.verify(users.agent, declarations.id).valid, false);
 });
 
-test('delivery by email sends the document in the chosen language and keeps a record', () => {
+test('delivery by email sends the document in the chosen language and keeps a record', async () => {
   const env = world();
   const { documents, users, declarations, sent, pc, run } = env;
   assert.throws(() => run(() => documents.deliver(users.agent, declarations.id, { channel: 'email', language: 'te' })), (e) => e.status === 422 && /confirm/i.test(e.message));
-  const record = run(() => documents.deliver(users.agent, declarations.id, { channel: 'email', language: 'te', confirm: true }));
+  const record = await documents.deliver(users.agent, declarations.id, { channel: 'email', language: 'te', confirm: true });
   assert.deepEqual([record.status, record.channel, record.template, record.language, record.to], ['Sent', 'email', 'document', 'te', 'asha@example.com']);
   assert.equal(sent.email.length, 1);
   assert.ok(sent.email[0].subject.includes(DOC_NAMES.te['Declarations Page']));
@@ -108,10 +108,10 @@ test('delivery by email sends the document in the chosen language and keeps a re
   assert.ok(pc.db.messages.some((m) => m.id === record.id && m.accountId === env.acct.id));
 });
 
-test('delivery by WhatsApp sends the approved template with the document name and policy number', () => {
+test('delivery by WhatsApp sends the approved template with the document name and policy number', async () => {
   const env = world();
   const { documents, users, declarations, sent, policy, run } = env;
-  const record = run(() => documents.deliver(users.agent, declarations.id, { channel: 'whatsapp', language: 'hi', confirm: true }));
+  const record = await documents.deliver(users.agent, declarations.id, { channel: 'whatsapp', language: 'hi', confirm: true });
   assert.equal(record.status, 'Sent');
   assert.deepEqual([sent.whatsapp[0].template, sent.whatsapp[0].language, sent.whatsapp[0].to], ['document_ready', 'hi', '919876543210']);
   assert.deepEqual(sent.whatsapp[0].params, ['Asha Rao', DOC_NAMES.hi['Declarations Page'], policy.policyNumber]);
@@ -125,10 +125,10 @@ test('delivery is refused when the channel is not set up or the customer has no 
   assert.throws(() => env.run(() => env.documents.deliver(env.users.agent, env.declarations.id, { channel: 'email', confirm: true })), (e) => e.status === 422 && /email address/i.test(e.message));
 });
 
-test('a failed delivery is recorded as failed, not lost', () => {
+test('a failed delivery is recorded as failed, not lost', async () => {
   const env = world();
   const failing = { status: () => ({ enabled: true }), send: () => { throw new Error('mailbox full'); } };
   const documents = new Documents(env.pc, new Messaging(env.pc, { transports: { email: failing } }));
-  const record = env.run(() => documents.deliver(env.users.agent, env.declarations.id, { channel: 'email', confirm: true }));
+  const record = await documents.deliver(env.users.agent, env.declarations.id, { channel: 'email', confirm: true });
   assert.deepEqual([record.status, record.error], ['Failed', 'mailbox full']);
 });

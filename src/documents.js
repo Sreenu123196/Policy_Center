@@ -167,21 +167,29 @@ class Documents {
     if (!to) throw new AppError(422, channel === 'email' ? 'This customer has no email address' : 'This customer needs a valid phone number');
     const rendered = this.render(user, docId, { language });
     const name = this.pc.accountName(account);
-    const record = {
-      id: this.pc.store.id('msg'), messageNumber: this.pc.store.number('MSG-', 7), accountId: account.id, policyId: policy.id, claimId: null,
-      channel, template: 'document', language: rendered.language, to, documentNumber: doc.documentNumber, status: 'Sent', providerId: null, error: null, sentBy: user.id, sentByName: user.name, sentAt: this.pc.now(),
-    };
+    return this.dispatch({ transport, channel, to, rendered, doc, policy, account, name }, user);
+  }
+
+  // Waits for the mail server outside any unit of work, then saves the record (see Messaging.dispatch).
+  async dispatch({ transport, channel, to, rendered, doc, policy, account, name }, user) {
+    let providerId = null;
+    let error = null;
     try {
       const res = channel === 'email'
-        ? transport.send({ to, subject: `${rendered.title} · ${policy.policyNumber}`, text: rendered.text, html: rendered.html, template: 'document', language: rendered.language })
-        : transport.send({ to, template: 'document_ready', language: rendered.language, params: [name, rendered.title, policy.policyNumber] });
-      record.providerId = res && res.id ? res.id : null;
+        ? await transport.send({ to, subject: `${rendered.title} · ${policy.policyNumber}`, text: rendered.text, html: rendered.html, template: 'document', language: rendered.language })
+        : await transport.send({ to, template: 'document_ready', language: rendered.language, params: [name, rendered.title, policy.policyNumber] });
+      providerId = res && res.id ? res.id : null;
     } catch (err) {
-      record.status = 'Failed';
-      record.error = err.message;
+      error = err.message;
     }
-    this.pc.db.messages.push(record);
-    return record;
+    return this.pc.store.transaction(() => {
+      const record = {
+        id: this.pc.store.id('msg'), messageNumber: this.pc.store.number('MSG-', 7), accountId: account.id, policyId: policy.id, claimId: null,
+        channel, template: 'document', language: rendered.language, to, documentNumber: doc.documentNumber, status: error ? 'Failed' : 'Sent', providerId, error, sentBy: user.id, sentByName: user.name, sentAt: this.pc.now(),
+      };
+      this.pc.db.messages.push(record);
+      return record;
+    });
   }
 }
 
