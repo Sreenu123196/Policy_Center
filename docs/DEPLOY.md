@@ -83,6 +83,13 @@ normal first start). Then check, in this order:
 
 ## Notes from the first deployment (learned the hard way)
 
+- **The API host serves the whole app by itself.** `server.js` serves `public/`, so `https://<service>.onrender.com/`
+  runs the UI and the API on one origin: no proxy, no ALLOWED_ORIGINS, no Netlify. That is the quickest way to see the
+  deployment working, and the fallback while the Netlify half is being wired.
+- **Sign-in through the Netlify proxy answers 403 "This request did not come from this site" until `ALLOWED_ORIGINS` is
+  set** on the API service. Reads that need no session keep working, so it looks as if only the buttons are broken. The
+  value is the site's origin, no trailing slash: `ALLOWED_ORIGINS=https://<project>.netlify.app`. Check it by sending a
+  POST with that Origin: 403 means the list is empty, 401 means the request reached sign-in and the wiring is right.
 - **A 401 on every path is Netlify's *project visibility*, not a missing file.** The deploy succeeds and every URL still
   answers 401 with a redirect to `app.netlify.com/edge-access`. Netlify makes new projects **private by default** on
   credit-based teams (teams created on or after 28 July 2026). The fix is per project: **Project configuration → General
