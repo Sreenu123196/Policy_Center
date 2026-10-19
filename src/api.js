@@ -6,6 +6,8 @@ const crypto = require('node:crypto');
 const { stripDangerousKeys } = require('./security');
 const { writeBackup, listBackups } = require('./backup');
 const { DataProtection } = require('./dataProtection');
+const { AuditLog } = require('./audit');
+const { AgentService } = require('./agents');
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
@@ -30,7 +32,7 @@ function etagFor(pc, sub) {
   return record ? `"${hash(record).slice(0, 32)}"` : null;
 }
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption } = {}) {
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
@@ -40,6 +42,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const documents = new Documents(pc, messaging);
   const accounting = new Accounting(pc);
   const dataProtection = new DataProtection(pc);
+  const audit = auditOption || new AuditLog(pc);
+  const agents = agentsOption || new AgentService(pc, { audit });
   // The consumers run right after the response has gone, never inside the request: a person who saves something does not wait
   // for the queues to be filled. Several writes in a row ask once.
   let busAsked = false;
@@ -90,6 +94,17 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/accounts/:id/personal-data', ({ user, params }) => dataProtection.export(params.id, user));
   route('POST', '/accounts/:id/erase', ({ user, params, body }) => dataProtection.erase(params.id, body, user));
   route('GET', '/admin/data-requests', ({ user }) => dataProtection.requests(user));
+  // The audit log (UW managers): who or which agent did what, and why. Entries are chained, so a change is found by /audit/verify.
+  route('GET', '/audit', ({ user, query }) => audit.list(user, { limit: query.get('limit') || undefined, action: query.get('action') || undefined, actor: query.get('actor') || undefined }));
+  route('GET', '/audit/verify', ({ user }) => { pc.requireManager(user, 'verify the audit log'); return audit.verify(); });
+  // AI agents (docs/AGENTS.md). They only write suggestions; people decide. The UW manager switches them on and off and sets their limits.
+  route('GET', '/agents', ({ user }) => agents.list(user));
+  route('POST', '/agents/run', ({ user, body }) => agents.run(user, { agentIds: Array.isArray(body.agentIds) ? body.agentIds : undefined }));
+  route('GET', '/agents/suggestions', ({ user, query }) => agents.suggestions(user, { status: query.get('status') || undefined, agentId: query.get('agent') || undefined }));
+  route('POST', '/agents/suggestions/:id/decision', ({ user, params, body }) => agents.decide(params.id, body, user));
+  route('POST', '/agents/:id/mode', ({ user, params, body }) => agents.setMode(params.id, body.mode, user));
+  route('POST', '/agents/:id/limits', ({ user, params, body }) => agents.setLimits(params.id, body.limits, user));
+  route('GET', '/agents/:id/backtest', ({ user, params }) => agents.backtest(params.id, user));
   route('GET', '/auth/status', () => ({ setupNeeded: pc.setupNeeded() }), { isPublic: true });
   route('POST', '/auth/setup', (ctx) => {
     const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });

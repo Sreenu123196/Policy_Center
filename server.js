@@ -21,6 +21,8 @@ const { Auth } = require('./src/auth');
 const { EventBus } = require('./src/eventBus');
 const { collectionsConsumer, claimsQueueConsumer, accountingConsumer } = require('./src/consumers');
 const { Accounting } = require('./src/accounting');
+const { AuditLog } = require('./src/audit');
+const { AgentService } = require('./src/agents');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -44,7 +46,11 @@ bus.register('accounting', accountingConsumer(new Accounting(pc)));
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(path.dirname(DATA_FILE), 'backups');
 const mail = messaging.status().channels.email;
 console.log(mail.enabled ? `Email: sending from ${mail.from} through Gmail` : `Email: not set up (${mail.reason}); the email button opens Gmail instead`);
-const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR });
+const audit = new AuditLog(pc);
+const agents = new AgentService(pc, { audit });
+store.transaction(() => agents.ensureAccounts()); // each agent has its own account (it cannot sign in)
+bus.register('agents', (event) => agents.onEvent(event)); // an event wakes only the agents that listen for it
+const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents });
 // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
 while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }
 
@@ -62,6 +68,17 @@ if (BACKUP_HOURS > 0) {
   };
   setTimeout(backUp, 60000).unref();
   setInterval(backUp, BACKUP_HOURS * 3600000).unref();
+}
+
+// The agents also look at the whole book once a day (a renewal is due because time passed, not because something happened).
+// AGENT_SWEEP_HOURS=0 turns the sweep off. Agents that are switched off do nothing, and the rest only write suggestions.
+const SWEEP_HOURS = process.env.AGENT_SWEEP_HOURS === undefined ? 24 : Number(process.env.AGENT_SWEEP_HOURS);
+if (SWEEP_HOURS > 0) {
+  const sweep = () => {
+    try { store.transaction(() => agents.runAgents()); } catch (err) { console.error('The agent sweep failed:', err.message); }
+  };
+  setTimeout(sweep, 120000).unref();
+  setInterval(sweep, SWEEP_HOURS * 3600000).unref();
 }
 
 server.listen(PORT, () => console.log(`PolicyCenter Simulator running at http://localhost:${PORT}`));
