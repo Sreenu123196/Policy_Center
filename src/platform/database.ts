@@ -1,3 +1,5 @@
+import { mkdir } from 'node:fs/promises';
+import { dirname } from 'node:path';
 import { PGlite } from '@electric-sql/pglite';
 import { btree_gist } from '@electric-sql/pglite/contrib/btree_gist';
 import pg from 'pg';
@@ -53,6 +55,7 @@ class PgliteDatabase implements Database {
 // Opens the local PostgreSQL (PGlite). With no folder the database lives in memory, which is what the tests use. With a
 // folder it keeps its files there.
 export async function createDatabase(dataDir?: string): Promise<Database> {
+  if (dataDir) await mkdir(dirname(dataDir), { recursive: true }); // PGlite makes the folder itself, but not its parents
   const db = new PGlite({ ...(dataDir ? { dataDir } : {}), extensions: { btree_gist } });
   await db.waitReady;
   return new PgliteDatabase(db);
