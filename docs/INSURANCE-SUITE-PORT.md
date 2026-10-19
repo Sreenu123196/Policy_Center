@@ -36,3 +36,9 @@ the matrix pins today's behaviour for them; change the matrix row in the same co
 | `GET /api/reports/claim-approvals` | Underwriters, UW managers | Claim payments waiting for a second person (oldest first, days waiting) and how many were approved |
 
 Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/reports` (the Reports menu item, shown to underwriters and managers).
+
+## Tier 2 (screens, languages, queues)
+
+- Tickets screens, Reports, Claims screens: done.
+- Hindi and Telugu screens and accessibility: see `docs/ACCESSIBILITY.md`.
+- Work queues (`#/queues`, API `GET /api/queues`): one place for underwriting referrals, claims handling and collections. Counts per queue (open, late, waiting for someone, mine), take an item from a shared queue, a UW manager assigns an item to a person, late items are flagged. Agents see only the referrals on their own accounts. The claims and collections queues are filled by event consumers (`src/consumers.js`).

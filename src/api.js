@@ -129,7 +129,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   route('POST', '/claims/:id/exposures/:number/reserve', ({ user, params, body }) => { claimMoney.setExposureReserve(user, params.id, params.number, body.amount); return pc.claimDetail(params.id, user); });
   route('POST', '/claims/:id/exposures/:number/payments', ({ user, params, body }) => ({ result: claimMoney.payExposure(user, params.id, params.number, body), claim: pc.claimDetail(params.id, user) }));
   route('POST', '/claims/:id/payments/:paymentId/approve', ({ user, params }) => ({ result: claimMoney.approvePayment(user, params.id, params.paymentId), claim: pc.claimDetail(params.id, user) }));
-  route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true' }));
+  route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true', type: query.get('type') || undefined }));
+  // Work queues: what waits in each queue, taking an item, and a manager giving one to a person.
+  route('GET', '/queues', ({ user }) => pc.queueSummary(user));
+  route('POST', '/activities/:id/take', ({ user, params }) => pc.takeActivity(params.id, user));
+  route('POST', '/activities/:id/assign', ({ user, params, body }) => pc.assignActivity(params.id, body.assigneeId, user));
   route('POST', '/activities/:id/complete', ({ user, params }) => pc.completeActivity(params.id, user));
 
   route('GET', '/ratebooks', () => RATE_BOOKS);

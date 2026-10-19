@@ -160,6 +160,7 @@ const ROUTES = [
   [/^#\/policies$/, pagePolicies],
   [/^#\/policy\/([^/]+)$/, pagePolicy],
   [/^#\/job\/([^/]+)$/, pageJob],
+  [/^#\/queues$/, pageQueues],
   [/^#\/tickets$/, pageTickets],
   [/^#\/ticket\/([^/]+)$/, pageTicket],
   [/^#\/claims$/, pageClaims],
@@ -1120,6 +1121,32 @@ function renderTicket() {
     <div class="card"><h2>History</h2>${table(['When', 'By', 'What', 'Detail'], t.history.map((h) => [esc(when(h.at)), esc(h.by), esc(h.action), esc(h.detail)]))}</div>`);
 }
 
+// ------------------------------------------------------------------ work queues
+
+const QUEUE_NAMES = { Referral: 'Underwriting referrals', Claims: 'Claims handling', Collections: 'Collections (missed payments)' };
+
+async function pageQueues() {
+  const type = S.queueType || '';
+  const [summary, items] = await Promise.all([api('GET', '/queues'), api('GET', `/activities${type ? `?type=${encodeURIComponent(type)}` : ''}`)]);
+  const u = me();
+  const link = (a) => (a.jobId ? `<a href="#/job/${esc(a.jobId)}">${esc(a.jobNumber)}</a>` : a.claimId ? `<a href="#/claim/${esc(a.claimId)}">${esc(a.claimNumber)}</a>` : a.policyId ? `<a href="#/policy/${esc(a.policyId)}">${esc(a.policyNumber)}</a>` : '—');
+  view(`
+    <div class="eyebrow">Work</div><h1>Work queues</h1>
+    <div class="tiles">${summary.map((q) => `<button class="tile ${type === q.type ? 'accent' : ''}" style="text-align:left;cursor:pointer" data-action="queue-filter" data-type="${esc(q.type)}" aria-pressed="${type === q.type}">
+        <div class="label">${esc(QUEUE_NAMES[q.type])}</div><div class="value">${q.open}</div>
+        <div class="muted">${q.overdue ? `<span class="warning">${q.overdue} late</span> · ` : ''}${q.unassigned} waiting · ${q.mine} mine</div></button>`).join('')}
+      <button class="tile ${type === '' ? 'accent' : ''}" style="text-align:left;cursor:pointer" data-action="queue-filter" data-type="" aria-pressed="${type === ''}"><div class="label">All queues</div><div class="value">${summary.reduce((n, q) => n + q.open, 0)}</div></button></div>
+    <div class="card"><h2>${esc(type ? QUEUE_NAMES[type] : 'All queues')}</h2>
+      ${table(['Activity', 'Queue', 'Subject', 'For', 'Priority', 'Assigned to', 'Due', ''], items.map((a) => [
+        esc(a.activityNumber), esc(QUEUE_NAMES[a.type] || a.type),
+        `${esc(a.subject)}<div class="muted" style="white-space:pre-line">${esc(a.description)}</div>`,
+        link(a), badge(a.priority), esc(a.assignedToName || a.assignedTo) + (a.takenBy ? '' : ' <span class="muted">(shared queue)</span>'),
+        `<span class="${a.overdue ? 'warning' : ''}">${esc(a.dueDate || '—')}${a.overdue ? ' · late' : ''}</span>`,
+        u.authority >= 1 ? `${a.takenBy ? '' : `<button class="btn small" data-action="take-activity" data-id="${esc(a.id)}">Take</button> `}${u.authority >= 2 ? `<button class="btn small" data-action="assign-activity" data-id="${esc(a.id)}">Assign</button> ` : ''}<button class="btn small" data-action="queue-complete" data-id="${esc(a.id)}">Complete</button>` : '',
+      ]), 'Nothing is waiting')}
+    </div>`);
+}
+
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
@@ -1559,6 +1586,13 @@ const ACTIONS = {
         <p class="muted">Response deadlines: Urgent 4 hours, High 1 day, Normal 2 days, Low 5 days.</p>
         <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Create ticket</button></div></form>`);
   },
+  'queue-filter': (d) => { S.queueType = d.type; pageQueues(); },
+  'take-activity': async (d) => { await api('POST', `/activities/${d.id}/take`); toast('Taken: it is yours now', 'success'); pageQueues(); },
+  'queue-complete': async (d) => { await api('POST', `/activities/${d.id}/complete`); toast('Activity completed', 'success'); pageQueues(); },
+  'assign-activity': (d) => openModal(`<h2>Assign this item</h2>
+    <form data-form="assign-activity" data-id="${esc(d.id)}"><div class="form-errors" role="alert"></div>
+      ${field('Assign to', `<select name="assigneeId">${S.meta.users.filter((x) => x.authority >= 1).map((x) => `<option value="${esc(x.id)}">${esc(x.name)} (${esc(x.role)})</option>`).join('')}</select>`)}
+      <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Assign</button></div></form>`),
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1710,6 +1744,12 @@ const FORMS = {
   'ticket-note': async (fd) => {
     S.ticket = await api('POST', `/tickets/${S.ticket.id}/notes`, { text: fd.get('text'), internal: fd.get('internal') === 'on' });
     renderTicket();
+  },
+  'assign-activity': async (fd, form) => {
+    await api('POST', `/activities/${form.dataset.id}/assign`, { assigneeId: fd.get('assigneeId') });
+    closeModal();
+    toast('Item assigned', 'success');
+    pageQueues();
   },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
@@ -2335,6 +2375,7 @@ async function boot() {
   setSignedOutChrome(false);
   document.getElementById('whoami').textContent = `${S.me.name} · ${S.me.role}`;
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
+  document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="reports"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.getElementById('signout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });

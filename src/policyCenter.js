@@ -1215,14 +1215,71 @@ class PolicyCenter {
       .reverse();
   }
 
-  activities(user, { all } = {}) {
+  // The activities a person may see. An agent sees the referrals on their own accounts (nothing internal). Staff see what
+  // is assigned to them; a UW manager sees every open activity. An item someone has taken (takenBy) is theirs alone, and the
+  // manager's.
+  activities(user, { all, type } = {}) {
+    const today = this.today();
     return this.db.activities
       .filter((a) => this.canSee(user, this.db.accounts.find((x) => x.id === a.accountId)))
       .filter((a) => all || a.status === 'Open')
-      // A UW manager sees the underwriters' queue and the manager queue ('uwm'), whoever the manager is.
-      .filter((a) => all || user.role === 'Agent' || a.assignedTo === user.id || (user.authority >= 2 && ['uw', 'uwm'].includes(a.assignedTo)))
-      .map((a) => ({ ...a, assignedToName: USERS.find((u) => u.id === a.assignedTo)?.name }))
+      .filter((a) => !type || a.type === type)
+      .filter((a) => {
+        if (all) return true;
+        if (user.role === 'Agent') return a.type === 'Referral';
+        if (user.authority >= 2) return true;
+        return a.takenBy ? a.takenBy === user.id : a.assignedTo === user.id;
+      })
+      .map((a) => ({ ...a, assignedToName: USERS.find((u) => u.id === (a.takenBy || a.assignedTo))?.name, overdue: a.status === 'Open' && Boolean(a.dueDate) && a.dueDate < today }))
       .reverse();
+  }
+
+  // How many items each queue holds for this person: open, late, waiting for someone (not taken yet), and mine.
+  queueSummary(user) {
+    const types = ['Referral', 'Claims', 'Collections'];
+    const open = this.activities(user);
+    return types.map((type) => {
+      const mine = open.filter((a) => a.type === type);
+      return {
+        type,
+        open: mine.length,
+        overdue: mine.filter((a) => a.overdue).length,
+        unassigned: mine.filter((a) => !a.takenBy).length,
+        mine: mine.filter((a) => (a.takenBy || a.assignedTo) === user.id).length,
+      };
+    });
+  }
+
+  // Taking an item from a shared queue makes it the taker's. Staff only; an item already taken cannot be taken again.
+  takeActivity(id, user) {
+    this.requireAuthority(user, 1, 'take work from a queue');
+    const a = this.activityVisibleTo(id, user);
+    if (a.takenBy) throw new AppError(409, `Already taken by ${(USERS.find((u) => u.id === a.takenBy) || { name: a.takenBy }).name}`);
+    a.takenBy = user.id;
+    a.history = [...(a.history || []), { at: this.now(), by: user.id, action: 'Taken', detail: '' }];
+    return this.activityView(a);
+  }
+
+  // A UW manager gives an item to a person (staff), whether or not it was taken.
+  assignActivity(id, assigneeId, user) {
+    this.requireAuthority(user, 2, 'assign work');
+    const a = this.activityVisibleTo(id, user);
+    const assignee = USERS.find((u) => u.id === assigneeId && u.authority >= 1);
+    if (!assignee) throw new AppError(422, 'Assign to an underwriter, insurance executive or manager');
+    a.takenBy = assignee.id;
+    a.history = [...(a.history || []), { at: this.now(), by: user.id, action: 'Assigned', detail: assignee.name }];
+    return this.activityView(a);
+  }
+
+  activityVisibleTo(id, user) {
+    const a = this.db.activities.find((x) => x.id === id);
+    if (!a || !this.activities(user).some((x) => x.id === id)) throw new AppError(404, 'Activity not found');
+    if (a.status !== 'Open') throw new AppError(409, 'Activity is already completed');
+    return a;
+  }
+
+  activityView(a) {
+    return { ...a, assignedToName: (USERS.find((u) => u.id === (a.takenBy || a.assignedTo)) || {}).name, overdue: a.status === 'Open' && Boolean(a.dueDate) && a.dueDate < this.today() };
   }
 
   completeActivity(id, user) {
