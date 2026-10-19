@@ -81,6 +81,21 @@ normal first start). Then check, in this order:
 3. **Administration → Reset demo data** still works.
 4. Stop the API on Render and start it again: signed out (sessions are in memory), but the data is intact.
 
+## Notes from the first deployment (learned the hard way)
+
+- **A 401 on every path is Netlify's access wall, not a missing file.** The deploy can succeed and every URL still answer
+  401 with a login redirect (`app.netlify.com/edge-access`). Teams can enforce *"Netlify SSO for all sites"*
+  (`site_sso_login: true`, context `all`); the per-site switch is ignored while that is on. Turn it off under
+  **Team settings → Security → Site protection / Netlify SSO**, then check `curl -I https://<site>/`.
+- **`netlify deploy` runs the build in `netlify.toml` first.** In a fresh shell without `API_ORIGIN` the build script stops
+  on purpose and the deploy fails with "Error while running build". Export `API_ORIGIN` in the same shell, or deploy the
+  already-built directory with `--no-build`.
+- **This site is deployed manually** (`netlify deploy --prod --dir=public`), because linking a Git repository needs the
+  Netlify GitHub App authorization in a browser. To switch to deploys on every push: Netlify → *Site configuration →
+  Build & deploy → Link repository*, and set `API_ORIGIN` as a **site environment variable** so the build on Netlify has it.
+- **The site name** can only be changed in the UI (*Site configuration → Site details → Change site name*); the API
+  refuses it. After renaming, update `ALLOWED_ORIGINS` on the API and `API_ORIGIN` on the site, then redeploy both sides.
+
 ## What this deployment does not do, and why
 
 - **No Netlify Functions.** The app is stateful by design (sessions, an in-memory book, a write-ahead log, timers). A
