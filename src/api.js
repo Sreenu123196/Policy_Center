@@ -4,6 +4,7 @@
 
 const crypto = require('node:crypto');
 const { stripDangerousKeys } = require('./security');
+const { writeBackup, listBackups } = require('./backup');
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
@@ -28,7 +29,7 @@ function etagFor(pc, sub) {
   return record ? `"${hash(record).slice(0, 32)}"` : null;
 }
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir } = {}) {
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
@@ -71,6 +72,17 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
       records: { accounts: d.accounts.length, policies: d.policies.length, jobs: d.jobs.length, invoices: d.invoices.length, claims: d.claims.length, events: d.events.length, ledgerEntries: d.ledger.length },
       store: { saves: s.saves, lastSaveMs: Math.round(s.lastSaveMs * 10) / 10, maxSaveMs: Math.round(s.maxSaveMs * 10) / 10, averageSaveMs: s.saves ? Math.round((s.totalSaveMs / s.saves) * 10) / 10 : 0, fileMb: mb(s.lastSaveBytes) },
     };
+  });
+  // Backups (UW managers): a checked copy of all the data, taken now. Restoring is done with the server stopped (scripts/restore.js).
+  route('POST', '/admin/backup', ({ user }) => {
+    pc.requireAuthority(user, 2, 'take a backup');
+    if (!backupDir) throw new AppError(503, 'Backups are not set up on this server');
+    const { file, ...made } = writeBackup(JSON.stringify(store.data), backupDir);
+    return made;
+  }, { readOnly: true });
+  route('GET', '/admin/backups', ({ user }) => {
+    pc.requireAuthority(user, 2, 'see backups');
+    return backupDir ? listBackups(backupDir) : [];
   });
   route('GET', '/auth/status', () => ({ setupNeeded: pc.setupNeeded() }), { isPublic: true });
   route('POST', '/auth/setup', (ctx) => {

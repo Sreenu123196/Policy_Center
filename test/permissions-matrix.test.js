@@ -82,6 +82,8 @@ const MATRIX = {
   'POST /jobs/:id/audit-actuals': ['agent'],
   'POST /policies/:id/rewrite': ['agent'],
   'GET /admin/metrics': ['agent', 'uw', 'exec'],
+  'POST /admin/backup': ['agent', 'uw', 'exec'],
+  'GET /admin/backups': ['agent', 'uw', 'exec'],
   'GET /queues': [],
   'GET /documents/:id/render': [],
   'GET /documents/:id/view': [],
@@ -145,7 +147,7 @@ async function serve() {
     staff.mustChangePassword = false;
   }
   const cookies = Object.fromEntries(Object.entries(ROLES).map(([name, id]) => [name, `pc_session=${auth.login(id, TEST_PASSWORD).token}`]));
-  const api = createApi(env.pc, env.store, { auth, bus: new EventBus(env.pc), chatbot: new Chatbot(env.pc), speech: new Speech(), messaging: new Messaging(env.pc, { transports: {} }) });
+  const api = createApi(env.pc, env.store, { backupDir: require('node:path').join(require('node:os').tmpdir(), 'pc-matrix-backups'), auth, bus: new EventBus(env.pc), chatbot: new Chatbot(env.pc), speech: new Speech(), messaging: new Messaging(env.pc, { transports: {} }) });
   const server = http.createServer((req, res) => { const u = new URL(req.url, 'http://x'); api(req, res, u.pathname, u.searchParams); });
   await new Promise((ok) => server.listen(0, ok));
   const base = `http://127.0.0.1:${server.address().port}/api`;
