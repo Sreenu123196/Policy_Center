@@ -11,7 +11,8 @@ const { ENTRIES, LANGUAGES, translate } = require('../public/i18n');
 // speaker to review; see the note at the top of public/i18n.js.
 
 const read = (file) => fs.readFileSync(path.join(__dirname, '..', 'public', file), 'utf8');
-const serverSource = fs.readdirSync(path.join(__dirname, '..', 'src')).map((f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8')).join('\n');
+// The top-level modules only: src/pg/ is the storage layer, which no screen reads.
+const serverSource = fs.readdirSync(path.join(__dirname, '..', 'src')).filter((f) => f.endsWith('.js')).map((f) => fs.readFileSync(path.join(__dirname, '..', 'src', f), 'utf8')).join('\n');
 const source = `${read('app.js')}\n${read('index.html')}\n${serverSource}`.replace(/\\'/g, "'");
 // Texts the screens build from a template (a word and a status), so they are not written out anywhere.
 const GENERATED = ['Refunds due', 'Refunds issued', 'Refunds withdrawn', 'Remove driver', 'Remove vehicle', 'Remove rider', 'Remove bike', 'No drivers yet.', 'No vehicles yet. Add one to continue.', 'No riders yet.', 'No bikes yet. Add one to continue.'];

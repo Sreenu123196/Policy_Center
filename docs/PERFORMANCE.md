@@ -20,9 +20,9 @@ shows memory, record counts and what saving the data costs; `GET /api/health` is
 Result on the same book: 44 requests a second with 43% errors and 22 s stalls became 76 a second, no errors, a median of 0.3 s with
 25 people hammering with no pause.
 
-## What is still the limit
+## What the JSON file cost, and what replaced it
 
-The data lives in one JSON file that is copied and saved in full on every write. The cost grows with the size of the book. Measured on
+The data lived in one JSON file that was copied and saved in full on every write. The cost grew with the size of the book. Measured on
 one machine, 25 people, a pause of a second between requests (a normal load), reads and writes mixed 80/20:
 
 | Policies | File | Reads p95 | Writes p95 | Save takes |
@@ -33,10 +33,18 @@ one machine, 25 people, a pause of a second between requests (a normal load), re
 
 \* measured with the 600-policy book and a shorter pause.
 
-So the simulator is comfortable up to a few hundred policies. Beyond that the single thread spends its time saving, and everyone
-waits. This is a property of the storage, not a bug to tune away: **before real use, move the data to a database** (PostgreSQL), with
-one row per record, a transaction per write and indexes for the searches. The modules already keep their data in plain lists with
-fixed ids and talk to each other through functions and events, which is the shape that moves to tables most easily.
+So the simulator was comfortable up to a few hundred policies; beyond that the single thread spent its time saving and
+everyone waited. That was a property of the storage, not a bug to tune away.
+
+**The database back end** (`docs/DATABASE.md`) now writes one row per record, in one database transaction per change. On
+the demo book (153 policies, 3.5 MB) a single change went from **25 ms** (the whole 3.5 MB written again) to **0.25 ms**
+of write-ahead log plus **3.4 ms** to write the one row — and neither part grows as the book grows.
+
+Reads still come from memory (the whole book is loaded at start), so the read figures above still describe this build. When
+the book or the number of servers grows, the next step is read-through to the database.
+
+The modules keep their data in plain lists with fixed ids and talk to each other through functions and events, which is the
+shape that moved to tables most easily — and the reason the change touched no service.
 
 ## Targets (the default profile: 150 policies, 25 people, a pause of a second)
 

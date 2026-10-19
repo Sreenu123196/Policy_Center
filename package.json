@@ -9,7 +9,8 @@
     "test": "node --test test/*.test.js",
     "load-test": "node scripts/load-test.js",
     "generate": "node scripts/generate-test-data.js",
-    "reset-manager": "node scripts/reset-manager.js"
+    "reset-manager": "node scripts/reset-manager.js",
+    "migrate-to-pg": "node scripts/migrate-to-pg.js"
   },
   "engines": {
     "node": ">=20"
@@ -20,6 +21,10 @@
     "@google-cloud/speech": "^8.2.0",
     "exceljs": "^4.4.0",
     "nodemailer": "^10.1.2",
-    "pdfkit": "^0.20.2"
+    "pdfkit": "^0.20.2",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10"
   }
 }

@@ -93,10 +93,14 @@ class PolicyCenter {
     this.clockMs = null;
     this.store = store;
     this.today = today || D.todayISO;
-    // The staff list starts from the built-in team; accounts created later are added to it.
-    if (!this.db.staff.length) {
-      for (const u of USERS) this.db.staff.push({ id: u.id, username: u.id, name: u.name, role: u.role, authority: u.authority, producerCode: u.producerCode || null, reportsTo: u.reportsTo || null, active: true, passwordHash: null, mustChangePassword: false });
-    }
+    // The staff list starts from the built-in team; accounts created later are added to it. Saved as a unit of work, so a
+    // database store learns about these rows like any other change.
+    if (!this.db.staff.length) this.store.transaction(() => this.seedStaff());
+  }
+
+  // The built-in team. Also used when the demo data is reset, so the app is never left without users to sign in as.
+  seedStaff() {
+    for (const u of USERS) this.db.staff.push({ id: u.id, username: u.id, name: u.name, role: u.role, authority: u.authority, producerCode: u.producerCode || null, reportsTo: u.reportsTo || null, active: true, passwordHash: null, mustChangePassword: false });
   }
 
   // First start only: the first person to open the app chooses a username and password for Sudhakar's

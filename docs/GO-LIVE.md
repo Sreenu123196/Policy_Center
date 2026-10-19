@@ -17,6 +17,7 @@ What the code now does, and what is left for people. Work through the second lis
 | Restore | `node scripts/restore.js [file]` with the server stopped: verifies, keeps what was there as `.before-restore-<time>` | `test/backup.test.js` |
 | Personal data | export and guarded erasure, request log | `docs/DATA-PROTECTION.md` |
 | Container | `Dockerfile` with a health check, a non-root user, data in `/data` | **not built or run: there is no Docker on the development machine** |
+| Database | PostgreSQL back end: a row per record, one transaction per change, indexes, a write-ahead log so a synchronous commit stays safe, `npm run migrate-to-pg` | `src/pg/`, `docs/DATABASE.md` |
 
 Behind a proxy: set `TRUST_PROXY=1` so the sign-in limit counts the caller, not the proxy. The proxy must end https and set `X-Forwarded-Proto`.
 
@@ -24,9 +25,9 @@ Dependency scan: `npm audit` reports two moderate findings, both `uuid` (<11.1.1
 
 ## Needs people (the code cannot do these)
 
-1. **Database.** The JSON file is saved in full on every write: fine to a few hundred policies, then it slows (`docs/PERFORMANCE.md`). Move to PostgreSQL (a row per record, a transaction per write, indexes) before real volume. This is the largest piece of work left.
+1. **Run it on PostgreSQL.** The back end is written and tested (`docs/DATABASE.md`), but it has not been run against a real PostgreSQL server or at real volume: the tests execute the same engine in-process. Before go-live: provision the server, set `DATABASE_URL`, copy the book with `npm run migrate-to-pg`, and run the load test against it. Decide the backup too (`pg_dump` is better than the JSON snapshot). Reads still come from memory, so more than one server needs the read-through step first.
 2. **Penetration test** by an outside party, on the deployed system. The checks here are the ones a developer can write; they are not a substitute.
-3. **Hosting.** In India if your rules or the regulator require it; https with a real certificate; a proxy or load balancer. Run more than one server only after the database move (sessions are in one server's memory).
+3. **Hosting.** In India if your rules or the regulator require it; https with a real certificate; a proxy or load balancer. Run more than one server only after reads go to the database: sessions, and the write-ahead log, belong to one process (`docs/DATABASE.md`).
 4. **Secrets.** `ANTHROPIC_API_KEY`, Google credentials, email and WhatsApp keys go in the host's secret store, never in the repository. Create the first manager yourself on the real server and keep the password in a password manager.
 5. **Backups off the machine.** Copy `BACKUP_DIR` to separate, encrypted storage, and do a **restore drill**: restore into an empty folder, start the server, open a few policies. A backup that has never been restored is a hope.
 6. **Data protection decisions** listed in `docs/DATA-PROTECTION.md` (retention period, consent, breach procedure, processors, encryption at rest).

@@ -24,6 +24,7 @@ node scripts/load-test.js --check
 | `src/api.js` | All REST routes (`route(method, pattern, handler, {readOnly, stream, raw, isPublic})`); `/api/...` |
 | `src/policyCenter.js` | The main service class (accounts, jobs, policies, claims, tickets, staff) |
 | `src/store.js` | JSON file store; `transaction(fn)` rolls back on error; atomic save |
+| `src/pg/schema.js`, `changeTracker.js`, `wal.js`, `postgresStore.js` | The PostgreSQL back end: a row per record, the proxy that notices what changed, the write-ahead log that keeps a synchronous commit safe, and the store itself (same API as `src/store.js`). `docs/DATABASE.md` |
 | `src/eventBus.js`, `src/consumers.js` | Events with per-consumer offsets, retry, dead letter; consumers: collections, claims-queue, accounting, agents |
 | `src/permissions.js` | Roles: agent, underwriter, executive, manager, and `AI Agent` |
 | `src/agents.js`, `src/audit.js` | The AI agents (suggest-only) and the hash-chained audit log |
@@ -40,6 +41,7 @@ node scripts/load-test.js --check
 
 - **Tiers 1 to 3** of the old plan: real sign-in and the permissions matrix, accounting and ledger, billing and delinquency, documents (English, Hindi, Telugu), work queues, claims money, premium audit, multi-year terms, rewrite, two-wheeler and question sets, reports, Hindi and Telugu screens, accessibility work.
 - **Tier 4, in code**: load test and the fixes it found; security hardening; backups and restore; personal-data export and erasure; Dockerfile (never built: no Docker on this machine).
+- **Database move (open item 1)**: PostgreSQL back end behind the store API, so no service changed. One row per record, one database transaction per change, indexes for the searches, a write-ahead log so a synchronous commit is still safe, and a copy script from the JSON file. Measured: a change on the 153-policy demo book went from 25 ms (3.5 MB written) to 0.25 ms of log plus 3.4 ms for one row. Reads still come from memory; read-through is the next step. `docs/DATABASE.md`.
 - **AI agents (suggest-only)** from `PolicyCenter-Production-and-Agents-Plan.pdf` (a copy sits at `D:\RAG-IMP\data\document\`): audit log, agent accounts, modes and limits as data, five agents (renewal, keep-customers, billing, underwriting, compliance check), a backtest, and the screens (menu: AI agents). Seven more are planned and listed with what each waits for.
 - **Email**: the Email button on renewal and lapse sends directly through Gmail from the server, after a confirm dialog inside the app; with no Gmail settings it opens Gmail's compose window. A mail-server refusal is saved as a Failed message and shown, and never crashes the server.
 - **Voice**: input uses the browser's own recognition in the language picked in the chat; the assistant reads every answer aloud (speaker button in the chat header).
@@ -55,6 +57,8 @@ Put settings in `PolicyCenter-Sim\.env` (git-ignored; template: `env.example`). 
 | `PORT`, `DATA_FILE`, `BACKUP_DIR`, `BACKUP_HOURS`, `BACKUP_KEEP` | Server, data file (default `data/policycenter.json`), backups |
 | `AGENT_SWEEP_HOURS` | Daily agent sweep (default 24, 0 = off) |
 | `TRUST_PROXY=1` | Behind a proxy, so the sign-in limit counts the caller |
+| `DATABASE_URL` | Where the data lives: a `postgres://` server, `memory://` (in-process PGlite, nothing to install) or `pglite://dir` (a demo that survives restarts). Unset = the JSON file |
+| `WAL_FILE` | The write-ahead log that makes a commit safe before the database write lands (default `<DATA_FILE>.wal`) |
 | `chat.config.json` (git-ignored) | `speechEngine` (`browser` now), `workspaceId`, Google speech options |
 
 The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; the first manager is created through the app. `npm run reset-manager` gives a new temporary password if one is lost.
@@ -76,10 +80,14 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 - A **stale running process** is the usual reason a fix "does not work": the speech service and the web server keep old code until restarted. Check the process start time against the last change.
 - `i18n.js`: a translation whose English text no longer appears in the source fails the "stale entry" test; text built from templates goes in `GENERATED` in `test/i18n.test.js`.
 - Mail and other outside services are asynchronous: wait for them **outside** `store.transaction` (see `Messaging.dispatch`).
+- **The database store only sees writes made inside `store.transaction`.** The app already works that way (every route, the event bus, messaging and documents do), but a new write added outside one is silently kept in memory only. The built-in staff is seeded inside one for this reason.
+- **PostgreSQL folds an unquoted name to lower case.** Table names are built by `tableFor()` in `src/pg/schema.js` (snake_case) and must be used through it, never typed.
+- **Windows cannot `ftruncate` an append handle** (EPERM): `src/pg/wal.js` truncates by path while the append handle stays open.
+- On a database, **`store.reset()` is part of the unit of work**; the reset button also puts the built-in staff back (`pc.seedStaff()`), or the seed fails with "Unknown user 'agent'".
 
 ## Open items (suggested order)
 
-1. **Database move** (PostgreSQL). The JSON file saves everything on every write; fine to a few hundred policies. Largest remaining job (`docs/PERFORMANCE.md`).
+1. **Reads through the database.** Writes are now rows in PostgreSQL (`docs/DATABASE.md`), but reads still come from memory: the whole book is loaded at start and searches run in JavaScript. Before several servers or a very large book, make the services read from the database (the indexes are already there). Also run it against a real PostgreSQL server once: the tests use the same engine in-process (PGlite), which is not a server.
 2. Agents: show suggestions on the Desktop and in the Work queues; a payment-reminder message template; then a trial period in `suggest` mode before any acting agent (`docs/AGENTS.md`). The planned agents wait on: incoming channels, data providers, online payments and e-signature, photo upload and OCR.
 3. Screens for backup, personal-data export and erasure (API only now).
 4. `docs/GO-LIVE.md` people tasks: penetration test, hosting in India, secrets handling, a restore drill, retention and consent decisions, native-speaker review of Hindi and Telugu (including the agent screens), screen-reader checks, monitoring.
@@ -88,4 +96,6 @@ The local data is in `data/` (git-ignored). Passwords are salted scrypt hashes; 
 
 ## Last state
 
-`main` at commit `bb2c840` ("Chat: voice replies ..."), 320 tests passing, nothing uncommitted except the PDF noted above. The main server was running on port 3000 at the time of writing; restart it after pulling to load new code.
+`main` has the database back end (`docs/DATABASE.md`) and 348 tests passing (320 before it, plus 28 for the store, the
+change tracker, the app on the database, and the reset button). Nothing uncommitted except the PDF noted above. No server
+was running on port 3000 when this was written; start it, and set `DATABASE_URL` if you want the data in PostgreSQL.

@@ -9,17 +9,23 @@ plain JavaScript module so you can read it end to end.
 
 ## Run it
 
-Requires Node.js 20+. There are no npm dependencies.
+Requires Node.js 20+.
 
 ```bash
-cd PolicyCenter-Sim
+npm install        # once: the libraries the optional parts use (email, documents, speech, the database driver)
 npm start          # http://localhost:3000
-npm test           # 15 tests: rating + full policy lifecycle
+npm test           # 348 tests: rating, the policy lifecycle, the screens, security and the database store
 ```
 
 Data is saved to `data/policycenter.json`. Delete that file (or use **Administration → Reset demo data**
-as the UW Manager) to reload the demo data. Use the user picker in the top bar to switch between
-users and roles.
+as the UW Manager) to reload the demo data.
+
+For more than a few hundred policies the JSON file is the wrong place: it is written in full on every change
+(`docs/PERFORMANCE.md`). Set `DATABASE_URL` to keep the data in PostgreSQL instead, one row per record — see
+`docs/DATABASE.md`. `DATABASE_URL=memory://` runs the same PostgreSQL engine inside the process, for a demo with
+nothing to install, and `npm run migrate-to-pg` copies an existing JSON file into a database.
+
+Use the user picker in the top bar to switch between users and roles.
 
 | User | Role | UW authority | Sees |
 |---|---|---|---|

@@ -321,6 +321,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('POST', '/admin/reset', ({ user }) => {
     pc.requireAuthority(user, 2, 'reset demo data');
     store.reset();
+    // The staff go with the data, and the seed signs in as them: put the built-in team back first.
+    pc.seedStaff();
     if (reseed) reseed();
     return { ok: true };
   });

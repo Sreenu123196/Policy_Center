@@ -94,4 +94,4 @@ class Store {
   }
 }
 
-module.exports = { Store };
+module.exports = { Store, empty };
