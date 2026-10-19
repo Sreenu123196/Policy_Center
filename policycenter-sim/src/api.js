@@ -9,7 +9,7 @@ const { Finance } = require('./finance');
 const { Insights } = require('./insights');
 const { Billing } = require('./billing');
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } = {}) {
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
@@ -89,6 +89,13 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
   route('POST', '/policies/:id/payments', ({ user, params, body }) => billing.receivePayment(user, { ...body, policyId: params.id }));
   route('POST', '/billing/delinquency', ({ user, body }) => billing.runDelinquency(user, { asOf: body.asOf }));
 
+  // Event consumers (UW managers): run them now, see the events they gave up on, and redrive one after the cause is fixed.
+  route('GET', '/admin/events/dead', ({ user }) => { pc.requireAuthority(user, 2, 'see dead events'); return bus ? bus.deadEvents() : []; });
+  route('POST', '/admin/events/run', ({ user }) => { pc.requireAuthority(user, 2, 'run the event consumers'); return bus ? bus.run() : []; });
+  route('POST', '/admin/events/dead/:consumer/:eventId/redrive', ({ user, params }) => {
+    if (!bus) throw new AppError(503, 'Event consumers are not enabled');
+    return bus.redrive(user, { consumer: decodeURIComponent(params.consumer), eventId: decodeURIComponent(params.eventId) });
+  });
   route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true' }));
   route('POST', '/activities/:id/complete', ({ user, params }) => pc.completeActivity(params.id, user));
 
@@ -202,6 +209,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth } = {})
       const ctx = { user, token, params: match.groups || {}, query, body };
       if (found.stream) return await found.handler(ctx, res);
       const result = found.readOnly ? await found.handler(ctx) : store.transaction(() => found.handler(ctx));
+      // The consumers run after the change is saved, never inside it: a failing consumer cannot undo the change.
+      if (bus && !found.readOnly && !sub.startsWith('/admin/events')) bus.run();
       if (ctx.setCookie) res.setHeader('Set-Cookie', ctx.setCookie);
       send(req.method === 'POST' && /\/(accounts|submission)$/.test(sub) ? 201 : 200, result);
     } catch (err) {

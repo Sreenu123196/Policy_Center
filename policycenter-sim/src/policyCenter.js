@@ -898,7 +898,7 @@ class PolicyCenter {
       type,
       topic: type.startsWith('Account') ? 'account-events' : 'policy-events',
       occurredAt: this.now(),
-      status: 'Delivered',
+      status: 'Pending',
       payload,
     });
   }

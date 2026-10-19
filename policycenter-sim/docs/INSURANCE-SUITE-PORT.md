@@ -8,7 +8,7 @@ features the Sim lacks are ported, rewritten in the Sim's own plain JavaScript (
 |---|---|---|---|
 | 1 | Payments, allocation (oldest invoice first), credit, Paid / Part paid / Overdue, missed-payment steps (notice, then a cancellation for non-payment) | **Done** | `src/billing.js`, `src/invoiceView.js`, Billing tab, `test/billing-*.test.js` |
 | 2 | Reinstatement when a late payment clears what was owed on a policy cancelled for non-payment (30-day window) | **Done** | `reinstateIfCleared` in `src/billing.js` |
-| 3 | Event consumers with retries, growing wait and a dead-letter list; redrive by a manager | To do | `policy.events` today are always "Delivered" |
+| 3 | Event consumers with retries, growing wait and a dead-letter list; redrive by a manager; a collections consumer turns missed payments into activities | **Done** | `src/eventBus.js`, `src/consumers.js`, Administration page, `test/event-bus*.test.js` |
 | 4 | Claim exposures (one claimant against one cover), reserve lines, authority limits with second-person approval | To do | today a claim has one reserve and flat payments |
 | 5 | Claim opens with the policy as it was on the loss date; late-report and unverified flags | To do | |
 | 6 | Idempotency keys on every POST, ETag / If-Match on changes | To do | |

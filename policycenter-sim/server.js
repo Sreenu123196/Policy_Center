@@ -15,6 +15,8 @@ const { Chatbot } = require('./src/chatbot');
 const { Speech } = require('./src/speech');
 const { Messaging, emailTransport, whatsappTransport } = require('./src/messaging');
 const { Auth } = require('./src/auth');
+const { EventBus } = require('./src/eventBus');
+const { collectionsConsumer } = require('./src/consumers');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -32,7 +34,10 @@ const chatbot = new Chatbot(pc);
 const speech = new Speech();
 const messaging = new Messaging(pc, { transports: { email: emailTransport(), whatsapp: whatsappTransport() } });
 const auth = new Auth(pc);
-const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth });
+const bus = new EventBus(pc);
+bus.register('collections', collectionsConsumer(pc));
+const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus });
+bus.run(); // events written before this start
 
 console.log(`Assistant: ${chatbot.status().mode} mode${chatbot.status().mode === 'claude' ? ` (${chatbot.status().model})` : ''}`);
 const voice = speech.status();

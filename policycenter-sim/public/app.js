@@ -147,7 +147,7 @@ async function pageDesktop() {
       ${table(['Activity', 'Subject', 'Job', 'Priority', 'Assigned to', 'Due', ''], d.activities.map((a) => [
         esc(a.activityNumber),
         `${esc(a.subject)}<div class="muted" style="white-space:pre-line">${esc(a.description)}</div>`,
-        `<a href="#/job/${a.jobId}">${esc(a.jobNumber)}</a>`,
+        a.jobId ? `<a href="#/job/${a.jobId}">${esc(a.jobNumber)}</a>` : `<a href="#/policy/${a.policyId}">${esc(a.policyNumber)}</a>`,
         badge(a.priority), esc(a.assignedToName || a.assignedTo), esc(a.dueDate),
         u.role === 'Agent' ? '' : `<button class="btn small" data-action="complete-activity" data-id="${a.id}">Complete</button>`,
       ]), 'No open activities')}
@@ -862,6 +862,7 @@ async function pageSearch(q) {
 async function pageAdmin() {
   const [books, events] = await Promise.all([api('GET', '/ratebooks'), api('GET', '/events')]);
   const u = me();
+  const dead = u.authority >= 2 ? await api('GET', '/admin/events/dead') : [];
   const b = S.batch;
   view(`
     <div class="eyebrow">Administration</div><h1>Administration</h1>
@@ -885,6 +886,9 @@ async function pageAdmin() {
     <div class="card"><h2>Rate books</h2>
       ${table(['Code', 'Product', 'Version', 'Effective', 'Status', 'Rate level', 'Description'], books.map((r) => [esc(r.code), esc(product(r.product).name), esc(r.version), esc(r.effectiveDate), badge(r.status), r.rateLevel, esc(r.description)]))}
     </div>
+    ${u.authority >= 2 ? `<div class="card"><div class="spread"><h2>Events the consumers gave up on</h2><button class="btn small" data-action="run-consumers">Run consumers now</button></div>
+      <p class="muted">A consumer retries a failing event with a growing wait, then moves it here so the events behind it carry on. Fix the cause, then redrive.</p>
+      ${table(['Consumer', 'Event', 'Type', 'Attempts', 'Last error', ''], dead.map((d) => [esc(d.consumer), esc(d.eventId), esc(d.eventType), d.attempts, esc(d.lastError), `<button class="btn small" data-action="redrive-event" data-consumer="${esc(d.consumer)}" data-event="${esc(d.eventId)}">Redrive</button>`]), 'Nothing is waiting')}</div>` : ''}
     <div class="card"><h2>Integration event outbox (latest 200)</h2>${eventsTable(events)}</div>`);
 }
 
@@ -1223,6 +1227,12 @@ const ACTIONS = {
   'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-vehicle': async (d) => { S.jv.draft.line.vehicles.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
 
+  'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
+  'redrive-event': async (d) => {
+    const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
+    toast(r.ok ? 'Event handled and removed from the list' : `Still failing: ${r.error}`, r.ok ? 'success' : 'error');
+    pageAdmin();
+  },
   'record-payment': () => openModal(`<h2>Record a payment for ${esc(S.policy.policyNumber)}</h2>
     <form data-form="record-payment"><div class="form-errors"></div>
       <div class="form-grid">
@@ -1326,6 +1336,7 @@ const FORMS = {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });
     closeModal();
     toast(`Payment ${payment.paymentNumber} recorded`, 'success');
+    if (payment.reinstatement && payment.reinstatement.outcome === 'reinstatement_started') toast(`The payment clears what was owed: reinstatement ${payment.reinstatement.jobNumber} was started. Bind it from the policy's jobs.`, 'success');
     S.policy = await api('GET', `/policies/${S.policy.id}`);
     renderPolicy();
   },
