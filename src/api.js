@@ -5,6 +5,7 @@
 const crypto = require('node:crypto');
 const { stripDangerousKeys } = require('./security');
 const { writeBackup, listBackups } = require('./backup');
+const { DataProtection } = require('./dataProtection');
 const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
@@ -38,6 +39,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const reports = new Reports(pc, billing);
   const documents = new Documents(pc, messaging);
   const accounting = new Accounting(pc);
+  const dataProtection = new DataProtection(pc);
   // The consumers run right after the response has gone, never inside the request: a person who saves something does not wait
   // for the queues to be filled. Several writes in a row ask once.
   let busAsked = false;
@@ -84,6 +86,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     pc.requireAuthority(user, 2, 'see backups');
     return backupDir ? listBackups(backupDir) : [];
   });
+  // Personal data (UW managers): a copy of what is held about an account, erasure of the identity, and the log of such requests.
+  route('GET', '/accounts/:id/personal-data', ({ user, params }) => dataProtection.export(params.id, user));
+  route('POST', '/accounts/:id/erase', ({ user, params, body }) => dataProtection.erase(params.id, body, user));
+  route('GET', '/admin/data-requests', ({ user }) => dataProtection.requests(user));
   route('GET', '/auth/status', () => ({ setupNeeded: pc.setupNeeded() }), { isPublic: true });
   route('POST', '/auth/setup', (ctx) => {
     const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });
