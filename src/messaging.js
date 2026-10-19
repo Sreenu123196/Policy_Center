@@ -206,6 +206,7 @@ function emailTransport(env = process.env, nodemailer = require('nodemailer')) {
     status: () => ({ enabled: true, from: user }),
     send: async ({ to, subject, text, html }) => {
       const info = await transporter.sendMail({ from, to, subject, text, ...(html ? { html } : {}) });
+      if (info.rejected && info.rejected.length) throw new Error(`The mail server rejected the address: ${info.rejected.join(', ')}`);
       return { id: info.messageId };
     },
   };
