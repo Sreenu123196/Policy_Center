@@ -22,7 +22,7 @@ async function open() {
 }
 
 test('the app runs on the database store: an account, a quote and a bound policy survive a restart', async () => {
-  const { db, dir, store } = await open();
+  const { db, store } = await open();
   const pc = new PolicyCenter(store, { today: () => '2026-03-01' });
   const agent = pc.user('agent');
 
@@ -52,7 +52,7 @@ test('a unit of work is all or nothing, across every collection it touched', asy
   const { store } = await open();
   const pc = new PolicyCenter(store);
   const agent = pc.user('agent');
-  const acct = store.transaction(() => account(pc, agent));
+  store.transaction(() => account(pc, agent));
   const before = store.data.accounts.length;
 
   assert.throws(() => store.transaction(() => {

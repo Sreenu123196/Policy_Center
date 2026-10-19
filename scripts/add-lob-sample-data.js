@@ -122,7 +122,7 @@ function main() {
             : slot === 'lapsing' ? D.addDays(D.addMonths(today, -12), 15)
               : D.addDays(D.addMonths(today, -12), -20);
           const bound = bindNew(acct, product, eff, linesFor(product, n), seller);
-          let note = '';
+          let note;
           if (slot === 'renewed') {
             const policy = pc.policy(bound.policyId);
             const expiry = pc.lastTerm(policy).expirationDate;

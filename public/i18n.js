@@ -569,7 +569,6 @@ const ENTRIES = {
   'Document signed': ['दस्तावेज़ पर हस्ताक्षर हुए', 'పత్రంపై సంతకం అయింది'],
   // Accounting and commission
   'Accounting': ['लेखा', 'అకౌంటింగ్'],
-  'Commission': ['कमीशन', 'కమీషన్'],
   'Commission statement': ['कमीशन विवरण', 'కమీషన్ స్టేట్‌మెంట్'],
   'Trial balance': ['ट्रायल बैलेंस', 'ట్రయల్ బ్యాలెన్స్'],
   'Journal': ['जर्नल', 'జర్నల్'],
@@ -578,7 +577,6 @@ const ENTRIES = {
   'Close month': ['माह बंद करें', 'నెలను మూసివేయండి'],
   'Export': ['निर्यात', 'ఎగుమతి'],
   'Debit': ['डेबिट', 'డెబిట్'],
-  'Credit': ['क्रेडिट', 'క్రెడిట్'],
   'Earned': ['अर्जित', 'సంపాదించినది'],
   'Payable': ['देय', 'చెల్లించాల్సినది'],
   'Rate': ['दर', 'రేటు'],
@@ -586,13 +584,11 @@ const ENTRIES = {
   'Download CSV': ['CSV डाउनलोड करें', 'CSV డౌన్‌లోడ్ చేయండి'],
   'Download general ledger (CSV)': ['सामान्य बही (CSV) डाउनलोड करें', 'సాధారణ లెడ్జర్ (CSV) డౌన్‌లోడ్ చేయండి'],
   'Account name': ['खाते का नाम', 'ఖాతా పేరు'],
-  'Closed': ['बंद', 'మూసివేయబడింది'],
   'Check': ['जाँच', 'తనిఖీ'],
   'Entries': ['प्रविष्टियाँ', 'ఎంట్రీలు'],
   'Lines': ['पंक्तियाँ', 'పంక్తులు'],
   'Matches': ['मेल खाता है', 'సరిపోతుంది'],
   'Changed': ['बदला गया', 'మార్చబడింది'],
-  'Producer': ['प्रोड्यूसर', 'ప్రొడ్యూసర్'],
   'Premium receivable in the books': ['बही में प्रीमियम प्राप्य', 'పుస్తకాల్లో ప్రీమియం స్వీకరించదగినది'],
   "Customers' ledgers added up": ['ग्राहकों की बही का योग', 'కస్టమర్ల లెడ్జర్ల మొత్తం'],
   'Difference': ['अंतर', 'వ్యత్యాసం'],
@@ -648,7 +644,7 @@ const INDEX = { hi: 0, te: 1 };
 
 // The text in the other language, or the same text when there is no entry. Spaces around the text are kept.
 function translate(text, lang) {
-  if (!INDEX.hasOwnProperty(lang)) return text;
+  if (!Object.prototype.hasOwnProperty.call(INDEX, lang)) return text;
   const key = String(text).trim();
   const entry = key && Object.prototype.hasOwnProperty.call(ENTRIES, key) ? ENTRIES[key] : null;
   return entry ? String(text).replace(key, entry[INDEX[lang]]) : text;

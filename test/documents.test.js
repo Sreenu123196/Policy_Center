@@ -110,7 +110,7 @@ test('delivery by email sends the document in the chosen language and keeps a re
 
 test('delivery by WhatsApp sends the approved template with the document name and policy number', async () => {
   const env = world();
-  const { documents, users, declarations, sent, policy, run } = env;
+  const { documents, users, declarations, sent, policy } = env;
   const record = await documents.deliver(users.agent, declarations.id, { channel: 'whatsapp', language: 'hi', confirm: true });
   assert.equal(record.status, 'Sent');
   assert.deepEqual([sent.whatsapp[0].template, sent.whatsapp[0].language, sent.whatsapp[0].to], ['document_ready', 'hi', '919876543210']);

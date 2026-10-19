@@ -131,7 +131,7 @@ test('an event delivered twice posts once', () => {
 
 test('closing a month locks it: later postings for that month go into the next open month and say so', () => {
   const env = world();
-  const { pc, users, accounting, post, newPolicy, run, billing } = env;
+  const { users, accounting, post, newPolicy, run, billing } = env;
   const { policy } = newPolicy();
   post();
   env.setToday('2026-04-02');

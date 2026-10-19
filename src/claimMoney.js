@@ -131,7 +131,7 @@ class ClaimMoney {
     const limit = limitOf(PAYMENT_LIMITS, user);
     if (pending.amount > limit) throw new AppError(403, `A payment of ${pending.amount} is above your authority (${limit})`);
     claim.pendingPayments = claim.pendingPayments.filter((p) => p.id !== paymentId);
-    const { id, requestedAt, requestedOn, ...entry } = pending;
+    const { id: _id, requestedAt: _requestedAt, requestedOn: _requestedOn, ...entry } = pending;
     this.issue(claim, { ...entry, by: pending.requestedBy, approvedBy: user.id }, paymentId);
     return { status: 'issued', amount: pending.amount };
   }

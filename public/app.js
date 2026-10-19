@@ -7,8 +7,6 @@ const S = { meta: null, me: null, jv: null, policy: null, policyTab: 'summary', 
 
 // ------------------------------------------------------------------ utilities
 
-function readPref(k) { try { return localStorage.getItem(k); } catch { return null; } }
-function writePref(k, v) { try { localStorage.setItem(k, v); } catch { /* storage unavailable */ } }
 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = (n) => (n === null || n === undefined || n === '' ? '—' : Number(n).toLocaleString('en-US', { style: 'currency', currency: 'USD' }));
 const usd0 = (n) => (n === null || n === undefined || n === '' ? '—' : '$' + Number(n).toLocaleString('en-US', { maximumFractionDigits: 0 }));
@@ -801,7 +799,7 @@ const STEPS = {
   exposures(job, draft, editable) {
     const pm = product(job.product);
     const list = draft.line.exposures;
-    return `<div class="spread"><h2>Classes of business</h2>${editable ? '<button class="btn" data-action="add-exposure">Add class</button>' : ''}</div>
+    return `<div class="spread"><h2>Classes of business</h2>${editable ? '<button class="btn" data-action="add-line-exposure">Add class</button>' : ''}</div>
       <div class="form-grid">${field('Liability claims in the last 5 years', `<input type="number" min="0" data-type="number" data-bind="line.claimsLast5Years" value="${esc(draft.line.claimsLast5Years)}" ${dis(editable)}>`)}</div>
       ${list.length ? '' : '<div class="empty">No classes yet. Add one to continue.</div>'}
       ${list.map((x, i) => {
@@ -1226,7 +1224,7 @@ async function pageAgents() {
   const tab = manager ? (S.agentsTab || 'suggestions') : 'suggestions';
   const tabs = [['suggestions', 'Suggestions'], ...(manager ? [['agents', 'Agents'], ['audit', 'Audit log']] : [])];
   const bar = `<div class="tabs">${tabs.map(([k, n]) => `<button class="${tab === k ? 'active' : ''}" data-action="agents-tab" data-tab="${k}">${n}</button>`).join('')}</div>`;
-  let body = '';
+  let body;
   if (tab === 'suggestions') {
     const status = S.sugStatus === undefined ? 'Open' : S.sugStatus;
     const rows = await api('GET', `/agents/suggestions${status ? `?status=${encodeURIComponent(status)}` : ''}`);
@@ -1267,7 +1265,7 @@ const ACCT_TABS = [['tb', 'Trial balance'], ['journal', 'Journal'], ['recon', 'R
 
 async function pageAccounting() {
   const tab = S.acctTab || 'tb';
-  let body = '';
+  let body;
   if (tab === 'tb') {
     const asOf = S.acctAsOf || S.meta.today;
     const tb = await api('GET', `/accounting/trial-balance?asOf=${encodeURIComponent(asOf)}`);
@@ -1752,7 +1750,8 @@ const ACTIONS = {
   'remove-class': async (d) => { S.jv.draft.line.classes.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'add-location': async () => { S.jv.draft.line.locations.push({ description: '', address: { line1: '', city: '', zip: S.jv.job.account.address.zip }, construction: 'Frame', occupancy: 'Office', yearBuilt: null, protectionClass: 4, buildingValue: null, contentsValue: 0 }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-location': async (d) => { S.jv.draft.line.locations.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
-  'add-exposure': async () => { S.jv.draft.line.exposures.push({ classCode: '60010', description: '', amount: null }); S.jv.dirty = true; await saveDraft(); renderJob(); },
+  // A class of business on a commercial job (the claim screen has its own add-exposure below, which opens a form).
+  'add-line-exposure': async () => { S.jv.draft.line.exposures.push({ classCode: '60010', description: '', amount: null }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-exposure': async (d) => { S.jv.draft.line.exposures.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'add-vehicle': async () => { S.jv.draft.line.vehicles.push({ year: null, make: '', model: '', vin: '', engineCc: null, bikeType: 'Commuter', usage: S.jv.job.product === 'CommercialAuto' ? 'Light' : 'Commute', radius: 'Local', annualMiles: 12000, marketValue: null, garagingZip: S.jv.job.account.address.zip }); S.jv.dirty = true; await saveDraft(); renderJob(); },
   'remove-vehicle': async (d) => { S.jv.draft.line.vehicles.splice(Number(d.index), 1); S.jv.dirty = true; await saveDraft(); renderJob(); },

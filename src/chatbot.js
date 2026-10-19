@@ -7,7 +7,7 @@ const AnthropicSDK = require('@anthropic-ai/sdk');
 const { PRODUCTS, STATES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { CANCEL_REASONS, AppError } = require('./policyCenter');
-const { canSeeRatingFactors, canSeeUnderwritingNotes, canSeePortfolioReport, canSeeBillingReport, canSeeClaimsReport } = require('./permissions');
+const { canSeeRatingFactors, canSeeUnderwritingNotes, canSeePortfolioReport } = require('./permissions');
 
 const Anthropic = AnthropicSDK.default || AnthropicSDK;
 const MODEL = process.env.CHAT_MODEL || 'claude-haiku-5-5';
@@ -562,7 +562,9 @@ const OFFLINE_WORDS = {
   summary: { latin: /summary|portfolio|book|how many|total|count|kitne|kitni|kitna|saransh|enni|entha|motham/, native: ['सारांश', 'कितने', 'कितनी', 'कुल', 'సారాంశం', 'ఎన్ని', 'మొత్తం'] },
 };
 const saysAny = (key, lower, text) => OFFLINE_WORDS[key].latin.test(lower) || OFFLINE_WORDS[key].native.some((w) => text.includes(w));
-const NON_LATIN_SCRIPT = /[ऀ-ॿఀ-౿]/;
+// Is the message written in Hindi or Telugu? Named scripts rather than code-point ranges, which would need a rule
+// exemption everywhere they are used.
+const NON_LATIN_SCRIPT = /[\p{Script=Devanagari}\p{Script=Telugu}]/u;
 
 function offlineAnswer(pc, user, message, context) {
   const text = str(message);

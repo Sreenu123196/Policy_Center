@@ -96,7 +96,7 @@ test('the mode and the limits are data a UW manager changes, and every change is
 test('a switched-off agent does nothing (the kill switch)', () => {
   const env = world('2026-03-01');
   const { agents, users, run } = env;
-  const { sub } = bound(env, { eff: '2025-11-01' });
+  bound(env, { eff: '2025-11-01' });
   assert.equal(run(() => agents.run(users.uwm, { agentIds: ['renewal'] }))[0].skipped, 'off');
   assert.equal(agents.suggestions(users.uwm).length, 0);
   turnOn(env, 'renewal');
@@ -111,7 +111,7 @@ test('the renewal agent suggests starting a renewal when the term ends within it
   const env = world('2026-03-01');
   const { agents, users, run, pc } = env;
   const near = bound(env, { eff: '2025-11-01' }); // ends 2026-05-01: 61 days away
-  const far = bound(env, { eff: '2026-02-01' }); // ends 2027-02-01
+  bound(env, { eff: '2026-02-01' }); // ends 2027-02-01
   turnOn(env, 'renewal');
   const first = run(() => agents.run(users.uwm, { agentIds: ['renewal'] }));
   assert.equal(first[0].created, 1);
@@ -128,7 +128,7 @@ test('the renewal agent suggests starting a renewal when the term ends within it
 test('a person accepts a suggestion and the action runs as that person; a dismissal is remembered', () => {
   const env = world('2026-03-01');
   const { agents, users, run, pc } = env;
-  const { sub } = bound(env, { eff: '2025-11-01' });
+  bound(env, { eff: '2025-11-01' });
   turnOn(env, 'renewal');
   run(() => agents.run(users.uwm, { agentIds: ['renewal'] }));
   const [s] = agents.suggestions(users.uwm);
@@ -149,7 +149,7 @@ test('a person accepts a suggestion and the action runs as that person; a dismis
 test('a dismissed suggestion does not come back for the same case', () => {
   const env = world('2026-03-01');
   const { agents, users, run } = env;
-  const { sub } = bound(env, { eff: '2025-11-01' });
+  bound(env, { eff: '2025-11-01' });
   turnOn(env, 'renewal');
   run(() => agents.run(users.uwm, { agentIds: ['renewal'] }));
   const [s] = agents.suggestions(users.uwm);
@@ -162,7 +162,7 @@ test('an event wakes only the agent that cares, and only for the policy in it', 
   const env = world('2026-03-01');
   const { agents, users, run, pc } = env;
   const a = bound(env, { eff: '2025-11-01' });
-  const b = bound(env, { eff: '2025-10-20' });
+  bound(env, { eff: '2025-10-20' });
   turnOn(env, 'renewal');
   const policyNumber = pc.db.policies.find((p) => p.id === a.sub.policyId).policyNumber;
   const result = run(() => agents.onEvent({ type: 'PolicyIssued', payload: { policyNumber } }));
@@ -175,7 +175,7 @@ test('an event wakes only the agent that cares, and only for the policy in it', 
 test('the keep-customers agent suggests a message to a lapsed customer, unless somebody was in touch recently', () => {
   const env = world('2026-03-01');
   const { agents, users, run, pc } = env;
-  const { sub } = bound(env, { eff: '2025-08-01' }); // ended 2026-02-01: lapsed 28 days ago
+  bound(env, { eff: '2025-08-01' }); // ended 2026-02-01: lapsed 28 days ago
   turnOn(env, 'keep-customers');
   run(() => agents.run(users.uwm, { agentIds: ['keep-customers'] }));
   const [s] = agents.suggestions(users.uwm);
@@ -296,7 +296,7 @@ test('the compliance agent reports (and only reports): a protected trait in a re
 test('the agents act on suggestions, never on policies: a full sweep with everything on changes no job, policy, invoice or message', () => {
   const env = world('2026-03-01');
   const { agents, users, run, pc } = env;
-  const a = bound(env, { eff: '2025-11-01' });
+  bound(env, { eff: '2025-11-01' });
   const h = bound(env, { home: true, bind: false, dwelling: { yearBuilt: 1995, roofAge: 22 } });
   for (const id of Object.keys(AGENTS)) if (AGENTS[id].status === 'built') turnOn(env, id);
   const snap = () => JSON.stringify([pc.db.jobs, pc.db.policies, pc.db.invoices, pc.db.messages, pc.db.payments]);

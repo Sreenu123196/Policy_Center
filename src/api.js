@@ -8,7 +8,7 @@ const { writeBackup, listBackups } = require('./backup');
 const { DataProtection } = require('./dataProtection');
 const { AuditLog } = require('./audit');
 const { AgentService } = require('./agents');
-const { PRODUCTS, STATES, USERS, PRODUCER_CODES } = require('./productModel');
+const { PRODUCTS, STATES, PRODUCER_CODES } = require('./productModel');
 const { RATE_BOOKS } = require('./rateBooks');
 const { AppError, CANCEL_REASONS, CLAIM_TYPES } = require('./policyCenter');
 const { Finance } = require('./finance');
@@ -83,7 +83,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('POST', '/admin/backup', ({ user }) => {
     pc.requireAuthority(user, 2, 'take a backup');
     if (!backupDir) throw new AppError(503, 'Backups are not set up on this server');
-    const { file, ...made } = writeBackup(JSON.stringify(store.data), backupDir);
+    const { file: _file, ...made } = writeBackup(JSON.stringify(store.data), backupDir);
     return made;
   }, { readOnly: true });
   route('GET', '/admin/backups', ({ user }) => {

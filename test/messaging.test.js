@@ -110,7 +110,7 @@ test('messages: a provider failure is saved as Failed, with the error', async ()
 });
 
 test('messages: agents message only their own customers', () => {
-  const { pc, users, acct, policy } = customerWithPolicy();
+  const { pc, acct, policy } = customerWithPolicy();
   const { transports } = fakeTransports();
   const m = new Messaging(pc, { transports });
   assert.throws(() => m.send({ accountId: acct.id, policyId: policy.id, channel: 'email', template: 'renewal', language: 'en', confirm: true }, pc.user('agent2')), /not found/i);

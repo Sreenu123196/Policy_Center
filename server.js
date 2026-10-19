@@ -6,7 +6,7 @@
 //   DATABASE_URL=postgres://... node server.js  -> data in PostgreSQL instead of the JSON file (src/pg/open.js)
 
 const { loadEnv } = require('./src/loadEnv');
-const loaded = loadEnv(); // settings from the .env file, if there is one
+loadEnv(); // settings from the .env file, if there is one
 const http = require('node:http');
 const path = require('node:path');
 const { Store } = require('./src/store');
