@@ -189,7 +189,7 @@ class Messaging {
 // Real transports, built from environment variables. Nothing is sent without them.
 function emailTransport(env = process.env, nodemailer = require('nodemailer')) {
   const user = env.GMAIL_USER;
-  const pass = env.GMAIL_APP_PASSWORD;
+  const pass = String(env.GMAIL_APP_PASSWORD || '').replace(/s+/g, ''); // Google shows the app password in groups of four
   if (!user || !pass) return { status: () => ({ enabled: false, reason: 'set GMAIL_USER and GMAIL_APP_PASSWORD' }), send: () => { throw new Error('Email is not set up'); } };
   const transporter = nodemailer.createTransport({ host: 'smtp.gmail.com', port: 587, secure: false, auth: { user, pass } });
   const from = env.EMAIL_FROM_NAME ? `"${env.EMAIL_FROM_NAME}" <${user}>` : user;

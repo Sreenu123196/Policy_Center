@@ -40,6 +40,8 @@ bus.register('collections', collectionsConsumer(pc));
 bus.register('claims-queue', claimsQueueConsumer(pc));
 bus.register('accounting', accountingConsumer(new Accounting(pc)));
 const BACKUP_DIR = process.env.BACKUP_DIR || path.join(path.dirname(DATA_FILE), 'backups');
+const mail = messaging.status().channels.email;
+console.log(mail.enabled ? `Email: sending from ${mail.from} through Gmail` : `Email: not set up (${mail.reason}); the email button opens Gmail instead`);
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR });
 // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
 while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }
