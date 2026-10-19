@@ -78,6 +78,8 @@ const MATRIX = {
   'GET /producers/:code/statement': ['uw', 'exec'],
   'GET /producers/:code/statement.csv': ['uw', 'exec'],
   'GET /producers/:code/statement.pdf': ['uw', 'exec'],
+  'POST /policies/:id/audit': ['agent'],
+  'POST /jobs/:id/audit-actuals': ['agent'],
   'GET /queues': [],
   'GET /documents/:id/render': [],
   'GET /documents/:id/view': [],

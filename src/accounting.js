@@ -36,7 +36,7 @@ const ACCOUNTS = {
 const BY_CODE = Object.fromEntries(Object.values(ACCOUNTS).map((a) => [a.code, a]));
 const DEFAULT_PRODUCER_COMMISSION = 0.1;
 const PAYOUT_METHODS = ['Bank transfer', 'Cheque', 'Cash'];
-const PREMIUM_EVENTS = { PolicyIssued: 'totalCost', PolicyRenewed: 'totalCost', PolicyChanged: 'premiumChange', PolicyCancelled: 'returnPremium', PolicyReinstated: 'premiumRestored' };
+const PREMIUM_EVENTS = { PolicyIssued: 'totalCost', PolicyRenewed: 'totalCost', PolicyChanged: 'premiumChange', PolicyCancelled: 'returnPremium', PolicyReinstated: 'premiumRestored', PremiumAuditCompleted: 'premiumChange' };
 
 const sha256 = (text) => crypto.createHash('sha256').update(text, 'utf8').digest('hex');
 const isMonth = (m) => /^\d{4}-(0[1-9]|1[0-2])$/.test(String(m || ''));

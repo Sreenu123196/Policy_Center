@@ -58,6 +58,11 @@ class AppError extends Error {
 
 const OPEN = ['Draft', 'Quoted'];
 const EDITABLE_TYPES = ['Submission', 'PolicyChange', 'Renewal'];
+// Products priced on an estimate that is audited after the term: which rows hold it and which figures are audited.
+const AUDITABLE = {
+  WorkersComp: { key: 'classes', fields: ['payroll', 'employees'], label: 'payroll' },
+  GeneralLiability: { key: 'exposures', fields: ['amount'], label: 'receipts or payroll' },
+};
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const str = (v) => (v == null ? '' : String(v).trim());
 const int = (v) => {
@@ -741,14 +746,15 @@ class PolicyCenter {
   quote(jobId, user) {
     const job = this.job(jobId, user);
     this.assertEditable(job);
-    if (!EDITABLE_TYPES.includes(job.type)) throw new AppError(409, `${job.type} is quoted when it starts`);
+    if (!EDITABLE_TYPES.includes(job.type) && job.type !== 'PremiumAudit') throw new AppError(409, `${job.type} is quoted when it starts`);
     const policy = job.policyId ? this.policy(job.policyId) : null;
     if (policy) this.assertNotCancelled(policy);
     const today = this.today();
     const errors = validatePeriod(job.product, job.period, { jobType: job.type, today });
     if (errors.length) throw new AppError(422, `Cannot quote: ${errors.length} validation error(s)`, { errors });
 
-    job.uwIssues = applyApprovals(evaluateUW(job.product, job.period, { jobType: job.type, today }), job.uwApprovals);
+    // An audit records what happened; underwriting rules about the risk do not apply to it.
+    job.uwIssues = job.type === 'PremiumAudit' ? [] : applyApprovals(evaluateUW(job.product, job.period, { jobType: job.type, today }), job.uwApprovals);
     const blocksQuote = job.uwIssues.filter((i) => i.blockingPoint === 'BlocksQuote' && !i.approved);
     if (blocksQuote.length) {
       job.status = 'Draft';
@@ -774,6 +780,11 @@ class PolicyCenter {
       changeAmount = round2(((newTerm - oldTerm) * remainingDays) / termDays);
       proration = { priorTermPremium: round2(oldTerm), newTermPremium: round2(newTerm), termDays, remainingDays, factor: Math.round((remainingDays / termDays) * 10000) / 10000 };
     }
+    if (job.type === 'PremiumAudit') {
+      // The audited premium for the whole term against the estimated premium the policy was bound on.
+      const base = policy.versions.find((v) => v.versionId === job.basedOnVersionId);
+      changeAmount = round2((r.premium + r.taxes) - (base.quote.premium + base.quote.taxes));
+    }
     job.quote = { ...r, changeAmount, proration, quotedAt: this.now() };
     job.status = 'Quoted';
 
@@ -782,7 +793,7 @@ class PolicyCenter {
       job.notice = { level: 'warning', text: `Quoted. ${blocksBind.length} underwriting issue(s) must be approved before bind; a referral was sent.` };
       this.refer(job, blocksBind, user);
     } else {
-      job.notice = { level: 'success', text: `Quoted: ${job.type === 'PolicyChange' ? 'change in premium' : 'total cost'} $${changeAmount.toFixed(2)}` };
+      job.notice = { level: 'success', text: `Quoted: ${job.type === 'PolicyChange' || job.type === 'PremiumAudit' ? 'change in premium' : 'total cost'} $${changeAmount.toFixed(2)}` };
     }
     this.log(job, user, 'Quoted', `Total $${r.total.toFixed(2)} (rate book ${r.rateBook.code} ${r.rateBook.version})`);
     return job;
@@ -886,6 +897,7 @@ class PolicyCenter {
       case 'Renewal': policy = this.bindRenewal(job, user); break;
       case 'Cancellation': policy = this.bindCancellation(job, user); break;
       case 'Reinstatement': policy = this.bindReinstatement(job, user); break;
+      case 'PremiumAudit': policy = this.bindAudit(job, user); break;
       default: throw new AppError(409, `Cannot bind ${job.type}`);
     }
     job.status = 'Bound';
@@ -964,7 +976,7 @@ class PolicyCenter {
     });
   }
 
-  addDocument(policy, job, name, versionId) {
+  addDocument(policy, job, name, versionId, data) {
     this.db.documents.push({
       id: this.store.id('doc'),
       documentNumber: this.store.number('DOC-', 7),
@@ -972,6 +984,7 @@ class PolicyCenter {
       jobNumber: job.jobNumber,
       versionId: versionId || null,
       name,
+      ...(data ? { data } : {}),
       createdAt: this.now(),
     });
   }
@@ -1002,6 +1015,7 @@ class PolicyCenter {
       product: job.product,
       versions: [],
       transactions: [],
+      audits: [],
       uwApprovals: {},
       cancellation: null,
       createdAt: this.now(),
@@ -1247,6 +1261,8 @@ class PolicyCenter {
       account: { id: account.id, accountNumber: account.accountNumber, name: this.accountName(account), address: account.address, producerCode: account.producerCode },
       cancellation: policy.cancellation,
       reinstatements: policy.reinstatements || [],
+      audits: policy.audits || [],
+      auditable: Boolean(AUDITABLE[policy.product]),
       current: this.currentVersion(policy),
       versions: policy.versions,
       terms,
@@ -1525,6 +1541,70 @@ class PolicyCenter {
     claim.payments.push({ date: this.today(), amount: round2(value), note: str(note), by: user.id });
     this.publish('ClaimPaid', { claimNumber: claim.claimNumber, amount: round2(value) });
     return this.claimView(claim, user);
+  }
+
+  // ------------------------------------------------------------------ premium audit
+  // A policy priced on an estimate (payroll for workers' compensation, receipts or payroll for general liability) is audited
+  // after the term ends. The auditor records what actually happened; the premium is worked out again on the actuals, and the
+  // difference for the WHOLE term is billed (additional premium) or returned. One audit per term. The audit job changes only the
+  // audited figures, never the rest of the policy, and it is not held up by underwriting rules.
+
+  startPremiumAudit(policyId, { termNumber } = {}, user) {
+    this.requireAuthority(user, 1, 'start a premium audit');
+    const policy = this.policy(policyId, user);
+    const spec = AUDITABLE[policy.product];
+    if (!spec) throw new AppError(422, `${PRODUCTS[policy.product].name} is not priced on an estimate, so it has no premium audit`);
+    this.assertNotCancelled(policy);
+    this.assertNoOpenJob(policy);
+    const terms = this.terms(policy);
+    const term = termNumber ? terms.find((t) => t.termNumber === Number(termNumber)) : terms[terms.length - 1];
+    if (!term) throw new AppError(404, 'Term not found');
+    if (this.today() < term.expirationDate) throw new AppError(422, `Term ${term.termNumber} has not ended (it ends ${term.expirationDate}); the audit is done after the term ends`);
+    if ((policy.audits || []).some((a) => a.termNumber === term.termNumber)) throw new AppError(409, `Term ${term.termNumber} has already been audited`);
+    const period = clone(term.latest.period);
+    const job = this.newJob('PremiumAudit', { accountId: policy.accountId, product: policy.product, period, policyId: policy.id, basedOnVersionId: term.latest.versionId }, user);
+    job.audit = { termNumber: term.termNumber, estimated: period.line[spec.key].map((row, index) => ({ index, classCode: row.classCode, description: row.description, ...Object.fromEntries(spec.fields.map((f) => [f, row[f]])) })) };
+    job.notice = { level: 'info', text: `Record the actual ${spec.label} for term ${term.termNumber}, then quote and bind the audit.` };
+    return job;
+  }
+
+  recordAuditActuals(jobId, actuals, user) {
+    this.requireAuthority(user, 1, 'record audit results');
+    const job = this.job(jobId, user);
+    if (job.type !== 'PremiumAudit') throw new AppError(409, 'This is not a premium audit');
+    this.assertEditable(job);
+    const spec = AUDITABLE[job.product];
+    const rows = job.period.line[spec.key];
+    const errors = [];
+    for (const a of actuals || []) {
+      if (!Number.isInteger(a.index) || a.index < 0 || a.index >= rows.length) { errors.push({ path: 'index', message: `There is no ${spec.key === 'classes' ? 'classification' : 'class'} ${a.index}` }); continue; }
+      for (const f of spec.fields) {
+        if (a[f] === undefined) continue;
+        if (!Number.isInteger(a[f]) || a[f] < 0) errors.push({ path: `${a.index}.${f}`, message: `${f} must be a whole number, zero or more` });
+      }
+    }
+    if (errors.length) throw new AppError(422, 'The audit figures are not valid', { errors });
+    for (const a of actuals || []) for (const f of spec.fields) if (a[f] !== undefined) rows[a.index][f] = a[f];
+    // New figures need a new quote.
+    job.quote = null;
+    job.status = 'Draft';
+    this.log(job, user, 'Audit figures recorded');
+    return job;
+  }
+
+  bindAudit(job, user) {
+    const policy = this.policy(job.policyId);
+    const term = this.terms(policy).find((t) => t.termNumber === job.audit.termNumber);
+    const base = policy.versions.find((v) => v.versionId === job.basedOnVersionId);
+    policy.audits = [...(policy.audits || []), {
+      termNumber: term.termNumber, jobNumber: job.jobNumber, estimatedPremium: round2(base.quote.premium + base.quote.taxes), auditedPremium: round2(job.quote.premium + job.quote.taxes),
+      difference: job.quote.changeAmount, estimated: job.audit.estimated, completedAt: this.now(), completedBy: user.id,
+    }];
+    this.addTransaction(policy, job, job.quote.changeAmount, term.expirationDate, `Premium audit, term ${term.termNumber}`);
+    this.adjustmentInvoice(policy, job, job.quote.changeAmount, `Premium audit: ${job.quote.changeAmount > 0 ? 'additional premium' : 'return premium'}`);
+    this.addDocument(policy, job, 'Premium Audit Statement', null, { audit: policy.audits[policy.audits.length - 1] });
+    this.publish('PremiumAuditCompleted', this.eventPayload(policy, job, { termNumber: term.termNumber, premiumChange: job.quote.changeAmount }));
+    return policy;
   }
 
   // ------------------------------------------------------------------ tickets

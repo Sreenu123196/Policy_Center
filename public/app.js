@@ -401,6 +401,8 @@ function renderPolicy() {
     actions.push(`<button class="btn danger" data-action="policy-cancel">Cancel policy</button>`);
   }
   if (!cancelled) actions.push(`<button class="btn" data-action="report-claim">Report claim</button>`);
+  const lastTerm = p.terms[p.terms.length - 1];
+  if (p.auditable && !cancelled && !p.openJob && lastTerm && S.meta.today >= lastTerm.expirationDate && !p.audits.some((a) => a.termNumber === lastTerm.termNumber) && me().authority >= 1) actions.push('<button class="btn" data-action="policy-audit">Premium audit</button>');
   if (cancelled && !p.openJob) actions.push(`<button class="btn primary" data-action="policy-reinstate">Reinstate</button>`);
 
   view(`
@@ -471,6 +473,7 @@ const POLICY_TABS = {
   ]), 'No documents'),
   history: (p) => p.terms.map((t) => `<h3>Term ${t.termNumber}: ${esc(t.effectiveDate)} → ${esc(t.expirationDate)}</h3>`
     + table(['Version job', 'Type', 'Effective', '$Term total', 'Bound'], t.versions.map((v) => [esc(v.jobNumber), esc(v.jobType), esc(v.editEffectiveDate), money(v.total), when(v.boundAt)]))).join('')
+    + (p.audits.length ? '<h3>Premium audits</h3>' + table(['Term', 'Job', '$Estimated premium', '$Audited premium', '$Difference', 'Completed'], p.audits.map((a) => [a.termNumber, esc(a.jobNumber), money(a.estimatedPremium), money(a.auditedPremium), money(a.difference), when(a.completedAt)])) : '')
     + '<h3>All jobs on this policy</h3>'
     + table(['Job', 'Type', 'Effective', 'Status', '$Amount'], p.jobs.map((j) => [jobLink(j), esc(j.type), esc(j.effectiveDate), badge(j.status), money(j.amount)])),
   events: (p) => eventsTable(p.events),
@@ -631,6 +634,7 @@ function setJob(job) {
 const isEditable = (job) => OPEN.includes(job.status) && EDITABLE_TYPES.includes(job.type);
 
 function jobSteps(job) {
+  if (job.type === 'PremiumAudit') return [['audit', 'Audit figures'], ['quote', 'Quote']];
   if (!EDITABLE_TYPES.includes(job.type)) return [['summary', 'Summary']];
   if (job.product === 'Umbrella') return [['info', 'Policy info'], ['underlying', 'Underlying insurance'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
   if (job.product === 'Businessowners') return [['info', 'Policy info'], ['locations', 'Locations'], ['exposures', 'Classes of business'], ['coverages', 'Coverages'], ['risk', 'Risk analysis'], ['quote', 'Quote']];
@@ -653,11 +657,12 @@ function renderJob() {
   const editable = isEditable(job);
   const steps = jobSteps(job);
   const q = job.quote;
-  const amountLabel = job.type === 'PolicyChange' ? 'Change in premium' : job.type === 'Cancellation' ? 'Return premium' : job.type === 'Reinstatement' ? 'Premium restored' : 'Total cost';
-  const bindLabel = { Submission: 'Bind & issue', PolicyChange: 'Bind change', Renewal: 'Bind renewal', Cancellation: 'Bind cancellation', Reinstatement: 'Reinstate policy' }[job.type];
+  const amountLabel = job.type === 'PremiumAudit' ? 'Audit: additional (or return) premium' : job.type === 'PolicyChange' ? 'Change in premium' : job.type === 'Cancellation' ? 'Return premium' : job.type === 'Reinstatement' ? 'Premium restored' : 'Total cost';
+  const bindLabel = { Submission: 'Bind & issue', PolicyChange: 'Bind change', Renewal: 'Bind renewal', Cancellation: 'Bind cancellation', Reinstatement: 'Reinstate policy', PremiumAudit: 'Complete audit' }[job.type];
   const u = me();
   const buttons = [];
   if (editable) buttons.push('<button class="btn" data-action="job-save">Save draft</button>', '<button class="btn primary" data-action="job-quote">Quote</button>');
+  if (job.type === 'PremiumAudit' && OPEN.includes(job.status)) buttons.push('<button class="btn" data-action="audit-save">Save figures</button>', '<button class="btn primary" data-action="job-quote">Quote</button>');
   if (job.status === 'Quoted') buttons.push(`<button class="btn success" data-action="job-bind">${bindLabel}</button>`);
   if (job.type === 'Submission' && OPEN.includes(job.status) && u.authority >= 1) buttons.push('<button class="btn danger" data-action="job-decline">Decline</button>');
   if (OPEN.includes(job.status)) buttons.push('<button class="btn" data-action="job-withdraw">Withdraw</button>');
@@ -832,6 +837,18 @@ const STEPS = {
           ${editable ? `<div style="margin-top:10px"><button class="btn small danger" data-action="remove-vehicle" data-index="${i}">Remove ${bikes ? 'bike' : 'vehicle'}</button></div>` : ''}
         </fieldset>`;
       }).join('')}`;
+  },
+
+  audit(job) {
+    const spec = job.product === 'WorkersComp' ? { key: 'classes', fields: [['payroll', 'Payroll'], ['employees', 'Employees']] } : { key: 'exposures', fields: [['amount', 'Receipts or payroll']] };
+    const rows = job.period.line[spec.key];
+    const open = OPEN.includes(job.status);
+    return `<h2>Audit figures for term ${esc(job.audit.termNumber)}</h2>
+      <p class="muted">Enter what actually happened during the term. The premium is worked out again on these figures for the whole term, and the difference is billed or returned.</p>
+      ${table(['Class', 'Description'].concat(spec.fields.flatMap(([, label]) => [`Estimated ${label.toLowerCase()}`, `Actual ${label.toLowerCase()}`])), rows.map((row, i) => [esc(row.classCode), esc(row.description)].concat(spec.fields.flatMap(([f]) => [
+        f === 'employees' ? esc(job.audit.estimated[i] ? job.audit.estimated[i][f] : 0) : usd0(job.audit.estimated[i] ? job.audit.estimated[i][f] : 0),
+        `<input type="number" min="0" data-audit="${i}:${f}" value="${esc(row[f])}" ${open ? '' : 'disabled'} aria-label="Actual ${esc(f)} for class ${esc(row.classCode)}" style="width:130px">`,
+      ]))))}`;
   },
 
   questions(job, draft, editable) {
@@ -1574,6 +1591,7 @@ const ACTIONS = {
   'job-quote': async () => {
     S.jv.errors = null;
     try {
+      if (S.jv.job.type === 'PremiumAudit' && document.querySelector('[data-audit]')) await ACTIONS['audit-save']();
       await saveDraft();
       const job = await api('POST', `/jobs/${S.jv.job.id}/quote`);
       setJob(job);
@@ -1730,6 +1748,25 @@ const ACTIONS = {
       </div>
       <p class="muted">Payable now: ${money(Number(d.payable))}. A larger payment is refused.</p>
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Pay</button></div></form>`),
+  'audit-save': async () => {
+    const byIndex = {};
+    for (const el of document.querySelectorAll('[data-audit]')) {
+      const [i, f] = el.dataset.audit.split(':');
+      (byIndex[i] = byIndex[i] || { index: Number(i) })[f] = el.value === '' ? 0 : Number(el.value);
+    }
+    S.jv.errors = null;
+    try {
+      const job = await api('POST', `/jobs/${S.jv.job.id}/audit-actuals`, { actuals: Object.values(byIndex) });
+      setJob(job);
+      S.jv.step = 'audit';
+      toast('Audit figures saved', 'success');
+    } catch (err) {
+      if (err.details && err.details.errors) S.jv.errors = err.details.errors;
+      else throw err;
+    }
+    renderJob();
+  },
+  'policy-audit': async () => { const job = await api('POST', `/policies/${S.policy.id}/audit`, {}); toast('Premium audit started', 'success'); location.hash = `#/job/${job.id}`; },
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);

@@ -25,6 +25,7 @@ const DOC_LABELS = {
     premiumTitle: 'Premium', coverage: 'Cover', amount: 'Amount', premium: 'Premium', taxes: 'Taxes', fees: 'Fees', total: 'Total term cost', rateBook: 'Rate book',
     cancellationEffective: 'Cancellation effective', reason: 'Reason', returnPremium: 'Return premium', signedBy: 'Signed electronically by', signedOn: 'on',
     signatureNote: 'By typing their name and agreeing, the signer accepted this document as shown above.', issuedFor: 'issued to',
+    auditTerm: 'Term audited', estimatedPremium: 'Estimated premium (incl. tax)', auditedPremium: 'Audited premium (incl. tax)', auditDifference: 'Additional (or return) premium',
   },
   hi: {
     company: 'सिम्युलेटेड म्यूचुअल इंश्योरेंस कंपनी', policyNumber: 'पॉलिसी संख्या', documentNumber: 'दस्तावेज़ संख्या', product: 'उत्पाद', insured: 'नामित बीमाधारक',
@@ -32,6 +33,7 @@ const DOC_LABELS = {
     premiumTitle: 'प्रीमियम', coverage: 'कवर', amount: 'राशि', premium: 'प्रीमियम', taxes: 'कर', fees: 'शुल्क', total: 'अवधि की कुल लागत', rateBook: 'दर पुस्तिका',
     cancellationEffective: 'रद्दीकरण प्रभावी', reason: 'कारण', returnPremium: 'वापसी प्रीमियम', signedBy: 'इलेक्ट्रॉनिक रूप से हस्ताक्षरकर्ता', signedOn: 'दिनांक',
     signatureNote: 'अपना नाम लिखकर और सहमति देकर हस्ताक्षरकर्ता ने इस दस्तावेज़ को ऊपर दिखाए अनुसार स्वीकार किया।', issuedFor: 'जारी किया गया',
+    auditTerm: 'ऑडिट की गई अवधि', estimatedPremium: 'अनुमानित प्रीमियम (कर सहित)', auditedPremium: 'ऑडिट किया गया प्रीमियम (कर सहित)', auditDifference: 'अतिरिक्त (या वापसी) प्रीमियम',
   },
   te: {
     company: 'సిమ్యులేటెడ్ మ్యూచువల్ ఇన్సూరెన్స్ కంపెనీ', policyNumber: 'పాలసీ నంబర్', documentNumber: 'పత్రం నంబర్', product: 'ఉత్పత్తి', insured: 'పేరున్న బీమాదారు',
@@ -39,13 +41,14 @@ const DOC_LABELS = {
     premiumTitle: 'ప్రీమియం', coverage: 'కవర్', amount: 'మొత్తం', premium: 'ప్రీమియం', taxes: 'పన్నులు', fees: 'రుసుములు', total: 'కాలవ్యవధి మొత్తం ఖర్చు', rateBook: 'రేట్ బుక్',
     cancellationEffective: 'రద్దు అమలు', reason: 'కారణం', returnPremium: 'తిరిగి ఇచ్చే ప్రీమియం', signedBy: 'ఎలక్ట్రానిక్‌గా సంతకం చేసినవారు', signedOn: 'తేదీ',
     signatureNote: 'తమ పేరు టైప్ చేసి అంగీకరించడం ద్వారా సంతకం చేసినవారు ఈ పత్రాన్ని పైన చూపిన విధంగా అంగీకరించారు.', issuedFor: 'జారీ చేయబడింది',
+    auditTerm: 'ఆడిట్ చేసిన కాలవ్యవధి', estimatedPremium: 'అంచనా ప్రీమియం (పన్నుతో సహా)', auditedPremium: 'ఆడిట్ చేసిన ప్రీమియం (పన్నుతో సహా)', auditDifference: 'అదనపు (లేదా తిరిగి ఇచ్చే) ప్రీమియం',
   },
 };
 
 const DOC_NAMES = {
-  en: { 'Declarations Page': 'Declarations Page', 'Auto ID Cards': 'Auto ID Cards', 'Evidence of Insurance': 'Evidence of Insurance', 'Policy Change Endorsement': 'Policy Change Endorsement', 'Renewal Declarations Page': 'Renewal Declarations Page', 'Notice of Cancellation': 'Notice of Cancellation', 'Notice of Reinstatement': 'Notice of Reinstatement' },
-  hi: { 'Declarations Page': 'घोषणा पृष्ठ', 'Auto ID Cards': 'ऑटो आईडी कार्ड', 'Evidence of Insurance': 'बीमा का प्रमाण', 'Policy Change Endorsement': 'पॉलिसी परिवर्तन पृष्ठांकन', 'Renewal Declarations Page': 'नवीनीकरण घोषणा पृष्ठ', 'Notice of Cancellation': 'रद्दीकरण की सूचना', 'Notice of Reinstatement': 'पुनर्बहाली की सूचना' },
-  te: { 'Declarations Page': 'డిక్లరేషన్స్ పేజీ', 'Auto ID Cards': 'ఆటో ఐడి కార్డ్‌లు', 'Evidence of Insurance': 'బీమా రుజువు', 'Policy Change Endorsement': 'పాలసీ మార్పు ఎండార్స్‌మెంట్', 'Renewal Declarations Page': 'పునరుద్ధరణ డిక్లరేషన్స్ పేజీ', 'Notice of Cancellation': 'రద్దు నోటీసు', 'Notice of Reinstatement': 'పునరుద్ధరణ నోటీసు' },
+  en: { 'Declarations Page': 'Declarations Page', 'Auto ID Cards': 'Auto ID Cards', 'Evidence of Insurance': 'Evidence of Insurance', 'Policy Change Endorsement': 'Policy Change Endorsement', 'Renewal Declarations Page': 'Renewal Declarations Page', 'Notice of Cancellation': 'Notice of Cancellation', 'Notice of Reinstatement': 'Notice of Reinstatement', 'Premium Audit Statement': 'Premium Audit Statement' },
+  hi: { 'Declarations Page': 'घोषणा पृष्ठ', 'Auto ID Cards': 'ऑटो आईडी कार्ड', 'Evidence of Insurance': 'बीमा का प्रमाण', 'Policy Change Endorsement': 'पॉलिसी परिवर्तन पृष्ठांकन', 'Renewal Declarations Page': 'नवीनीकरण घोषणा पृष्ठ', 'Notice of Cancellation': 'रद्दीकरण की सूचना', 'Notice of Reinstatement': 'पुनर्बहाली की सूचना', 'Premium Audit Statement': 'प्रीमियम ऑडिट विवरण' },
+  te: { 'Declarations Page': 'డిక్లరేషన్స్ పేజీ', 'Auto ID Cards': 'ఆటో ఐడి కార్డ్‌లు', 'Evidence of Insurance': 'బీమా రుజువు', 'Policy Change Endorsement': 'పాలసీ మార్పు ఎండార్స్‌మెంట్', 'Renewal Declarations Page': 'పునరుద్ధరణ డిక్లరేషన్స్ పేజీ', 'Notice of Cancellation': 'రద్దు నోటీసు', 'Notice of Reinstatement': 'పునరుద్ధరణ నోటీసు', 'Premium Audit Statement': 'ప్రీమియం ఆడిట్ స్టేట్‌మెంట్' },
 };
 
 // The text of the WhatsApp template "document_ready" that Meta must approve, in each language. {{1}} is the customer's name,
@@ -101,8 +104,13 @@ class Documents {
       }</tbody><tfoot><tr><td>${esc(L.premium)}</td><td class="n">${esc(money(q.premium))}</td></tr><tr><td>${esc(L.taxes)}</td><td class="n">${esc(money(q.taxes))}</td></tr>${q.fees ? `<tr><td>${esc(L.fees)}</td><td class="n">${esc(money(q.fees))}</td></tr>` : ''}<tr><td>${esc(L.total)}</td><td class="n">${esc(money(q.total))}</td></tr></tfoot></table><p class="co">${esc(L.rateBook)}: ${esc(q.rateBook.code)} ${esc(q.rateBook.version)}</p>`;
       text.push(`${L.total}: ${money(q.total)}`);
     } else {
-      const c = policy.cancellation || ((policy.reinstatements || []).slice(-1)[0] || {}).cancellation || {};
-      rows.push([L.cancellationEffective, c.effectiveDate || '—'], [L.reason, c.reasonName || '—'], [L.returnPremium, c.refund ? money(-c.refund) : '—']);
+      if (doc.data && doc.data.audit) {
+        const a = doc.data.audit;
+        rows.push([L.auditTerm, String(a.termNumber)], [L.estimatedPremium, money(a.estimatedPremium)], [L.auditedPremium, money(a.auditedPremium)], [L.auditDifference, money(a.difference)]);
+      } else {
+        const c = policy.cancellation || ((policy.reinstatements || []).slice(-1)[0] || {}).cancellation || {};
+        rows.push([L.cancellationEffective, c.effectiveDate || '—'], [L.reason, c.reasonName || '—'], [L.returnPremium, c.refund ? money(-c.refund) : '—']);
+      }
     }
     const html = `<!doctype html><html lang="${language}"><head><meta charset="utf-8"><title>${esc(title)} · ${esc(policy.policyNumber)}</title><style>${STYLE}</style></head><body>`
       + `<div class="co">${esc(L.company)}</div><h1>${esc(title)}</h1>`

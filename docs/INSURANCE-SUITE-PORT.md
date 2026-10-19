@@ -79,3 +79,12 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 - The customer chooses the term on the Policy info step of a submission (not after binding). A product with a fixed term (Personal Auto, the business lines) refuses another length.
 - The term sets the expiration date, the price (the term factor on every product; Two-Wheeler adds a 3% discount at 2 years and 5% at 3 years, kept in the rate book), the instalments (a quarterly plan on three years is twelve instalments), the pro rata refund on cancellation (over the whole term), and the renewal (the same length again).
 - Homeowners rating was an annual rate with no term factor; a 12-month worksheet is unchanged, a longer term multiplies by its years and says so in the rate-level line.
+
+## Tier 3, item 10 (c): premium audit
+
+`startPremiumAudit`, `recordAuditActuals`, `bindAudit` in `src/policyCenter.js`; `test/premium-audit.test.js`.
+
+- For policies priced on an estimate (Workers' Compensation payroll, General Liability receipts or payroll). After the term ends an underwriter starts the audit, records the actual figures, quotes and binds the audit job. The premium is worked out again on the actuals for the **whole term**, and the difference against the estimated premium is billed as additional premium (due in 15 days) or credited as a return. One audit per term.
+- An audit changes only the audited figures, never the rest of the policy, and underwriting rules about the risk do not hold it up. No new policy version is added (an audit is an adjustment to the term, not a change of cover), so the policy as of a loss date is unaffected.
+- It posts to the books through the event `PremiumAuditCompleted`; a statement document (`Premium Audit Statement`, in English, Hindi and Telugu) is produced. Screens: a Premium audit button on a policy whose term has ended, an Audit figures step, and a Premium audits table in the policy history.
+- Not done: audits for Businessowners, adding a class that the business turned out to have, audit reminders and non-compliance charges.
