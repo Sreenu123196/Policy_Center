@@ -463,8 +463,8 @@ const POLICY_TABS = {
       ])) : '')
       + ledgerBlock();
   },
-  documents: (p) => table(['Document', 'Name', 'Job', 'Created', ''], p.documents.map((d) => [
-    esc(d.documentNumber), esc(d.name), esc(d.jobNumber), when(d.createdAt), `<button class="btn small" data-action="view-doc" data-id="${d.id}">View</button>`,
+  documents: (p) => table(['Document', 'Name', 'Job', 'Created', 'Signature', ''], p.documents.map((d) => [
+    esc(d.documentNumber), esc(d.name), esc(d.jobNumber), when(d.createdAt), d.signed ? `<span class="badge b-active">Signed</span> ${esc(d.signedBy)}` : '<span class="muted">Not signed</span>', `<button class="btn small" data-action="view-doc" data-id="${d.id}">View</button>`,
   ]), 'No documents'),
   history: (p) => p.terms.map((t) => `<h3>Term ${t.termNumber}: ${esc(t.effectiveDate)} → ${esc(t.expirationDate)}</h3>`
     + table(['Version job', 'Type', 'Effective', '$Term total', 'Bound'], t.versions.map((v) => [esc(v.jobNumber), esc(v.jobType), esc(v.editEffectiveDate), money(v.total), when(v.boundAt)]))).join('')
@@ -591,7 +591,12 @@ function docModal(id) {
       <div class="dec-head"><div class="eyebrow">Simulated Mutual Insurance Company</div><h2>${esc(doc.name)}</h2>
         <div>${esc(product(p.product).name)} policy <strong>${esc(p.policyNumber)}</strong> · ${esc(doc.documentNumber)}</div></div>
       ${body}</div>
-    <div class="actions no-print"><button class="btn" data-action="print">Print</button><button class="btn primary" data-action="close-modal">Close</button></div>`, true);
+    <div class="actions no-print">
+      <label class="field" style="flex-direction:row;align-items:center;gap:6px"><span>Document language</span><select id="doc-lang">${[['en', 'English'], ['hi', 'हिन्दी'], ['te', 'తెలుగు']].map(([v, n]) => `<option value="${v}">${n}</option>`).join('')}</select></label>
+      <button class="btn" data-action="doc-copy" data-id="${esc(doc.id)}">Customer copy</button>
+      ${doc.signed ? `<button class="btn" data-action="doc-verify" data-id="${esc(doc.id)}">Verify signature</button>` : `<button class="btn" data-action="doc-sign" data-id="${esc(doc.id)}">Sign</button>`}
+      <button class="btn" data-action="doc-send" data-id="${esc(doc.id)}">Send</button>
+      <button class="btn" data-action="print">Print</button><button class="btn primary" data-action="close-modal">Close</button></div>`, true);
 }
 
 // ------------------------------------------------------------------ job wizard
@@ -1593,6 +1598,33 @@ const ACTIONS = {
     <form data-form="assign-activity" data-id="${esc(d.id)}"><div class="form-errors" role="alert"></div>
       ${field('Assign to', `<select name="assigneeId">${S.meta.users.filter((x) => x.authority >= 1).map((x) => `<option value="${esc(x.id)}">${esc(x.name)} (${esc(x.role)})</option>`).join('')}</select>`)}
       <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Assign</button></div></form>`),
+  'doc-copy': (d) => window.open(`/api/documents/${encodeURIComponent(d.id)}/view?language=${encodeURIComponent((document.getElementById('doc-lang') || {}).value || 'en')}`, '_blank'),
+  'doc-verify': async (d) => {
+    const v = await api('GET', `/documents/${encodeURIComponent(d.id)}/verify`);
+    toast(v.valid ? `The signature is valid: signed by ${v.signerName} on ${v.signedAt}` : 'The signed copy does not match its fingerprint', v.valid ? 'success' : 'error');
+  },
+  'doc-sign': (d) => {
+    const language = (document.getElementById('doc-lang') || {}).value || 'en';
+    openModal(`<h2>Sign this document</h2>
+      <form data-form="doc-sign" data-id="${esc(d.id)}"><div class="form-errors" role="alert"></div>
+        ${field('Signer name (as the named insured)', '<input name="signerName" required autocomplete="off">')}
+        ${field('Document language', `<select name="language">${[['en', 'English'], ['hi', 'हिन्दी'], ['te', 'తెలుగు']].map(([v, n]) => `<option value="${v}" ${v === language ? 'selected' : ''}>${n}</option>`).join('')}</select>`)}
+        <label class="field check"><input type="checkbox" name="consent"> <span>I agree to sign this document</span></label>
+        <p class="muted">Typing the name and agreeing signs the document. The signed copy is fixed and cannot be changed.</p>
+        <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Sign</button></div></form>`);
+  },
+  'doc-send': (d) => {
+    const language = (document.getElementById('doc-lang') || {}).value || 'en';
+    openModal(`<h2>Send this document to the customer</h2>
+      <form data-form="doc-send" data-id="${esc(d.id)}"><div class="form-errors" role="alert"></div>
+        <div class="form-grid">
+          ${field('Channel', '<select name="channel"><option value="email">Email</option><option value="whatsapp">WhatsApp</option></select>')}
+          ${field('Document language', `<select name="language">${[['en', 'English'], ['hi', 'हिन्दी'], ['te', 'తెలుగు']].map(([v, n]) => `<option value="${v}" ${v === language ? 'selected' : ''}>${n}</option>`).join('')}</select>`)}
+        </div>
+        <label class="field check"><input type="checkbox" name="confirm"> <span>I have checked the recipient and the document</span></label>
+        <p class="muted">Email sends the document itself. WhatsApp sends a short approved message that the document is ready.</p>
+        <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn primary">Send</button></div></form>`);
+  },
   'run-consumers': async () => { const r = await api('POST', '/admin/events/run'); toast(`Consumers ran: ${r.reduce((n, x) => n + x.handled, 0)} events handled`, 'success'); pageAdmin(); },
   'redrive-event': async (d) => {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
@@ -1750,6 +1782,18 @@ const FORMS = {
     closeModal();
     toast('Item assigned', 'success');
     pageQueues();
+  },
+  'doc-sign': async (fd, form) => {
+    await api('POST', `/documents/${encodeURIComponent(form.dataset.id)}/sign`, { signerName: fd.get('signerName'), language: fd.get('language'), consent: fd.get('consent') === 'on' });
+    closeModal();
+    toast('Document signed', 'success');
+    await loadPolicy(S.policy.id);
+    renderPolicy();
+  },
+  'doc-send': async (fd, form) => {
+    const m = await api('POST', `/documents/${encodeURIComponent(form.dataset.id)}/deliver`, { channel: fd.get('channel'), language: fd.get('language'), confirm: fd.get('confirm') === 'on' });
+    closeModal();
+    toast(m.status === 'Sent' ? `Sent by ${m.channel} to ${m.to}` : `Could not send: ${m.error}`, m.status === 'Sent' ? 'success' : 'error');
   },
   'record-payment': async (fd) => {
     const payment = await api('POST', `/policies/${S.policy.id}/payments`, { amount: Number(fd.get('amount')), method: fd.get('method'), reference: fd.get('reference'), receivedOn: fd.get('receivedOn') });

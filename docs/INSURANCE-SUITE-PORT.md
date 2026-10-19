@@ -42,3 +42,12 @@ Code in `src/reports.js`, tests in `test/reports-new.test.js`, screen at `#/repo
 - Tickets screens, Reports, Claims screens: done.
 - Hindi and Telugu screens and accessibility: see `docs/ACCESSIBILITY.md`.
 - Work queues (`#/queues`, API `GET /api/queues`): one place for underwriting referrals, claims handling and collections. Counts per queue (open, late, waiting for someone, mine), take an item from a shared queue, a UW manager assigns an item to a person, late items are flagged. Agents see only the referrals on their own accounts. The claims and collections queues are filled by event consumers (`src/consumers.js`).
+
+## Tier 3, item 8: forms and documents
+
+`src/documents.js`, `test/documents.test.js`, the Documents tab of a policy.
+
+- **Languages:** any policy document can be produced in English, Hindi or Telugu (`GET /api/documents/:id/render?language=`; `/view` returns a page of its own to print or save as PDF from the browser, which has the Indic fonts). The fixed wording is translated; names, numbers, dates, money and the names of covers are not. Customer text is escaped.
+- **Electronic signature:** `POST /api/documents/:id/sign`. The insured types their name (it must match the named insured) and agrees. The signed copy, the exact page the signer saw, is stored with its SHA-256 and is what the document is from then on. `GET /api/documents/:id/verify` checks the fingerprint. An agent can capture the signature on the customer's behalf (recorded as `capturedBy`). This is a typed-name signature, not a certified digital signature.
+- **Delivery:** `POST /api/documents/:id/deliver`. Email sends the document itself (HTML). WhatsApp sends the template `document_ready` (WhatsApp only allows approved templates for business-initiated messages; the text to submit to Meta is `DOC_WHATSAPP` in `src/documents.js`, in the three languages). Every attempt, including a failure, is saved on the customer's messages.
+- **Not done:** form inference (choosing the forms a policy needs from its coverages), PDF files with embedded Indic fonts, certified e-signature providers (Aadhaar eSign, DocuSign), and a WhatsApp document attachment.

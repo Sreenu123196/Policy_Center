@@ -195,8 +195,8 @@ function emailTransport(env = process.env, nodemailer = require('nodemailer')) {
   const from = env.EMAIL_FROM_NAME ? `"${env.EMAIL_FROM_NAME}" <${user}>` : user;
   return {
     status: () => ({ enabled: true, from: user }),
-    send: async ({ to, subject, text }) => {
-      const info = await transporter.sendMail({ from, to, subject, text });
+    send: async ({ to, subject, text, html }) => {
+      const info = await transporter.sendMail({ from, to, subject, text, ...(html ? { html } : {}) });
       return { id: info.messageId };
     },
   };

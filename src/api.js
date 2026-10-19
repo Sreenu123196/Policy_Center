@@ -10,6 +10,7 @@ const { Finance } = require('./finance');
 const { Insights } = require('./insights');
 const { Billing } = require('./billing');
 const { Reports } = require('./reports');
+const { Documents } = require('./documents');
 const { ClaimMoney, RESERVE_LIMITS, PAYMENT_LIMITS, COST_TYPES, CLAIMANT_KINDS } = require('./claimMoney');
 
 const hash = (v) => crypto.createHash('sha256').update(typeof v === 'string' ? v : JSON.stringify(v)).digest('hex');
@@ -32,6 +33,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   const billing = new Billing(pc);
   const claimMoney = new ClaimMoney(pc);
   const reports = new Reports(pc, billing);
+  const documents = new Documents(pc, messaging);
   // readOnly routes run outside the store's unit of work (the chatbot only reads data).
   // raw routes receive the request body as bytes (audio) instead of JSON.
   // public routes need no sign-in (login and the sign-in check). Everything else needs a valid session.
@@ -129,6 +131,17 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus } 
   route('POST', '/claims/:id/exposures/:number/reserve', ({ user, params, body }) => { claimMoney.setExposureReserve(user, params.id, params.number, body.amount); return pc.claimDetail(params.id, user); });
   route('POST', '/claims/:id/exposures/:number/payments', ({ user, params, body }) => ({ result: claimMoney.payExposure(user, params.id, params.number, body), claim: pc.claimDetail(params.id, user) }));
   route('POST', '/claims/:id/payments/:paymentId/approve', ({ user, params }) => ({ result: claimMoney.approvePayment(user, params.id, params.paymentId), claim: pc.claimDetail(params.id, user) }));
+  // Documents in English, Hindi or Telugu; electronic signature; delivery by email or WhatsApp.
+  route('GET', '/documents/:id/render', ({ user, params, query }) => documents.render(user, params.id, { language: query.get('language') || undefined }));
+  // The document as a page of its own, for printing or saving as PDF from the browser (which has the Hindi and Telugu fonts).
+  route('GET', '/documents/:id/view', ({ user, params, query }, res) => {
+    const doc = documents.render(user, params.id, { language: query.get('language') || undefined });
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'", 'X-Content-Type-Options': 'nosniff' });
+    res.end(doc.html);
+  }, { stream: true });
+  route('POST', '/documents/:id/sign', ({ user, params, body }) => documents.sign(user, params.id, body));
+  route('GET', '/documents/:id/verify', ({ user, params }) => documents.verify(user, params.id));
+  route('POST', '/documents/:id/deliver', ({ user, params, body }) => documents.deliver(user, params.id, body));
   route('GET', '/activities', ({ user, query }) => pc.activities(user, { all: query.get('all') === 'true', type: query.get('type') || undefined }));
   // Work queues: what waits in each queue, taking an item, and a manager giving one to a person.
   route('GET', '/queues', ({ user }) => pc.queueSummary(user));

@@ -1199,7 +1199,8 @@ class PolicyCenter {
       payments: billing ? this.db.payments.filter((x) => x.policyId === policy.id) : [],
       refunds: billing ? this.db.refunds.filter((x) => x.policyId === policy.id) : [],
       credit: billing ? round2(this.db.payments.filter((x) => x.policyId === policy.id).reduce((sum, x) => sum + x.unapplied, 0)) : 0,
-      documents: this.db.documents.filter((d) => d.policyId === policy.id),
+      // A signed document is listed with who signed and when; the signed copy itself is fetched through the documents API.
+      documents: this.db.documents.filter((d) => d.policyId === policy.id).map(({ signature, ...d }) => ({ ...d, signed: Boolean(signature), signedBy: signature ? signature.signerName : null, signedAt: signature ? signature.signedAt : null })),
       events: this.db.events.filter((e) => e.payload.policyNumber === policy.policyNumber).reverse(),
       jobs: this.db.jobs.filter((j) => j.policyId === policy.id).map((j) => this.jobSummary(j)).reverse(),
       openJob: this.db.jobs.find((j) => j.policyId === policy.id && OPEN.includes(j.status)) ? this.jobSummary(this.db.jobs.find((j) => j.policyId === policy.id && OPEN.includes(j.status))) : null,
