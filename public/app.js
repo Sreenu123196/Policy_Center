@@ -1304,12 +1304,12 @@ const FOLLOW_CHANNELS = ['Phone', 'Email', 'SMS', 'Visit', 'Letter'];
 const FOLLOW_RESULTS = ['Interested', 'Callback requested', 'No answer', 'Not reachable', 'Declined', 'Renewed', 'Other'];
 
 // Opens the customer's WhatsApp chat or email app with the renewal (or lapse) message filled in.
-// The message comes from the saved templates. WhatsApp opens the chat; email is sent by the server when it is set up, else the email app opens.
+// The message comes from the saved templates. WhatsApp opens the chat; email is sent by the server (Gmail) when it is set up, else Gmail's compose window opens.
 async function contactRenewal(d) {
   const language = (document.getElementById('renewal-lang') || {}).value || 'en';
   const channel = d.channel;
   // Pop-up blockers allow a new tab only when it is opened straight from the click, so open it first.
-  const tab = channel === 'whatsapp' ? window.open('', '_blank') : null;
+  const tab = window.open('', '_blank');
   try {
     const p = await api('POST', '/messages/preview', { accountId: d.account, policyId: d.policy, template: d.status === 'Lapsed' ? 'lapse' : 'renewal', channel, language });
     if (!p.to) {
@@ -1321,12 +1321,14 @@ async function contactRenewal(d) {
       // With email set up on the server (GMAIL_USER and GMAIL_APP_PASSWORD) the message is sent from here; otherwise the email app opens.
       const status = await api('GET', '/messages/status');
       if (status.channels && status.channels.email && status.channels.email.enabled) {
+        if (tab) tab.close();
         if (!window.confirm(`Send this ${d.status === 'Lapsed' ? 'lapse' : 'renewal'} email to ${p.to}?\n\nSubject: ${p.subject || ''}`)) return;
         const rec = await api('POST', '/messages/send', { accountId: d.account, policyId: d.policy, template: d.status === 'Lapsed' ? 'lapse' : 'renewal', channel, language, confirm: true });
         toast(rec.status === 'Sent' ? `Email sent to ${p.to} (${rec.messageNumber})` : `Email failed: ${rec.error}`, rec.status === 'Sent' ? 'success' : 'error');
         return;
       }
-      window.location.href =`mailto:${p.to}?subject=${encodeURIComponent(p.subject || '')}&body=${encodeURIComponent(p.body)}`;
+      // Not set up on the server: Gmail's compose window opens with the message filled in.
+      tab.location.href = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(p.to)}&su=${encodeURIComponent(p.subject || '')}&body=${encodeURIComponent(p.body)}`;
     } else {
       tab.location.href = `https://wa.me/${p.to}?text=${encodeURIComponent(p.body)}`;
     }
