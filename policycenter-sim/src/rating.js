@@ -146,8 +146,11 @@ function ratePersonalAuto(period, ctx) {
   if (period.line.vehicles.length >= 2) discounts.push(['MultiCarDiscount', 'Multi-car discount', t.discounts.multiCar]);
   if (ctx.multiPolicy) discounts.push(['MultiPolicyDiscount', 'Multi-policy discount (Homeowners in force)', t.discounts.multiPolicy]);
   if (period.paymentPlan === 'PaidInFull') discounts.push(['PaidInFullDiscount', 'Paid-in-full discount', t.discounts.paidInFull]);
+  // Earned at renewal from the policy's own claims record: the count is set by the renewal, never typed in.
+  const claimFree = period.line.claimFreeRenewals || 0;
+  if (claimFree >= 1) discounts.push(['ClaimFreeDiscount', `Claim-free renewal discount (${claimFree} claim-free renewal${claimFree > 1 ? 's' : ''})`, t.claimFreeDiscounts[Math.min(claimFree, t.claimFreeDiscounts.length) - 1]]);
   for (const [code, name, pct] of discounts) {
-    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${pct * 100}%)`, -pct);
+    const ws = new Worksheet('Coverage premium subtotal', subtotal).x(`${name} (${Math.round(pct * 10000) / 100}%)`, -pct);
     costs.push(cost({ type: 'Discount', coverable: 'Policy', coverageCode: code, coverageName: name }, ws));
   }
 

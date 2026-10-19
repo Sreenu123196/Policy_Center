@@ -49,6 +49,7 @@ const PA_TABLES = {
     { max: 50000, f: 1.25 }, { max: 80000, f: 1.6 }, { f: 2.1 },
   ],
   discounts: { multiCar: 0.1, multiPolicy: 0.12, paidInFull: 0.05 },
+  claimFreeDiscounts: [0.05, 0.1, 0.15], // after 1, 2, 3 or more claim-free renewals (src/policyCenter.js startRenewal counts them)
   taxRates: { CA: 0.0235, FL: 0.0175, IL: 0.005, NY: 0.02, OH: 0.014, TX: 0.0185 },
   policyFee: 25,
 };

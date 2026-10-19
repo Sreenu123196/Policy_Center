@@ -475,6 +475,7 @@ class PolicyCenter {
           coverages: normalizeCoverages(pm.vehicleCoverages, v.coverages, ctx),
         })),
         lineCoverages: normalizeCoverages(pm.lineCoverages, line.lineCoverages, ctx),
+        claimFreeRenewals: prevLine ? prevLine.claimFreeRenewals || 0 : 0, // set by the renewal from the claims record; never taken from the caller
       };
     }
 
@@ -1021,6 +1022,21 @@ class PolicyCenter {
     }, user);
   }
 
+  // The policy's own claims in a term (a rejected claim does not count): how many, which, and what they cost so far.
+  claimExperience(policy, term) {
+    const claims = this.db.claims.filter((c) => c.policyId === policy.id && c.status !== 'Rejected' && c.lossDate >= term.effectiveDate && c.lossDate < term.expirationDate);
+    const incurred = claims.reduce((sum, c) => sum + Math.max(c.reserve || 0, c.payments.reduce((s, p) => s + p.amount, 0)), 0);
+    return { termNumber: term.termNumber, claims: claims.length, claimNumbers: claims.map((c) => c.claimNumber), incurred: round2(incurred) };
+  }
+
+  // Feeds the claims record into the renewal's risk: a claim-free term adds one to the claim-free renewals (the discount
+  // in rating); a claim resets that count and adds to the loss history the rating and underwriting rules read.
+  applyClaimExperience(product, line, experience) {
+    if (product === 'PersonalAuto') line.claimFreeRenewals = experience.claims === 0 ? (line.claimFreeRenewals || 0) + 1 : 0;
+    else if (product === 'Homeowners') line.dwelling.priorClaims = (line.dwelling.priorClaims || 0) + experience.claims;
+    else if (typeof line.claimsLast5Years === 'number') line.claimsLast5Years += experience.claims;
+  }
+
   startRenewal(policyId, user) {
     const policy = this.policy(policyId, user);
     this.assertNotCancelled(policy);
@@ -1031,6 +1047,8 @@ class PolicyCenter {
     if (daysToExpiry < -30) throw new AppError(422, 'Policy lapsed more than 30 days ago; write a new submission instead');
     const period = clone(last.latest.period);
     const pm = PRODUCTS[policy.product];
+    const experience = this.claimExperience(policy, last);
+    this.applyClaimExperience(policy.product, period.line, experience);
     period.termNumber = last.termNumber + 1;
     period.effectiveDate = period.editEffectiveDate = last.expirationDate;
     period.expirationDate = D.addMonths(last.expirationDate, pm.termMonths);
@@ -1038,6 +1056,7 @@ class PolicyCenter {
       accountId: policy.accountId, product: policy.product, period, policyId: policy.id,
       basedOnVersionId: last.latest.versionId, uwApprovals: clone(policy.uwApprovals || {}),
     }, user);
+    job.claimExperience = experience;
     try {
       this.quote(job.id, user);
     } catch (err) {

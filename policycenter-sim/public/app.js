@@ -591,6 +591,7 @@ function renderJob() {
       <div class="header-total"><div class="eyebrow">${amountLabel}</div><div class="value">${q ? money(q.changeAmount) : '—'}</div>${q && q.rateBook ? `<div class="muted">Rate book ${esc(q.rateBook.version)}</div>` : ''}</div>
     </div>
     ${notice(job.notice)}
+    ${job.claimExperience ? `<div class="banner ${job.claimExperience.claims ? 'warning' : 'success'}">Claims record of term ${job.claimExperience.termNumber}: ${job.claimExperience.claims === 0 ? 'no claims, so this renewal earns or keeps the claim-free renewal discount.' : `${job.claimExperience.claims} claim${job.claimExperience.claims > 1 ? 's' : ''} (${job.claimExperience.claimNumbers.map((n) => esc(n)).join(', ')}) were added to the loss history; the claim-free discount does not apply.`}</div>` : ''}
     ${S.jv.errors ? errorList(S.jv.errors, 'Fix these before quoting') : ''}
     <div class="wizard">
       <nav class="steps">${steps.map(([k, n], i) => `<button class="${step === k ? 'active' : ''}" data-action="job-step" data-step="${k}"><span class="n">${i + 1}</span>${n}${k === 'risk' && job.uwIssues && job.uwIssues.some((x) => !x.approved) ? ' <span class="badge b-pending">!</span>' : ''}</button>`).join('')}</nav>
