@@ -37,6 +37,10 @@ The agents are **rule-based and deterministic today**. The model each one lists 
 
 `GET /api/agents/underwriting/backtest` replays the underwriting agent over past decisions and counts where it agrees with people, where it was more cautious (referred what a level-1 person approved) and where it would have gone too far (approved what a person declined). Other agents need their own backtest before they are given more freedom. The rule for widening an agent: switch it on in `suggest`, watch the acceptance rate and the compliance agent's findings for a period, backtest, and only then consider an acting mode, one agent and one kind of case at a time.
 
+## The screens
+
+Menu **AI agents** (UW managers and underwriters). **Suggestions**: the approval queue, filtered by Open / Accepted / Dismissed, each with its reasons; Accept shows what will happen and runs as you, Dismiss asks for an optional note. **Agents** (managers): switch each agent on or off, edit its limits, run the agents now, run the underwriting backtest, and see the planned agents and what they wait for. **Audit log** (managers): the latest 100 entries and a button that verifies the chain. Hindi and Telugu entries for the new words are in `public/i18n.js` and need the same native-speaker review as the rest.
+
 ## API (all need sign-in)
 
 | Route | Who |
@@ -51,7 +55,7 @@ The agents are **rule-based and deterministic today**. The model each one lists 
 
 ## Not done
 
-- **Screens.** There is no agents page or approval queue in the browser yet; everything is on the API. The existing Desktop work queues are the natural place for the suggestions.
+- **Suggestions on the Desktop and in the Work queues.** The agents page (menu: AI agents) has its own queue; suggestions are not yet mixed into the Desktop or the Work queues pages.
 - **Acting agents** (plan phase 4), the claims and fraud agents (phase 5), and every planned agent in the table above.
 - **A payment-reminder message template** (there are renewal, lapse and claim-update templates only), so the billing agent proposes a contact for a person to make.
 - **Fairness testing** across groups. The compliance agent catches a protected trait named in a reason; testing outcomes for unfair differences needs real case data.

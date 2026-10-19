@@ -172,6 +172,7 @@ const ROUTES = [
   [/^#\/search\/(.*)$/, pageSearch],
   [/^#\/sales$/, pageSales],
   [/^#\/staff$/, pageStaff],
+  [/^#\/agents$/, pageAgents],
   [/^#\/finance$/, pageFinance],
   [/^#\/insights$/, pageInsights],
   [/^#\/admin$/, pageAdmin],
@@ -1200,6 +1201,66 @@ async function pageQueues() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ AI agents
+
+const AGENT_NAMES = { renewal: 'Renewal agent', 'keep-customers': 'Keep-customers agent', billing: 'Billing agent', underwriting: 'Underwriting agent', compliance: 'Compliance check agent' };
+const SUGGESTION_KINDS = { start_renewal: 'Start a renewal', contact: 'Contact the customer', no_contact_details: 'No contact details', reminder: 'Payment reminder', escalate: 'Needs a person', recommend_approval: 'Recommend approval', refer: 'Refer to a person', finding: 'Finding' };
+const LIMIT_LABELS = {
+  maxDaysBeforeEnd: 'Looks ahead (days)', minDaysBetweenContacts: 'Days between contacts', maxContacts: 'Most contacts',
+  reminderAfterDays: 'Remind after (days)', escalateAfterDays: 'Hand to a person after (days)',
+  maxApprovalLevel: 'Highest level it may recommend (1 = underwriter)', maxPremium: 'Largest premium ($)', maxAccidents: 'Most accidents',
+  minDecisions: 'Decisions before it is judged', dismissalRate: 'Dismissal rate that is flagged (0 to 1)',
+};
+
+// What accepting a suggestion will do, in words.
+function describeAgentAction(p) {
+  if (!p) return 'There is nothing to run. Dismiss it once you have dealt with it.';
+  if (p.action === 'start_renewal') return 'Accepting starts the renewal now, as you. You then quote and bind it as usual.';
+  if (p.action === 'approve_uw_issue') return `Accepting approves ${p.params.keys.join(', ')} as you, using your own authority. You still quote and bind as usual.`;
+  if (p.action === 'send_message') return `Accepting records your decision. Then send the ${p.params.template} message by ${p.params.channel} from the customer's page, and log the follow-up.`;
+  return 'Accepting records that you will contact the customer yourself. Log the follow-up afterwards.';
+}
+
+async function pageAgents() {
+  const manager = S.me.role === 'UW Manager';
+  const tab = manager ? (S.agentsTab || 'suggestions') : 'suggestions';
+  const tabs = [['suggestions', 'Suggestions'], ...(manager ? [['agents', 'Agents'], ['audit', 'Audit log']] : [])];
+  const bar = `<div class="tabs">${tabs.map(([k, n]) => `<button class="${tab === k ? 'active' : ''}" data-action="agents-tab" data-tab="${k}">${n}</button>`).join('')}</div>`;
+  let body = '';
+  if (tab === 'suggestions') {
+    const status = S.sugStatus === undefined ? 'Open' : S.sugStatus;
+    const rows = await api('GET', `/agents/suggestions${status ? `?status=${encodeURIComponent(status)}` : ''}`);
+    S.sugById = Object.fromEntries(rows.map((s) => [s.id, s]));
+    const forCell = (s) => (s.subject.jobId ? `<a href="#/job/${esc(s.subject.jobId)}">${esc(s.subject.jobNumber)}</a>` : s.subject.policyId ? `<a href="#/policy/${esc(s.subject.policyId)}">${esc(s.subject.policyNumber)}</a>` : '—');
+    body = `<div class="toolbar" style="margin-bottom:12px">${['Open', 'Accepted', 'Dismissed', ''].map((st) => `<button class="btn small ${status === st ? 'primary' : ''}" data-action="sug-filter" data-status="${st}" aria-pressed="${status === st}">${st || 'All'}</button>`).join('')}</div>
+      ${table(['Suggestion', 'Agent', 'What and why', 'For', 'Status', ''], rows.map((s) => [
+        esc(s.number), esc(AGENT_NAMES[s.agentId] || s.agentId),
+        `<strong>${esc(s.summary)}</strong> <span class="badge b-pending">${esc(SUGGESTION_KINDS[s.kind] || s.kind)}</span><ul class="muted" style="margin:6px 0 0;padding-left:18px">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>${s.decisionNote ? `<div class="muted">Note: ${esc(s.decisionNote)} (${esc(s.decidedByName || s.decidedBy)})</div>` : ''}`,
+        forCell(s), badge(s.status),
+        s.status === 'Open' ? `<div class="toolbar">${s.proposed ? `<button class="btn small primary" data-action="sug-decide" data-decision="accept" data-id="${esc(s.id)}">Accept</button>` : ''}<button class="btn small" data-action="sug-decide" data-decision="dismiss" data-id="${esc(s.id)}">Dismiss</button></div>` : '',
+      ]), 'No suggestions here')}`;
+  } else if (tab === 'agents') {
+    const agents = (await api('GET', '/agents')).sort((a, b) => (a.status === 'built' ? 0 : 1) - (b.status === 'built' ? 0 : 1)); // the built ones first
+    body = `<div class="toolbar" style="margin-bottom:12px"><button class="btn primary" data-action="agent-run">Run agents now</button></div>
+      ${table(['Agent', 'Status', 'What it does', 'Limits', 'Open', ''], agents.map((a) => (a.status === 'planned'
+        ? [`<strong>${esc(a.name)}</strong>`, badge('Planned'), `${esc(a.does)}<div class="muted">Waiting for: ${esc(a.needs)}</div>`, '—', '—', '']
+        : [`<strong>${esc(a.name)}</strong><div class="muted">${esc(a.freedom)}</div><div class="muted">Model for a later version: ${esc(a.model)}</div>`,
+          badge(a.mode === 'off' ? 'Off' : 'Suggesting'), esc(a.does),
+          Object.keys(a.limits).length ? `<form data-form="agent-limits" data-id="${esc(a.id)}"><div class="form-errors" role="alert"></div>${Object.entries(a.limits).map(([k, v]) => field(LIMIT_LABELS[k] || k, `<input type="number" step="any" min="0" name="${esc(k)}" value="${esc(v)}">`)).join('')}<button class="btn small">Save limits</button></form>` : '—',
+          String(a.openSuggestions),
+          `<div class="toolbar"><button class="btn small ${a.mode === 'off' ? 'primary' : 'danger'}" data-action="agent-mode" data-id="${esc(a.id)}" data-mode="${a.mode === 'off' ? 'suggest' : 'off'}">${a.mode === 'off' ? 'Switch on' : 'Switch off'}</button>${a.id === 'underwriting' ? `<button class="btn small" data-action="agent-backtest" data-id="${esc(a.id)}">Run backtest</button>` : ''}</div>`])))}`;
+  } else {
+    const entries = await api('GET', '/audit?limit=100');
+    body = `<div class="toolbar" style="margin-bottom:12px"><button class="btn" data-action="audit-verify">Verify the chain</button></div>
+      ${table(['Time', 'Who', 'Action', 'Subject', 'Why'], entries.map((e) => [
+        esc(String(e.at).replace('T', ' ').slice(0, 19)), `${badge(e.actor.kind === 'agent' ? 'Agent' : 'Person')} ${esc(e.actor.name)}`, esc(e.action), esc(e.subject || ''), esc((e.reasons || []).join('; ')),
+      ]), 'The audit log is empty')}`;
+  }
+  view(`<div class="eyebrow">Work</div><h1>AI agents</h1>
+    <div class="banner info">Agents only suggest, with their reasons. Nothing changes until a person accepts, and accepting runs as that person, with that person's authority. Every suggestion and every decision is written to the audit log.</div>
+    ${bar}<div class="card">${body}</div>`);
+}
+
 // ------------------------------------------------------------------ accounting and commission
 
 const ACCT_TABS = [['tb', 'Trial balance'], ['journal', 'Journal'], ['recon', 'Reconciliation'], ['close', 'Month close'], ['comm', 'Commission'], ['export', 'Export']];
@@ -1585,6 +1646,40 @@ async function pageFinance() {
 }
 
 const ACTIONS = {
+  'agents-tab': (d) => { S.agentsTab = d.tab; return pageAgents(); },
+  'sug-filter': (d) => { S.sugStatus = d.status; return pageAgents(); },
+  'agent-mode': async (d) => { await api('POST', `/agents/${encodeURIComponent(d.id)}/mode`, { mode: d.mode }); toast(d.mode === 'off' ? 'Agent switched off' : 'Agent switched on: it will only suggest', 'success'); pageAgents(); },
+  'agent-run': async () => {
+    const results = await api('POST', '/agents/run', {});
+    const made = results.reduce((n, r) => n + (r.created || 0), 0);
+    toast(`The agents looked at the books: ${made} new suggestion${made === 1 ? '' : 's'}`, 'success');
+    pageAgents();
+  },
+  'agent-backtest': async (d) => {
+    const r = await api('GET', `/agents/${encodeURIComponent(d.id)}/backtest`);
+    openModal(`<h2>Backtest: underwriting agent</h2>
+      <p>${r.cases ? `The agent was replayed over ${r.cases} past case${r.cases === 1 ? '' : 's'} and compared with what people decided.` : 'There are no past decisions to compare with yet.'}</p>
+      ${r.cases ? `<div class="tiles"><div class="tile accent"><div class="label">Agreed with people</div><div class="value">${r.agree}</div></div><div class="tile"><div class="label">More cautious</div><div class="value">${r.tooCautious}</div></div><div class="tile"><div class="label">Would have gone too far</div><div class="value">${r.overreach}</div></div></div>
+      <p class="muted">Agreement ${Math.round(r.agreementRate * 100)}%. "More cautious" means it would have referred what an underwriter approved; "too far" means it would have approved what a person declined.</p>` : ''}
+      <div class="actions"><button class="btn primary" data-action="close-modal">Close</button></div>`, true);
+  },
+  'sug-decide': (d) => {
+    const s = (S.sugById || {})[d.id];
+    if (!s) return;
+    const accept = d.decision === 'accept';
+    openModal(`<h2>${accept ? 'Accept' : 'Dismiss'} suggestion ${esc(s.number)}</h2>
+      <p><strong>${esc(s.summary)}</strong></p>
+      <ul class="muted">${s.reasons.map((r) => `<li>${esc(r)}</li>`).join('')}</ul>
+      ${accept ? `<div class="banner info">${esc(describeAgentAction(s.proposed))}</div>` : ''}
+      <form data-form="agent-decision" data-id="${esc(s.id)}" data-decision="${esc(d.decision)}"><div class="form-errors" role="alert"></div>
+        ${field('Note (optional)', '<input name="note">')}
+        <div class="actions"><button type="button" class="btn" data-action="close-modal">Cancel</button><button class="btn ${accept ? 'primary' : ''}">${accept ? 'Accept' : 'Dismiss'}</button></div>
+      </form>`);
+  },
+  'audit-verify': async () => {
+    const r = await api('GET', '/audit/verify');
+    toast(r.ok ? `The audit log is intact (${r.entries} entries)` : `The audit log was changed: the chain breaks at entry ${r.brokenAt}`, r.ok ? 'success' : 'error');
+  },
   'reset-staff': async (d) => { const r = await api('POST', `/staff/${encodeURIComponent(d.id)}/reset`); showTemporaryPassword(r); pageStaff(); },
   'toggle-staff': async (d) => { await api('POST', `/staff/${encodeURIComponent(d.id)}/active`, { active: d.active !== 'true' }); pageStaff(); },
   'compose-message': (d) => composeModal(d.account),
@@ -1853,6 +1948,19 @@ const ACTIONS = {
 };
 
 const FORMS = {
+  'agent-decision': async (fd, form) => {
+    await api('POST', `/agents/suggestions/${encodeURIComponent(form.dataset.id)}/decision`, { decision: form.dataset.decision, note: fd.get('note') });
+    closeModal();
+    toast(form.dataset.decision === 'accept' ? 'Accepted: the action was run as you' : 'Dismissed', 'success');
+    pageAgents();
+  },
+  'agent-limits': async (fd, form) => {
+    const limits = {};
+    for (const [k, v] of fd.entries()) limits[k] = Number(v);
+    await api('POST', `/agents/${encodeURIComponent(form.dataset.id)}/limits`, { limits });
+    toast('Limits saved', 'success');
+    pageAgents();
+  },
   setup: async (fd) => {
     if (fd.get('password') !== fd.get('confirm')) throw new Error('The two passwords do not match');
     await api('POST', '/auth/setup', { username: fd.get('username'), password: fd.get('password') });
@@ -2625,6 +2733,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
   document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
+  document.querySelectorAll('[data-nav="agents"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="reports"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.getElementById('signout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
