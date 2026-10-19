@@ -63,3 +63,11 @@ test('whisper: a picked language is passed to the local service as a hint', asyn
   await speech.transcribe(Buffer.from('RIFF'), { language: 'auto' });
   assert.equal(calls[1].url, 'http://127.0.0.1:8178/transcribe');
 });
+
+test('the browser engine needs no speech service: the server says voice input is the browser\'s own, so the chat uses Chrome or Edge', () => {
+  const { Speech } = require('../src/speech');
+  const speech = new Speech({ config: { ...config, speechEngine: 'browser' } });
+  const status = speech.status();
+  assert.equal(status.enabled, false);
+  assert.match(status.reason, /browser/i);
+});

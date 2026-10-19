@@ -24,7 +24,8 @@ function readSpeechConfig() {
 }
 
 class Speech {
-  // Engines: "whisper" (default) runs on this computer through scripts/whisper_server.py;
+  // Engines: "browser" uses the browser's own recognition (instant, needs Chrome or Edge and the internet);
+  // "whisper" (default) runs on this computer through scripts/whisper_server.py (slow on a CPU);
   // "google" uses Google Cloud Speech (needs GOOGLE_APPLICATION_CREDENTIALS).
   constructor({ client, projectId, config, fetchImpl } = {}) {
     this.config = config || readSpeechConfig();
@@ -36,7 +37,14 @@ class Speech {
       this.projectId = projectId || 'test-project';
       return;
     }
-    if (this.config.speechEngine === 'whisper') {
+    // "browser": no speech service at all; the browser (Chrome or Edge) listens and writes the words as you speak.
+    const engine = process.env.SPEECH_ENGINE || this.config.speechEngine;
+    if (engine === 'browser') {
+      this.engine = 'browser';
+      this.reason = "the browser's own speech recognition is selected (speechEngine: browser)";
+      return;
+    }
+    if (engine === 'whisper') {
       this.engine = 'whisper';
       this.whisperUrl = (process.env.WHISPER_URL || this.config.whisperUrl).replace(/\/$/, '');
       return;
@@ -63,6 +71,7 @@ class Speech {
     if (this.engine === 'whisper') {
       return { enabled: true, provider: 'Local Whisper (this computer)', url: this.whisperUrl, languages: ['English', 'Hindi', 'Telugu'], model: process.env.WHISPER_MODEL || 'medium' };
     }
+    if (this.engine === 'browser') return { enabled: false, reason: this.reason };
     return this.client
       ? { enabled: true, provider: 'Google Cloud Speech-to-Text', model: this.config.speechModel, languages: this.config.speechLanguages, region: this.config.speechRegion }
       : { enabled: false, reason: this.reason };

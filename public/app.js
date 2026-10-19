@@ -2181,6 +2181,7 @@ document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') closeMod
 // ------------------------------------------------------------------ assistant
 
 const CHAT = { conversationId: null, busy: false, status: null, abort: null };
+const BROWSER_SPEECH_LANGUAGES = { en: 'en-IN', hi: 'hi-IN', te: 'te-IN' };
 const chatLanguage = () => (document.getElementById('chat-lang') || {}).value || 'auto';
 const SUGGESTIONS = {
   policy: ['Summarize this policy', 'Why is this premium so high?', 'What changed on this policy?'],
@@ -2503,14 +2504,14 @@ async function setupVoice(input) {
   }
 
   // ---------------- browser engine (fallback)
-  // Chrome and Edge recognise one language per session and cannot detect it, so this engine
-  // listens as English (India). Telugu and Hindi speech need the Google engine above.
+  // Chrome and Edge recognise one language per session and cannot detect it, so this engine listens in the language
+  // picked in the chat (English, Hindi or Telugu); Auto listens as English (India).
   const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   if (!Recognition) {
     mic.hidden = true;
     return;
   }
-  const englishOnlyLabel = 'Speak in English (Telugu and Hindi voice needs Google speech set up)';
+  const englishOnlyLabel = 'Speak (in the language chosen above; Auto listens in English)';
   let listening = false;
   let rec = null;
   let base = '';
@@ -2531,7 +2532,7 @@ async function setupVoice(input) {
     base = input.value ? input.value.replace(/\s*$/, ' ') : '';
     const started = Date.now();
     rec = new Recognition();
-    rec.lang = 'en-IN';
+    rec.lang = BROWSER_SPEECH_LANGUAGES[chatLanguage()] || 'en-IN'; // the language chosen in the chat; Auto listens as English (India)
     rec.interimResults = true;
     rec.continuous = true;
     rec.onresult = (ev) => {

@@ -111,6 +111,10 @@ in its most prominent language, so heavily mixed speech may come back in one scr
   is `{conversationId?, message, context}`. Conversations are kept in server memory and reset when the server
   restarts.
 
+## Voice input: the fast option (the browser's own)
+
+Local Whisper is slow on a computer without a graphics card. To use Chrome or Edge's own speech recognition instead (words appear as you speak; needs the internet), put `"speechEngine": "browser"` in `chat.config.json` (or set `SPEECH_ENGINE=browser`) and restart the server. It listens in the language chosen in the chat (English, Hindi or Telugu; Auto listens as English). It does not detect the language by itself: for that use Whisper or Google below.
+
 ## Local speech (Whisper, on this computer)
 
 The mic records what you say, and a speech service on this computer turns it into text. It detects English,
