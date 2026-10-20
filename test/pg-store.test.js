@@ -70,6 +70,21 @@ test('a change deep inside a record is saved', async () => {
   await store.close();
 });
 
+test('a commit writes the value it committed, even if the record changes before the write runs', async () => {
+  // The pending frame holds the records it committed. If it held live references, a change made after the commit (and
+  // outside any unit of work, so nothing is watching) would be written as if it belonged to that commit. That aliasing
+  // once made a broken password change look saved, which is how it was found.
+  const { db, store } = world();
+  await store.load();
+  store.transaction(() => store.data.accounts.push({ id: 'acc1', lastName: 'First' }));
+  store.raw.accounts[0].lastName = 'Second'; // after the commit, before the flush, invisible to the watcher
+  await store.drain();
+
+  const [row] = await rows(db, "select doc from pc_accounts where id = 'acc1'");
+  assert.equal(row.doc.lastName, 'First', 'the frame must carry the value that was committed');
+  await store.close();
+});
+
 test('a removed record is deleted from the database, not just from memory', async () => {
   const { db, store } = world();
   await store.load();

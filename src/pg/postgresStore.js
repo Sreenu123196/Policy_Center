@@ -216,12 +216,15 @@ class PostgresStore {
     if (!ops.length) return;
     const frame = { seq: this.seq + 1, ops };
     this.seq = frame.seq;
+    // Serialize now. The ops hold references to the live records, and the write happens later: without this, a change made
+    // after the commit but before the flush would be written as if it had been part of this commit.
+    const text = JSON.stringify(frame);
     const started = process.hrtime.bigint();
-    this.stats.lastSaveBytes = this.wal ? this.wal.append(frame) : Buffer.byteLength(JSON.stringify(frame));
+    this.stats.lastSaveBytes = this.wal ? this.wal.appendText(text) : Buffer.byteLength(text);
     this.stats.lastSaveMs = ms(started);
     this.stats.saves += 1;
     this.stats.rowsWritten += ops.filter((op) => op.k === 'row' || op.k === 'del').length;
-    this.pending.push(frame);
+    this.pending.push(text);
     this.schedule();
   }
 
@@ -265,7 +268,9 @@ class PostgresStore {
     }
   }
 
-  async applyFrames(frames) {
+  // Frames come from the pending list as the text written at commit time, and from the log at start already parsed.
+  async applyFrames(batch) {
+    const frames = batch.map((item) => (typeof item === 'string' ? JSON.parse(item) : item));
     const top = frames[frames.length - 1];
     await this.runner.transaction(async (q) => {
       for (const frame of frames) await this.applyOps(q, frame.ops);

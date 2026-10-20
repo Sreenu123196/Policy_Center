@@ -8,6 +8,7 @@ const { PGlite } = require('@electric-sql/pglite');
 const { PgliteRunner } = require('../src/pg/runners');
 const { PostgresStore } = require('../src/pg/postgresStore');
 const { PolicyCenter } = require('../src/policyCenter');
+const { hashPassword, verifyPassword } = require('../src/passwords');
 const { account, autoSubmission } = require('./helpers');
 
 // The whole app on PostgreSQL: the services, the units of work and the proxy that watches them, working together. These
@@ -81,5 +82,30 @@ test('the numbering the app depends on keeps counting after a restart', async ()
   const pc2 = new PolicyCenter(reopened);
   const second = reopened.transaction(() => account(pc2, agent)).accountNumber;
   assert.notEqual(second, first, 'a second account must not get the first one’s number');
+  await reopened.close();
+});
+
+test('a password change is saved, not only held in memory', async () => {
+  // The API resolves the signed-in person BEFORE the unit of work starts (src/api.js), then the route changes that record.
+  // On the database store the data outside a unit of work is the plain data, so a change made through that reference is
+  // invisible to the watcher. This is how it was found: the password change answered 200, signing in worked on that
+  // instance, and after the next deploy the old password came back.
+  const { db, store } = await open();
+  const pc = new PolicyCenter(store, { today: () => '2026-03-01' });
+  store.transaction(() => {
+    const person = pc.db.staff.find((candidate) => candidate.id === 'agent');
+    person.passwordHash = hashPassword('OldPassword1');
+  });
+
+  const signedIn = pc.user('agent'); // resolved outside a unit of work, exactly as the API does it
+  store.transaction(() => pc.changeOwnPassword(signedIn, { current: 'OldPassword1', next: 'NewPassword2' }));
+  await store.drain();
+  await store.close();
+
+  const reopened = new PostgresStore(new PgliteRunner(db), { walFile: null });
+  await reopened.load();
+  const stored = new PolicyCenter(reopened).db.staff.find((candidate) => candidate.id === 'agent');
+  assert.equal(verifyPassword('NewPassword2', stored.passwordHash), true, 'the new password is in the database');
+  assert.equal(verifyPassword('OldPassword1', stored.passwordHash), false, 'and the old one is gone');
   await reopened.close();
 });

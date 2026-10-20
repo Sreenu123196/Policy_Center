@@ -30,3 +30,6 @@ public/_redirects
 Thumbs.db
 .vscode/
 .idea/
+
+# Local Netlify folder
+.netlify

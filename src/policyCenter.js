@@ -1538,13 +1538,19 @@ class PolicyCenter {
 
   // Changing your own password (also used at the first sign-in).
   changeOwnPassword(user, { current, next }) {
-    if (!verifyPassword(current, user.passwordHash)) throw new AppError(401, 'The current password is wrong');
+    // The record is looked up again inside this unit of work on purpose. The API resolves the signed-in person before the
+    // unit of work starts, and outside one the store hands out the plain data: writing to that copy was never saved on the
+    // database store (the change answered 200, sign-in worked for that instance, and the old password returned after the
+    // next deploy). Look it up here and the change is recorded like any other.
+    const record = this.db.staff.find((person) => person.id === user.id);
+    if (!record) throw new AppError(401, 'Sign in again');
+    if (!verifyPassword(current, record.passwordHash)) throw new AppError(401, 'The current password is wrong');
     const value = String(next || '');
     if (value.length < 8) throw new AppError(422, 'The new password needs at least 8 characters');
     if (value === String(current)) throw new AppError(422, 'Choose a new password, not the same one');
-    user.passwordHash = hashPassword(value);
-    user.mustChangePassword = false;
-    return this.userView(user);
+    record.passwordHash = hashPassword(value);
+    record.mustChangePassword = false;
+    return this.userView(record);
   }
 
   // ------------------------------------------------------------------ sales analytics

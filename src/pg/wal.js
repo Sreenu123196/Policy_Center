@@ -23,10 +23,16 @@ class WriteAheadLog {
     this.fd = fs.openSync(this.file, 'a');
   }
 
+  // The frame is written as the text the store already serialized at commit time: a frame must say what was committed,
+  // not what the records happen to look like when the write finally runs.
+  appendText(text) {
+    const line = `${text}\n`;
+    fs.writeSync(this.fd, line);
+    return Buffer.byteLength(line);
+  }
+
   append(frame) {
-    const text = `${JSON.stringify(frame)}\n`;
-    fs.writeSync(this.fd, text);
-    return Buffer.byteLength(text);
+    return this.appendText(JSON.stringify(frame));
   }
 
   // Frames in order. A half-written last line (a crash mid-write) is dropped, and the file is cut back to the last whole
