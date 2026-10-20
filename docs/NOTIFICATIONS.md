@@ -20,8 +20,9 @@ still needs a manager, and the audit entry names the channel (`Decided from Tele
 
 ## What needs a decision
 
-Only a suggestion with a **proposed action** is sent. The compliance agent's findings are information and stay in the app,
-where they can be read in full.
+Two kinds of suggestion reach a phone: one that **proposes an action** (Approve / Dismiss, and a call if nobody answers),
+and an **escalation** such as a billing case that needs a person (a message with an "Open the app" link and never a call,
+because the decision belongs where the case is). The compliance agent's findings are information and stay in the app.
 
 ## Setting it up
 
