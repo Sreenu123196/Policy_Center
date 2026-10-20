@@ -53,6 +53,17 @@ test('a suggestion that proposes an action is sent to Telegram, with the reasons
   assert.equal(w.stored().notify.telegram.status, 'sent');
 });
 
+test('an escalation reaches the phone as a link to the app, and is never called', async () => {
+  const w = world();
+  w.add({ kind: 'escalate', proposed: null, summary: 'PA-0000002 is 171 days overdue: a cancellation notice needs a decision' });
+  const summary = await w.notifier.work();
+  assert.equal(summary.sent, 1);
+  assert.deepEqual(w.telegram.sent[0].buttons[0], [{ text: 'Open the app', url: 'https://example.test' }], 'no approve button for something the phone cannot decide');
+  w.advance(30);
+  await w.notifier.work();
+  assert.equal(w.voice.calls.length, 0, 'the decision belongs in the app, so nobody is called');
+});
+
 test('a compliance finding is information, so nobody is pinged', async () => {
   const w = world();
   w.add({ agentId: 'compliance', kind: 'finding', proposed: null, summary: 'A reason names a protected trait' });

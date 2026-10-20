@@ -125,9 +125,15 @@ class Notifier {
     return staff;
   }
 
-  // Only a suggestion that proposes something needs a person. A compliance finding is information, and stays in the app.
+  // Two kinds of suggestion ask for a person: one that proposes an action (approve or dismiss it), and an escalation that
+  // says a decision is needed but proposes nothing (send the link to the app). A compliance finding is information only.
   needsDecision(suggestion) {
-    return Boolean(suggestion && suggestion.proposed && suggestion.status === 'Open');
+    return Boolean(suggestion && suggestion.status === 'Open' && (suggestion.proposed || suggestion.kind === 'escalate'));
+  }
+
+  // An escalation cannot be approved from a phone: the decision belongs where the case is.
+  decidable(suggestion) {
+    return Boolean(suggestion && suggestion.proposed);
   }
 
   messageFor(suggestion) {
@@ -138,6 +144,7 @@ class Notifier {
   }
 
   buttonsFor(suggestion) {
+    if (!this.decidable(suggestion)) return [[{ text: 'Open the app', url: this.publicUrl }]];
     return [[
       { text: 'Approve', callback_data: `d:${suggestion.number}:accept` },
       { text: 'Dismiss', callback_data: `d:${suggestion.number}:dismiss` },
@@ -170,6 +177,7 @@ class Notifier {
         continue;
       }
       const sentAt = notify.telegram && notify.telegram.at;
+      if (!this.decidable(suggestion)) { summary.skipped += 1; continue; } // an escalation is a message, not a call
       if (notify.telegram && notify.telegram.status === 'sent' && sentAt && !notify.voice) {
         if (now - sentAt < this.escalateMinutes * 60000) { summary.skipped += 1; continue; }
         if (!this.voice || !this.voice.configured || !this.publicUrl) { summary.skipped += 1; continue; }
