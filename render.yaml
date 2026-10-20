@@ -28,9 +28,11 @@ services:
         fromDatabase:
           name: policycenter-db
           property: connectionString
-      # The Netlify site, so a write forwarded by the proxy is accepted (src/security.js). Set after the site exists.
+      # The Netlify site, so a write forwarded by its proxy is accepted (src/security.js). Without this, every POST
+      # through Netlify is refused with 403 "This request did not come from this site", sign-in included.
+      # If the Netlify project is renamed, change this to the new origin and sync the Blueprint.
       - key: ALLOWED_ORIGINS
-        sync: false
+        value: https://tangerine-daffodil-1ca625.netlify.app
       # Render terminates https in front of the service.
       - key: TRUST_PROXY
         value: "1"
