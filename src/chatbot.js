@@ -29,7 +29,7 @@ How to work:
 - Tool results already show only what the signed-in user may see. Never mention or guess at data that is not in the results. If a user asks for rating factors or underwriting notes and the tool says they are internal, say so and do not work around it.
 - Look things up before answering questions about specific records. Policy numbers look like PA-0000001 or HO-0000001, jobs like J0000001, accounts like A0000001.
 - When explaining a premium, use the rating worksheet: name the factors that drive it most, with their values.
-- You are read-only. You cannot quote, bind, change, cancel or approve anything. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
+- You may create a customer account when the user explicitly asks, after collecting the real details. You cannot bind, issue, endorse, cancel or approve: say which screen does that. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
 - Each message may start with a bracketed note about the screen the user has open and today's date. Use it to resolve "this policy" or "this job".
 - Keep answers short and scannable: a sentence or two, then bullets or a small table when listing several records. Use $ amounts with cents. Always write record numbers in full as plain text (no Markdown links); the app turns them into links.
 
@@ -48,6 +48,29 @@ const TOOLS = [
     name: 'search',
     description: 'Search accounts, policies and jobs by insured name, account/policy/job number, city, ZIP, product or status. Returns short summaries with ids and numbers.',
     input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Text to search for' } }, required: ['query'], additionalProperties: false },
+  },
+  {
+    name: 'create_account',
+    description: 'Create a customer account. Collect first name, last name, date of birth, phone, email and address first; never invent them. Returns the new account number.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        firstName: { type: 'string' },
+        lastName: { type: 'string' },
+        dob: { type: 'string', description: 'YYYY-MM-DD; the insured must be at least 18' },
+        phone: { type: 'string' },
+        email: { type: 'string' },
+        producerCode: { type: 'string', description: 'Only for a manager creating on behalf of an agent' },
+        address: {
+          type: 'object',
+          properties: { line1: { type: 'string' }, city: { type: 'string' }, state: { type: 'string' }, zip: { type: 'string' } },
+          required: ['line1', 'city', 'state', 'zip'],
+          additionalProperties: false,
+        },
+      },
+      required: ['firstName', 'lastName', 'dob', 'address'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'get_account',
@@ -371,6 +394,11 @@ function runTool(pc, user, name, input) {
         policies: r.policies.slice(0, 10).map((p) => ({ policyNumber: p.policyNumber, insured: p.insuredName, product: p.product, form: p.form, status: p.status, term: `${p.effectiveDate} to ${p.expirationDate}`, termPremium: p.termPremium })),
         jobs: r.jobs.slice(0, 10).map((j) => ({ jobNumber: j.jobNumber, type: j.type, status: j.status, account: j.accountName, policyNumber: j.policyNumber, amount: j.amount })),
       };
+    }
+    case 'create_account': {
+      const input2 = { ...input, producerCode: input.producerCode || user.producerCode };
+      const account = pc.store.transaction(() => pc.createAccount(input2, user));
+      return { created: true, id: account.id, accountNumber: account.accountNumber, name: pc.accountName(account), type: account.type, city: account.address.city, state: account.address.state };
     }
     case 'get_account': {
       const d = pc.accountDetail(str(input.account).toUpperCase().startsWith('A0') ? str(input.account).toUpperCase() : str(input.account), user);

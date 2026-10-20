@@ -52,6 +52,7 @@ test('tool definitions are well formed and every tool runs', () => {
     assert.equal(t.input_schema.additionalProperties, false);
   }
   const inputs = {
+  create_account: { firstName: 'Slice', lastName: 'One', dob: '1990-01-01', phone: '+15125550100', email: 'ops@slice.example', producerCode: 'PC-100', address: { line1: '1 Test Way', city: 'Austin', state: 'TX', zip: '78701' } },
     search: { query: 'Insured' }, get_account: { account: 'A0000001' }, get_policy: { policy: policyNumber },
     get_job: { job: job.jobNumber }, get_rating_worksheet: { record: policyNumber, coverage: 'Collision' },
     list_work_queue: {}, portfolio_summary: { product: 'PersonalAuto' }, list_policies: { sort: 'premium_desc', limit: 5 },
@@ -358,4 +359,13 @@ test('chatbot: a language picked in the header sets the reply style, and auto de
   assert.match(replyStyle('en', 'నా దగ్గర ఎన్ని referrals ఉన్నాయి'), /Reply in English/);
   assert.match(replyStyle('auto', 'నా దగ్గర ఎన్ని referrals ఉన్నాయి'), /Telugu in Telugu script/);
   assert.match(replyStyle(undefined, 'मेरे पास कितने referrals हैं?'), /Hindi in Devanagari/);
+});
+test('the assistant can create an account, and the account exists afterwards', () => {
+  const { pc, users, run } = setup('2026-03-01');
+  const created = run(() => runTool(pc, users.uwm, 'create_account', { firstName: 'Slice', lastName: 'One', dob: '1990-01-01', phone: '+15125550100', email: 'ops@slice.example', producerCode: 'PC-100', address: { line1: '1 Test Way', city: 'Austin', state: 'TX', zip: '78701' } }));
+  assert.equal(created.created, true);
+  assert.match(created.accountNumber, /^A\d+$/);
+  const stored = pc.db.accounts.find((a) => a.id === created.id);
+  assert.ok(stored, 'the account is in the book');
+  assert.equal(stored.address.city, 'Austin');
 });
