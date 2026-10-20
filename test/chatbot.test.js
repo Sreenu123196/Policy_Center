@@ -52,6 +52,7 @@ test('tool definitions are well formed and every tool runs', () => {
     assert.equal(t.input_schema.additionalProperties, false);
   }
   const inputs = {
+  create_submission: { account: 'A0000001', product: 'Homeowners', effectiveDate: '2026-04-01' },
   create_account: { firstName: 'Slice', lastName: 'One', dob: '1990-01-01', phone: '+15125550100', email: 'ops@slice.example', producerCode: 'PC-100', address: { line1: '1 Test Way', city: 'Austin', state: 'TX', zip: '78701' } },
     search: { query: 'Insured' }, get_account: { account: 'A0000001' }, get_policy: { policy: policyNumber },
     get_job: { job: job.jobNumber }, get_rating_worksheet: { record: policyNumber, coverage: 'Collision' },
@@ -368,4 +369,15 @@ test('the assistant can create an account, and the account exists afterwards', (
   const stored = pc.db.accounts.find((a) => a.id === created.id);
   assert.ok(stored, 'the account is in the book');
   assert.equal(stored.address.city, 'Austin');
+});
+test('the assistant can start a submission for a product', () => {
+  const { pc, users, run } = setup('2026-03-01');
+  const acct = run(() => account(pc, users.agent));
+  const job = run(() => runTool(pc, users.uwm, 'create_submission', { account: acct.accountNumber, product: 'Homeowners', effectiveDate: '2026-04-01' }));
+  assert.equal(job.created, true);
+  assert.match(job.jobNumber, /^J\d+$/);
+  assert.equal(job.product, 'Homeowners');
+  const stored = pc.db.jobs.find((j) => j.jobNumber === job.jobNumber);
+  assert.ok(stored, 'the submission is a job in the book');
+  assert.equal(stored.accountId, acct.id);
 });
