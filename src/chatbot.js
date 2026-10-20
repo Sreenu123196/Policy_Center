@@ -79,7 +79,7 @@ const TOOLS = [
         dob: { type: 'string', description: 'YYYY-MM-DD; the insured must be at least 18' },
         phone: { type: 'string' },
         email: { type: 'string' },
-        producerCode: { type: 'string', description: 'Only for a manager creating on behalf of an agent' },
+        producerCode: { type: 'string', description: 'The writing agent code, for example PC-100. Required when a manager creates the account: ask the user which code to use.' },
         address: {
           type: 'object',
           properties: { line1: { type: 'string' }, city: { type: 'string' }, state: { type: 'string' }, zip: { type: 'string' } },
@@ -429,8 +429,14 @@ function runTool(pc, user, name, input) {
     }
     case 'create_account': {
       const input2 = { ...input, producerCode: input.producerCode || user.producerCode };
-      const account = pc.store.transaction(() => pc.createAccount(input2, user));
-      return { created: true, id: account.id, accountNumber: account.accountNumber, name: pc.accountName(account), type: account.type, city: account.address.city, state: account.address.state };
+      try {
+        const account = pc.store.transaction(() => pc.createAccount(input2, user));
+        return { created: true, id: account.id, accountNumber: account.accountNumber, name: pc.accountName(account), type: account.type, city: account.address.city, state: account.address.state };
+      } catch (err) {
+        const details = err.details || err.data || {};
+        const errors = details.errors || (Array.isArray(details) ? details : null) || err.errors || null;
+        return { created: false, error: err.message || String(err), errors: errors || undefined, hint: errors ? 'Fix these fields and try again; ask the user for the value you do not have.' : 'The validator did not say which field. Ask the user for first name, last name, date of birth (yyyy-mm-dd), ZIP (5 digits), state code (for example TX) and a producer code such as PC-100.' };
+      }
     }
     case 'get_account': {
       const d = pc.accountDetail(str(input.account).toUpperCase().startsWith('A0') ? str(input.account).toUpperCase() : str(input.account), user);
