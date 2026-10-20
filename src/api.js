@@ -32,7 +32,15 @@ function etagFor(pc, sub) {
   return record ? `"${hash(record).slice(0, 32)}"` : null;
 }
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption, notifier: notifierOption } = {}) {
+  // Notifications are optional (a test or a bare local run may not configure them). These keep the three outside doors
+  // closed with an honest answer instead of failing on an undefined service.
+  const notifier = notifierOption || {
+    publicUrl: '',
+    handleTelegramUpdate: () => { throw new AppError(503, 'Agent notifications are not configured on this server'); },
+    voiceScript: () => null,
+    handleVoiceKeypress: () => { throw new AppError(503, 'Agent notifications are not configured on this server'); },
+  };
   const routes = [];
   const finance = new Finance(pc);
   const insights = new Insights(pc, finance);
@@ -104,6 +112,22 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // The suggestions addressed to the signed-in person: what the Desktop and the Work queues show. Any signed-in role may
   // ask; it only ever returns their own.
   route('GET', '/suggestions/mine', ({ user }) => (agents ? agents.suggestionsFor(user) : { count: 0, byAgent: [], items: [] }));
+
+  // How an agent reaches a person when it needs a decision. These three doors cannot sign in, so each checks its sender:
+  // Telegram with the secret set when the webhook was registered, Twilio with the signature over the request.
+  route('POST', '/webhooks/telegram', ({ body, headers }) => notifier.handleTelegramUpdate(body, { secret: headers['x-telegram-bot-api-secret-token'], expectedSecret: process.env.TELEGRAM_WEBHOOK_SECRET }), { isPublic: true });
+  route('GET', '/webhooks/twilio/voice', ({ query }, res) => {
+    const script = notifier.voiceScript(query.get('n'), query.get('t'));
+    res.writeHead(script ? 200 : 404, { 'Content-Type': script ? 'text/xml; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
+    res.end(script ? script.twiml : 'Unknown call');
+  }, { stream: true, isPublic: true });
+  route('POST', '/webhooks/twilio/decision', ({ body, query, headers, url }) => {
+    const params = Object.fromEntries(new URLSearchParams(body.toString('utf8')));
+    return notifier.handleVoiceKeypress({
+      number: query.get('n'), token: query.get('t'), digits: params.Digits || '', signature: headers['x-twilio-signature'], params,
+      url: `${notifier.publicUrl}${url}`,
+    });
+  }, { isPublic: true, raw: true });
   route('POST', '/agents/suggestions/:id/decision', ({ user, params, body }) => agents.decide(params.id, body, user));
   route('POST', '/agents/:id/mode', ({ user, params, body }) => agents.setMode(params.id, body.mode, user));
   route('POST', '/agents/:id/limits', ({ user, params, body }) => agents.setLimits(params.id, body.limits, user));
@@ -359,7 +383,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
         if (user.mustChangePassword && !sub.startsWith('/auth/')) throw new AppError(403, 'Change your temporary password before using the app');
       }
       if (found.isPublic && !user && sub === '/auth/me') throw new AppError(401, 'Not signed in');
-      const ctx = { user, token, params: match.groups || {}, query, body };
+      const ctx = { user, token, params: match.groups || {}, query, body, headers: req.headers, url: req.url };
       if (found.stream) return await found.handler(ctx, res);
 
       // If-Match: a change to an account or a job says which version it was based on. Refused if the record has changed since.

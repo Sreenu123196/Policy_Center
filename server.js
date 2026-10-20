@@ -25,6 +25,7 @@ const { collectionsConsumer, claimsQueueConsumer, accountingConsumer } = require
 const { Accounting } = require('./src/accounting');
 const { AuditLog } = require('./src/audit');
 const { AgentService } = require('./src/agents');
+const { notifierFromEnv } = require('./src/notifications');
 
 const PORT = Number(process.env.PORT) || 3000;
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, 'data', 'policycenter.json');
@@ -58,9 +59,11 @@ async function main() {
   console.log(mail.enabled ? `Email: sending from ${mail.from} through Gmail` : `Email: not set up (${mail.reason}); the email button opens Gmail instead`);
   const audit = new AuditLog(pc);
   const agents = new AgentService(pc, { audit });
+  // Telling a person that an agent needs a decision: Telegram first, a phone call if nobody answers in time.
+  const notifier = notifierFromEnv(pc, { agents });
   store.transaction(() => agents.ensureAccounts()); // each agent has its own account (it cannot sign in)
   bus.register('agents', (event) => agents.onEvent(event)); // an event wakes only the agents that listen for it
-  const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents });
+  const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents, notifier });
   // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
   while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }
 
@@ -93,6 +96,16 @@ async function main() {
     setTimeout(sweep, 120000).unref();
     setInterval(sweep, SWEEP_HOURS * 3600000).unref();
   }
+
+  const notify = notifier.status();
+  if (notify.telegram) console.log(`Agent decisions: Telegram on, a call after ${notify.escalateMinutes} minutes${notify.voice ? ' (Twilio)' : ' (Twilio not configured, so no call)'}`);
+  else if (notify.voice) console.log('Agent decisions: Twilio configured, but Telegram is not, so nothing is sent yet');
+
+  // Every 15 seconds: send what is waiting, and call when the wait is over. This runs here, not in a request, because it
+  // talks to Telegram and Twilio.
+  const notifyTick = () => notifier.work().catch((err) => console.error('Agent notifications failed:', err.message));
+  setInterval(notifyTick, 15000).unref();
+  setTimeout(notifyTick, 5000).unref();
 
   server.listen(PORT, () => console.log(`PolicyCenter Simulator running at http://localhost:${PORT}`));
 

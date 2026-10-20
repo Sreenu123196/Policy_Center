@@ -5,7 +5,7 @@ const path = require('node:path');
 const { RateLimiter, applySecurityHeaders, sameOrigin, isJsonType } = require('./security');
 
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.json': 'application/json' };
-const RAW_ROUTES = new Set(['/api/speech']); // the browser posts a recording, not JSON
+const RAW_ROUTES = new Set(['/api/speech', '/api/webhooks/twilio/decision']); // a recording and Twilio's form, not JSON
 
 function plain(res, status, text) {
   res.writeHead(status, { 'Content-Type': 'text/plain; charset=utf-8' });

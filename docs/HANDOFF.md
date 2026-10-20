@@ -58,6 +58,8 @@ Put settings in `PolicyCenter-Sim\.env` (git-ignored; template: `env.example`). 
 | `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM_NAME` | Direct email (a 16-character Google app password; spaces are ignored). `node scripts/test-email.js [address]` checks the login |
 | `ANTHROPIC_API_KEY` | Assistant in Claude mode (otherwise offline mode) |
 | `ANTHROPIC_WORKSPACE_ID` | Only for a user-scoped key (`sk-ant-usr-…`): the workspace id it must name on every request (`src/chatbot.js`) |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_APPROVER` | Agent decisions by Telegram; without these nothing is sent |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `APPROVER_PHONE`, `PUBLIC_URL`, `ESCALATE_MINUTES` | The call that follows an unanswered Telegram message |
 | `PORT`, `DATA_FILE`, `BACKUP_DIR`, `BACKUP_HOURS`, `BACKUP_KEEP` | Server, data file (default `data/policycenter.json`), backups |
 | `AGENT_SWEEP_HOURS` | Daily agent sweep (default 24, 0 = off) |
 | `TRUST_PROXY=1` | Behind a proxy, so the sign-in limit counts the caller |

@@ -37,6 +37,13 @@ The agents are **rule-based and deterministic today**. The model each one lists 
 
 `GET /api/agents/underwriting/backtest` replays the underwriting agent over past decisions and counts where it agrees with people, where it was more cautious (referred what a level-1 person approved) and where it would have gone too far (approved what a person declined). Other agents need their own backtest before they are given more freedom. The rule for widening an agent: switch it on in `suggest`, watch the acceptance rate and the compliance agent's findings for a period, backtest, and only then consider an acting mode, one agent and one kind of case at a time.
 
+## Reaching a person who is not in the app
+
+A suggestion that proposes an action is sent to Telegram with Approve / Dismiss; if nobody decides within
+`ESCALATE_MINUTES` (default 10) a phone call reads the summary and takes a keypress. The decision runs as the configured
+approver, with their authority and in the audit log. `docs/NOTIFICATIONS.md` has the setup, the three public webhook
+doors and what it does not do.
+
 ## Where a suggestion appears
 
 A suggestion is addressed to the people whose job it is, and says so when it is created (`audience` on the record), so a
