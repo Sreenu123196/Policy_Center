@@ -52,6 +52,7 @@ test('tool definitions are well formed and every tool runs', () => {
     assert.equal(t.input_schema.additionalProperties, false);
   }
   const inputs = {
+  quote_submission: { job: 'J0000001' },
   create_submission: { account: 'A0000001', product: 'Homeowners', effectiveDate: '2026-04-01' },
   create_account: { firstName: 'Slice', lastName: 'One', dob: '1990-01-01', phone: '+15125550100', email: 'ops@slice.example', producerCode: 'PC-100', address: { line1: '1 Test Way', city: 'Austin', state: 'TX', zip: '78701' } },
     search: { query: 'Insured' }, get_account: { account: 'A0000001' }, get_policy: { policy: policyNumber },
@@ -59,7 +60,11 @@ test('tool definitions are well formed and every tool runs', () => {
     list_work_queue: {}, portfolio_summary: { product: 'PersonalAuto' }, list_policies: { sort: 'premium_desc', limit: 5 },
     get_product_rules: { topic: 'Homeowners' }, sales_report: { from: '2020-01-01', to: '2030-12-31' }, list_claims: {}, get_claim: { claim: claim.claimNumber }, claims_report: {}, billing_report: {},
   };
-  for (const t of TOOLS) assert.ok(runTool(pc, users.uwm, t.name, inputs[t.name]), t.name);
+  const WRITE_TOOLS = new Set(['create_account', 'create_submission', 'quote_submission']);
+  for (const t of TOOLS) {
+    if (WRITE_TOOLS.has(t.name)) continue; // each has its own test on a clean book
+    assert.ok(runTool(pc, users.uwm, t.name, inputs[t.name]), t.name);
+  }
   const ws = runTool(pc, users.uw, 'get_rating_worksheet', inputs.get_rating_worksheet);
   assert.ok(ws.costs.length > 0 && ws.costs.every((c) => c.item.includes('Collision')));
 });
@@ -380,4 +385,12 @@ test('the assistant can start a submission for a product', () => {
   const stored = pc.db.jobs.find((j) => j.jobNumber === job.jobNumber);
   assert.ok(stored, 'the submission is a job in the book');
   assert.equal(stored.accountId, acct.id);
+});
+test('the assistant can quote a submission it started', () => {
+  const { pc, users, run } = setup('2026-03-01');
+  const acct = run(() => account(pc, users.agent));
+  const job = run(() => runTool(pc, users.uwm, 'create_submission', { account: acct.accountNumber, product: 'Homeowners', effectiveDate: '2026-04-01' }));
+  const quoted = run(() => runTool(pc, users.uwm, 'quote_submission', { job: job.jobNumber }));
+  assert.equal(quoted.quoted, true);
+  assert.ok(['Quoted', 'Referred', 'Declined'].includes(quoted.status), `unexpected status ${quoted.status}`);
 });

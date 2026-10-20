@@ -29,7 +29,7 @@ How to work:
 - Tool results already show only what the signed-in user may see. Never mention or guess at data that is not in the results. If a user asks for rating factors or underwriting notes and the tool says they are internal, say so and do not work around it.
 - Look things up before answering questions about specific records. Policy numbers look like PA-0000001 or HO-0000001, jobs like J0000001, accounts like A0000001.
 - When explaining a premium, use the rating worksheet: name the factors that drive it most, with their values.
-- You may create a customer account and start a submission when the user explicitly asks, after collecting the real details. You cannot bind, issue, endorse, cancel or approve: say which screen does that. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
+- You may create a customer account, start a submission and quote it when the user explicitly asks, after collecting the real details. You cannot bind, issue, endorse, cancel or approve: say which screen does that. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
 - Each message may start with a bracketed note about the screen the user has open and today's date. Use it to resolve "this policy" or "this job".
 - Keep answers short and scannable: a sentence or two, then bullets or a small table when listing several records. Use $ amounts with cents. Always write record numbers in full as plain text (no Markdown links); the app turns them into links.
 
@@ -48,6 +48,11 @@ const TOOLS = [
     name: 'search',
     description: 'Search accounts, policies and jobs by insured name, account/policy/job number, city, ZIP, product or status. Returns short summaries with ids and numbers.',
     input_schema: { type: 'object', properties: { query: { type: 'string', description: 'Text to search for' } }, required: ['query'], additionalProperties: false },
+  },
+  {
+    name: 'quote_submission',
+    description: 'Price a submission. Collect the job number (J0000001) first. Returns the premium, the status and any underwriting issues that need a person.',
+    input_schema: { type: 'object', properties: { job: { type: 'string', description: 'Job number such as J0000005' } }, required: ['job'], additionalProperties: false },
   },
   {
     name: 'create_submission',
@@ -408,6 +413,14 @@ function runTool(pc, user, name, input) {
         policies: r.policies.slice(0, 10).map((p) => ({ policyNumber: p.policyNumber, insured: p.insuredName, product: p.product, form: p.form, status: p.status, term: `${p.effectiveDate} to ${p.expirationDate}`, termPremium: p.termPremium })),
         jobs: r.jobs.slice(0, 10).map((j) => ({ jobNumber: j.jobNumber, type: j.type, status: j.status, account: j.accountName, policyNumber: j.policyNumber, amount: j.amount })),
       };
+    }
+    case 'quote_submission': {
+      const first = pc.jobDetail(input.job, user);
+      const jobId = (first.job || first).id;
+      pc.store.transaction(() => pc.quote(jobId, user));
+      const second = pc.jobDetail(input.job, user);
+      const job = second.job || second;
+      return { quoted: true, jobNumber: job.jobNumber, status: job.status, premium: job.quoteTotal ?? job.premium ?? null, issues: (job.issues || []).map((i) => i.message || i.label || String(i)) };
     }
     case 'create_submission': {
       const detail = pc.accountDetail(input.account, user);
