@@ -83,6 +83,15 @@ normal first start). Then check, in this order:
 
 ## Notes from the first deployment (learned the hard way)
 
+- **A password change was lost across a deploy, and it was a real bug, not a hosting quirk.** The change answered 200
+  and signing in with the new password worked on that instance; after the next deploy the old password came back. The
+  route changed the record the API had resolved *before* the unit of work started, and on the database store that is the
+  plain data — invisible to the change watcher, so nothing was written. Fixed in `changeOwnPassword` (it looks the
+  person up again inside the unit of work), with a regression test. The same review found a second defect: a commit kept
+  its records by reference and serialized them at flush time, so a later change could be written as if it belonged to an
+  earlier commit. `commit()` now serializes the frame immediately. Both are covered by tests that were checked to fail
+  without the fix. **The lesson generalizes: any write must happen inside a unit of work, through a record fetched
+  inside it.**
 - **The API host serves the whole app by itself.** `server.js` serves `public/`, so `https://<service>.onrender.com/`
   runs the UI and the API on one origin: no proxy, no ALLOWED_ORIGINS, no Netlify. That is the quickest way to see the
   deployment working, and the fallback while the Netlify half is being wired.
