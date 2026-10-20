@@ -101,6 +101,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/agents', ({ user }) => agents.list(user));
   route('POST', '/agents/run', ({ user, body }) => agents.run(user, { agentIds: Array.isArray(body.agentIds) ? body.agentIds : undefined }));
   route('GET', '/agents/suggestions', ({ user, query }) => agents.suggestions(user, { status: query.get('status') || undefined, agentId: query.get('agent') || undefined }));
+  // The suggestions addressed to the signed-in person: what the Desktop and the Work queues show. Any signed-in role may
+  // ask; it only ever returns their own.
+  route('GET', '/suggestions/mine', ({ user }) => (agents ? agents.suggestionsFor(user) : { count: 0, byAgent: [], items: [] }));
   route('POST', '/agents/suggestions/:id/decision', ({ user, params, body }) => agents.decide(params.id, body, user));
   route('POST', '/agents/:id/mode', ({ user, params, body }) => agents.setMode(params.id, body.mode, user));
   route('POST', '/agents/:id/limits', ({ user, params, body }) => agents.setLimits(params.id, body.limits, user));

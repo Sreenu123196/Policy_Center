@@ -29,30 +29,35 @@ const AGENTS = {
     does: 'Finds policies whose term ends soon and suggests starting their renewal.',
     limits: { maxDaysBeforeEnd: 90 },
     wakesOn: ['PolicyIssued', 'PolicyRenewed'],
+    audience: { roles: ['Underwriter', 'UW Manager'] },
   },
   'keep-customers': {
     name: 'Keep-customers agent', status: 'built', model: 'claude-haiku-5-5', freedom: 'Suggests',
     does: 'Follows the lapsing and lapsed lists and suggests a message to each customer nobody has been in touch with lately.',
     limits: { minDaysBetweenContacts: 7, maxContacts: 3 },
     wakesOn: [],
+    audience: { roles: ['Agent', 'Underwriter', 'UW Manager'], byPolicy: true },
   },
   billing: {
     name: 'Billing agent', status: 'built', model: 'claude-haiku-5-5', freedom: 'Suggests; a cancellation notice always needs a person',
     does: 'Suggests a payment reminder for a late invoice, and sends a long-overdue one to a person.',
     limits: { reminderAfterDays: 3, escalateAfterDays: 15 },
     wakesOn: ['PaymentMissed', 'PaymentReceived'],
+    audience: { roles: ['Agent', 'Underwriter', 'UW Manager'], byPolicy: true },
   },
   underwriting: {
     name: 'Underwriting agent', status: 'built', model: 'claude-opus-5-5', freedom: 'Partly alone: recommends; a person approves',
     does: 'For a submission with underwriting issues, recommends approval when every issue is within its limits, otherwise refers it to a person with its reasons.',
     limits: { maxApprovalLevel: 1, maxPremium: 5000, maxAccidents: 1 },
     wakesOn: [],
+    audience: { roles: ['Underwriter', 'UW Manager'] },
   },
   compliance: {
     name: 'Compliance check agent', status: 'built', model: 'claude-opus-5-5', freedom: 'Reports only',
     does: 'Spot-checks the other agents and the audit log and reports anything unusual: a protected trait in a reason, a broken audit chain, an agent whose suggestions are mostly dismissed.',
     limits: { minDecisions: 5, dismissalRate: 0.5 },
     wakesOn: [],
+    audience: { roles: ['UW Manager'] },
   },
 };
 
@@ -168,6 +173,7 @@ class AgentService {
         const suggestion = {
           id: this.pc.store.id('sug'), number: this.pc.store.number('SUG-', 7), agentId: id, kind: p.kind, status: 'Open',
           summary: p.summary, reasons: p.reasons, proposed: p.proposed || null, subject: p.subject || {}, dedupeKey: p.dedupeKey, createdAt: this.pc.now(),
+          audience: this.audienceFor(id, p),
         };
         this.db.agentSuggestions.push(suggestion);
         this.audit.record({ actor: agentUser, action: 'suggestion.created', subject: suggestion.number, reasons: suggestion.reasons, data: { agent: id, kind: p.kind, summary: p.summary } });
@@ -320,6 +326,48 @@ class AgentService {
 
   requireReviewer(user, what) {
     if (!user || !['Underwriter', 'UW Manager'].includes(user.role)) throw new AppError(403, `Only underwriters and the UW manager can ${what}`);
+  }
+
+  // Who a suggestion is for. Internal underwriting work goes to the underwriting team; customer-facing work belongs to
+  // the producer who owns the account, and to staff who see the whole book. Stored on the suggestion, so a later rule
+  // change does not move work that is already waiting for someone.
+  audienceFor(id, proposal) {
+    const spec = (AGENTS[id] && AGENTS[id].audience) || { roles: ['UW Manager'] };
+    const audience = { roles: [...spec.roles], producerCode: null };
+    if (spec.byPolicy && proposal && proposal.subject) {
+      const account = this.pc.db.accounts.find((a) => a.id === proposal.subject.accountId);
+      if (account) audience.producerCode = account.producerCode || null;
+    }
+    return audience;
+  }
+
+  visibleTo(user, suggestion) {
+    const audience = suggestion.audience || { roles: ['UW Manager'], producerCode: null }; // suggestions from before this existed
+    if (!user || !audience.roles.includes(user.role)) return false;
+    if (audience.producerCode && user.role === 'Agent') return audience.producerCode === user.producerCode;
+    return true;
+  }
+
+  // The open suggestions addressed to this person: what the Desktop and the Work queues show. The decision stays theirs.
+  suggestionsFor(user) {
+    const items = this.db.agentSuggestions
+      .filter((s) => s.status === 'Open' && this.visibleTo(user, s))
+      .reverse()
+      .map((s) => ({
+        id: s.id,
+        number: s.number,
+        agentId: s.agentId,
+        agent: (AGENTS[s.agentId] || {}).name || s.agentId,
+        kind: s.kind,
+        summary: s.summary,
+        reasons: s.reasons || [],
+        subject: s.subject || {},
+        createdAt: s.createdAt,
+      }));
+    const counts = new Map();
+    for (const s of items) counts.set(s.agentId, (counts.get(s.agentId) || 0) + 1);
+    const byAgent = [...counts].map(([agentId, count]) => ({ agentId, name: (AGENTS[agentId] || {}).name || agentId, count }));
+    return { count: items.length, byAgent, items };
   }
 
   suggestions(user, { status, agentId } = {}) {

@@ -144,6 +144,19 @@ function table(headers, rows, empty = 'Nothing to show') {
 
 const jobLink = (j) => `<a href="#/job/${j.id}">${esc(j.jobNumber)}</a>`;
 const policyLink = (p) => (p && p.policyNumber ? `<a href="#/policy/${p.policyId || p.id}">${esc(p.policyNumber)}</a>` : '—');
+// A suggestion points at the case it is about; the link opens it.
+const agentSubjectLink = (s) => {
+  const subject = s.subject || {};
+  if (subject.policyId) return `<a href="#/policy/${esc(subject.policyId)}">${esc(subject.policyNumber || subject.policyId)}</a>`;
+  if (subject.jobId) return `<a href="#/job/${esc(subject.jobId)}">${esc(subject.jobNumber || subject.jobId)}</a>`;
+  if (subject.accountId) return `<a href="#/account/${esc(subject.accountId)}">${esc(subject.accountNumber || subject.accountId)}</a>`;
+  return '—';
+};
+// What the agents propose, for the person it concerns. Nothing has changed yet: they accept or dismiss, and an accepted
+// action runs with their authority.
+const agentSuggestionsCard = (mine, title = 'From the agents') => (!mine || !mine.count ? '' : `<div class="card"><div class="spread"><h2>${esc(title)} <span class="badge">${mine.count}</span></h2><a class="btn small" href="#/agents">Open the suggestions queue</a></div>
+  <p class="muted">The agents only suggest. A person accepts or dismisses each one, and an accepted action runs with that person's authority.</p>
+  ${table(['Agent', 'Suggestion', 'Why', 'Case'], mine.items.slice(0, 6).map((s) => [esc(s.agent), esc(s.summary), esc((s.reasons || []).join(' ')), agentSubjectLink(s)]), 'Nothing waiting')}</div>`);
 const accountLink = (id, name) => `<a href="#/account/${id}">${esc(name)}</a>`;
 const productLabel = (code, form) => esc(product(code).name) + (form ? ` <span class="muted">${esc(form)}</span>` : '');
 
@@ -198,7 +211,7 @@ async function router() {
 // ------------------------------------------------------------------ desktop
 
 async function pageDesktop() {
-  const d = await api('GET', '/desktop');
+  const [d, mine] = await Promise.all([api('GET', '/desktop'), api('GET', '/suggestions/mine')]);
   const u = me();
   view(`
     <div class="spread"><div><div class="eyebrow">Desktop</div><h1>Welcome, ${esc(u.name)} <span class="badge">${esc(u.role)}</span></h1></div>
@@ -209,6 +222,7 @@ async function pageDesktop() {
       <div class="tile"><div class="label">Open jobs</div><div class="value">${d.stats.openJobs}</div></div>
       <div class="tile"><div class="label">${u.role === 'Agent' ? 'Open referrals' : 'My referrals'}</div><div class="value">${d.stats.openReferrals}</div></div>
     </div>
+    ${agentSuggestionsCard(mine)}
     <div class="card"><h2>${u.role === 'Agent' ? 'Referrals on my accounts' : 'My activities'}</h2>
       ${table(['Activity', 'Subject', 'Job', 'Priority', 'Assigned to', 'Due', ''], d.activities.map((a) => [
         esc(a.activityNumber),
@@ -1179,7 +1193,7 @@ const QUEUE_NAMES = { Referral: 'Underwriting referrals', Claims: 'Claims handli
 
 async function pageQueues() {
   const type = S.queueType || '';
-  const [summary, items] = await Promise.all([api('GET', '/queues'), api('GET', `/activities${type ? `?type=${encodeURIComponent(type)}` : ''}`)]);
+  const [summary, items, mine] = await Promise.all([api('GET', '/queues'), api('GET', `/activities${type ? `?type=${encodeURIComponent(type)}` : ''}`), api('GET', '/suggestions/mine')]);
   const u = me();
   const link = (a) => (a.jobId ? `<a href="#/job/${esc(a.jobId)}">${esc(a.jobNumber)}</a>` : a.claimId ? `<a href="#/claim/${esc(a.claimId)}">${esc(a.claimNumber)}</a>` : a.policyId ? `<a href="#/policy/${esc(a.policyId)}">${esc(a.policyNumber)}</a>` : '—');
   view(`
@@ -1188,6 +1202,7 @@ async function pageQueues() {
         <div class="label">${esc(QUEUE_NAMES[q.type])}</div><div class="value">${q.open}</div>
         <div class="muted">${q.overdue ? `<span class="warning">${q.overdue} late</span> · ` : ''}${q.unassigned} waiting · ${q.mine} mine</div></button>`).join('')}
       <button class="tile ${type === '' ? 'accent' : ''}" style="text-align:left;cursor:pointer" data-action="queue-filter" data-type="" aria-pressed="${type === ''}"><div class="label">All queues</div><div class="value">${summary.reduce((n, q) => n + q.open, 0)}</div></button></div>
+    ${agentSuggestionsCard(mine, 'Agent suggestions for you')}
     <div class="card"><h2>${esc(type ? QUEUE_NAMES[type] : 'All queues')}</h2>
       ${table(['Activity', 'Queue', 'Subject', 'For', 'Priority', 'Assigned to', 'Due', ''], items.map((a) => [
         esc(a.activityNumber), esc(QUEUE_NAMES[a.type] || a.type),
