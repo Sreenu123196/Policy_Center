@@ -164,6 +164,7 @@ const productLabel = (code, form) => esc(product(code).name) + (form ? ` <span c
 
 const ROUTES = [
   [/^#\/desktop$/, pageDesktop],
+  [/^#\/ask$/, pageAsk],
   [/^#\/accounts$/, pageAccounts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
@@ -1214,6 +1215,37 @@ async function pageQueues() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ knowledge assistant
+
+// Ask the wordings. The answer is rendered with numbered citations, and each citation expands to the passage it came
+// from: a claim without the clause beside it is not something a person can check.
+async function pageAsk() {
+  const question = (S.ask && S.ask.question) || '';
+  const result = S.ask && S.ask.result;
+  const passages = (result && result.passages) || [];
+  const sources = ((result && result.citations) || []).map((citation) => {
+    const passage = passages.find((p) => p.number === citation.number);
+    return `<li><strong>[${citation.number}] ${esc(citation.clause || '')}</strong>
+      <span class="muted">${esc(citation.headingPath || '')} · page ${esc(String(citation.page || ''))}</span>
+      ${passage ? `<div class="muted" style="white-space:pre-line">${esc(passage.text || '')}</div>` : ''}</li>`;
+  }).join('');
+
+  view(`
+    <div class="eyebrow">Knowledge</div><h1>Ask the documents</h1>
+    <div class="card">
+      <label for="ask-question">Question</label>
+      <input id="ask-question" value="${esc(question)}" placeholder="How much cover is there for jewellery and watches?" style="width:100%">
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" data-action="ask-question">Ask</button>
+        <span class="muted">Answers come only from the company wordings. If they do not contain it, the answer says so.</span>
+      </div>
+    </div>
+    ${result ? `<div class="card"><h2>${esc(result.status === 'answered' ? 'Answer' : 'No matching clause found')}</h2>
+      <p>${esc(result.answer || result.error || '')}</p>
+      ${sources ? `<h3>Sources</h3><ul>${sources}</ul>` : ''}
+    </div>` : ''}`);
+}
+
 // ------------------------------------------------------------------ AI agents
 
 const AGENT_NAMES = { renewal: 'Renewal agent', 'keep-customers': 'Keep-customers agent', billing: 'Billing agent', underwriting: 'Underwriting agent', compliance: 'Compliance check agent' };
@@ -1659,6 +1691,11 @@ async function pageFinance() {
 }
 
 const ACTIONS = {
+  'ask-question': async () => {
+    const box = document.querySelector('#ask-question');
+    S.ask = { question: box ? box.value : '', result: null };
+    return pageAsk();
+  },
   'agents-tab': (d) => { S.agentsTab = d.tab; return pageAgents(); },
   'sug-filter': (d) => { S.sugStatus = d.status; return pageAgents(); },
   'agent-mode': async (d) => { await api('POST', `/agents/${encodeURIComponent(d.id)}/mode`, { mode: d.mode }); toast(d.mode === 'off' ? 'Agent switched off' : 'Agent switched on: it will only suggest', 'success'); pageAgents(); },
