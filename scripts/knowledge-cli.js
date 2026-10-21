@@ -35,11 +35,17 @@ function postJson(host, urlPath, headers, body) {
   });
 }
 
-async function voyageEmbed(texts, inputType) {
+async function voyageEmbed(texts, inputType, attempt = 1) {
   const key = process.env.VOYAGE_API_KEY;
   if (!key) throw new Error('VOYAGE_API_KEY is not set');
   const res = await postJson('api.voyageai.com', '/v1/embeddings', { authorization: 'Bearer ' + key },
     { model: MODEL, input: texts, input_type: inputType });
+  if (res.status === 429 && attempt <= 3) {
+    const wait = 21000; // the free tier allows 3 requests a minute; one batch per window
+    console.log(`  voyage rate limit hit; waiting ${Math.round(wait / 1000)}s (attempt ${attempt})`);
+    await new Promise((r) => setTimeout(r, wait));
+    return voyageEmbed(texts, inputType, attempt + 1);
+  }
   if (res.status !== 200) throw new Error('voyage ' + res.status + ': ' + res.body.slice(0, 200));
   return JSON.parse(res.body).data.map((d) => d.embedding);
 }
@@ -110,17 +116,19 @@ async function main() {
     metadata: { audience: 'underwriting', product: 'Homeowners', language: 'en', sensitivity: 'internal', validFrom: '2026-01-01' },
   });
 
+  // One batch for every question: the free tier allows 3 requests a minute, so per-question calls would 429.
+  const queryVectors = fake ? null : await voyageEmbed(questions.map((q) => q.question), 'query');
+
   let correct = 0;
   const rows = [];
-  for (const question of questions) {
+  for (const [index, question] of questions.entries()) {
     let passages;
     if (fake) {
       const keyword = question.question.split(/\s+/).filter((w) => w.length > 6)[0] || question.question.split(/\s+/)[0];
       passages = store.searchKeyword(keyword, { limit: 3 });
       if (!passages.length) passages = store.searchKeyword('cover', { limit: 3 });
     } else {
-      const [vector] = await voyageEmbed([question.question], 'query');
-      passages = store.searchVector(vector, { embedModel: MODEL, limit: 3 });
+      passages = store.searchVector(queryVectors[index], { embedModel: MODEL, limit: 3 });
     }
     const result = await answerQuestion({ client, question: question.question, passages });
     const judged = score(question, result, passages);
