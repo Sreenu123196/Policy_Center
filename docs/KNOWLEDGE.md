@@ -14,13 +14,15 @@ fact, under the same access rules as the rest of the application.
 | R0.2 | `src/knowledge/ingest.js` — structure-aware split (heading path, clause, page), metadata on every chunk, injected embedder, all-or-nothing publish inside one SQLite transaction, `KnowledgeIndexed` result object. |
 | R0.2 | `test/knowledge-ingest.test.js` — 6 tests, fake embedder, no network. |
 | R0.2 | `test/fixtures/knowledge/sample-home-wording.md` — fictional Homeowners wording written for testing only. |
+| R0.3 | `src/knowledge/answer.js` — Claude `claude-opus-5-5`, passages as `search_result` blocks with citations enabled, system prompt from Appendix D, prompt caching. Plain-code checks: every factual sentence cited, every citation among the passages sent, one retry then "not found", cover answers always carry the claims-team sentence. |
+| R0.3 | `test/knowledge-answer.test.js` — 9 tests with a fake Claude: cited answer accepted, uncited retried then refused, outside citation rejected, injection passage treated as data, missing fact gives "not found", cover sentence enforced. |
 
 ### Next
 
 | Slice | Work |
 |---|---|
-| R0.3 | `src/knowledge/answer.js` — Claude with citations; plain-code checks (every fact cited, citations only from allowed passages, uncited → retry once → "not found"); prompt-injection test. |
 | R0.4 | `scripts/knowledge-cli.js` — 20 questions against the real Voyage and Claude APIs (ask before running: it costs money). |
+| R1 | Hybrid search (vector + keyword), RRF, reranker, contextual sentences, evaluation set. |
 | R1 | Hybrid search (vector + keyword), reciprocal rank fusion, reranker, contextual sentences, evaluation set; target recall@8 ≥ 90%. |
 | R2 | Audience and date filters applied before ranking, policy-as-of tool, masking, query log; leak tests must score 0. |
 | R3 | Ask page in the UI with numbered citations and a source viewer, in three languages. |
