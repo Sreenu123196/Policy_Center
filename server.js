@@ -85,6 +85,9 @@ try {
   console.log('Knowledge assistant: disabled - ' + err.message);
 }
 
+// The assistant is built before the knowledge service, so the handle is attached once both exist.
+if (knowledge && chatbot) chatbot.knowledge = knowledge;
+
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents, notifier, knowledge });
   // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
   while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }

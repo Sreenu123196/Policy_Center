@@ -69,6 +69,11 @@ const TOOLS = [
     },
   },
   {
+    name: 'search_knowledge',
+    description: 'Search the company policy wordings. Returns clauses with heading, page and audience so you can cite them. Use this for what a wording says; never answer those from memory.',
+    input_schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'], additionalProperties: false },
+  },
+  {
     name: 'create_account',
     description: 'Create a customer account. Collect first name, last name, date of birth, phone, email and address first; never invent them. Returns the new account number.',
     input_schema: {
@@ -427,6 +432,9 @@ function runTool(pc, user, name, input) {
       const job = pc.store.transaction(() => pc.startSubmission({ accountId: detail.account.id, product: input.product, effectiveDate: input.effectiveDate }, user));
       return { created: true, jobNumber: job.jobNumber, status: job.status, product: job.product, effectiveDate: job.effectiveDate, account: detail.account.accountNumber, insured: detail.account.name };
     }
+    case 'search_knowledge': {
+      return { available: false, message: 'search_knowledge runs on the async path' };
+    }
     case 'create_account': {
       const input2 = { ...input, producerCode: input.producerCode || user.producerCode };
       try {
@@ -577,7 +585,16 @@ function runTool(pc, user, name, input) {
   }
 }
 
-function safeRunTool(pc, user, name, input) {
+async function safeRunTool(pc, user, name, input, options = {}) {
+  if (name === 'search_knowledge') {
+    if (!options.knowledge) return { ok: true, result: { available: false, message: 'The knowledge assistant is not configured on this server' } };
+    try {
+      const passages = await options.knowledge.search(user, String((input && input.question) || ''));
+      return { ok: true, result: { available: true, passages } };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
   try {
     return { ok: true, result: runTool(pc, user, name, input || {}) };
   } catch (err) {
@@ -715,9 +732,10 @@ function hasCredentials() {
 const NO_KEY = 'No Anthropic credentials found, so the assistant is in offline mode (lookups and summaries only). Set ANTHROPIC_API_KEY and restart the server for full answers.';
 
 class Chatbot {
-  constructor(pc, { client } = {}) {
+  constructor(pc, { client, knowledge = null } = {}) {
     this.pc = pc;
     this.conversations = new Map();
+    this.knowledge = knowledge;
     this.offlineReason = null;
     if (client !== undefined) this.client = client;
     else if (!hasCredentials()) this.client = null;
@@ -846,16 +864,16 @@ class Chatbot {
           return { conversationId: conv.id, mode: 'claude', reply, toolsUsed };
         }
 
-        const results = calls.map((call) => {
+        const results = await Promise.all(calls.map(async (call) => {
           toolsUsed.push(call.name);
           const problem = validateInput(call.name, call.input);
           if (problem) {
             return { type: 'tool_result', tool_use_id: call.id, is_error: true, content: JSON.stringify({ INVALID_INPUT: problem, received: call.input }) };
           }
           emit('tool', { name: call.name, label: toolLabel(call.name, call.input) });
-          const { ok, result } = safeRunTool(this.pc, user, call.name, call.input);
+          const { ok, result } = await safeRunTool(this.pc, user, call.name, call.input, { knowledge: this.knowledge });
           return { type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(result), is_error: !ok };
-        });
+        }));
         pending.push({ role: 'user', content: results });
       }
     } catch (err) {

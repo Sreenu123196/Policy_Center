@@ -52,6 +52,7 @@ test('tool definitions are well formed and every tool runs', () => {
     assert.equal(t.input_schema.additionalProperties, false);
   }
   const inputs = {
+  search_knowledge: { question: 'dwelling cover' },
   quote_submission: { job: 'J0000001' },
   create_submission: { account: 'A0000001', product: 'Homeowners', effectiveDate: '2026-04-01' },
   create_account: { firstName: 'Slice', lastName: 'One', dob: '1990-01-01', phone: '+15125550100', email: 'ops@slice.example', producerCode: 'PC-100', address: { line1: '1 Test Way', city: 'Austin', state: 'TX', zip: '78701' } },
