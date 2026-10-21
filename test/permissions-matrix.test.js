@@ -90,6 +90,7 @@ const MATRIX = {
   'GET /agents/suggestions': ['agent', 'exec'],
   'GET /suggestions/mine': [], // every signed-in person; it only ever returns their own
   'POST /knowledge/ask': ['agent'],
+  'POST /knowledge/reindex': ['agent', 'uw', 'exec'],
   'GET /knowledge/search': ['agent'],
   'POST /agents/suggestions/:id/decision': ['agent', 'exec'],
   'POST /agents/:id/mode': ['agent', 'uw', 'exec'],

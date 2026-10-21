@@ -21,7 +21,7 @@ const DEFAULT_LIMIT = 8;
  * @param {{messages: {create: Function}}} deps.client  Claude (a fake in tests)
  * @returns {{ask: Function, search: Function}}
  */
-function createKnowledgeService({ store, embedModel, embedder, client }) {
+function createKnowledgeService({ store, embedModel, embedder, client, documentEmbedder = null }) {
   /**
    * Retrieve, answer, log.
    * @param {{id?: string, role: string}} user
@@ -77,7 +77,40 @@ function createKnowledgeService({ store, embedModel, embedder, client }) {
       }));
   }
 
-  return { ask, search };
+  /**
+   * Re-embed every chunk whose model is not the current one. One transaction per version: a version either moves to the
+   * new model whole or stays on the old one, so a half-migrated version can never answer.
+   */
+  async function reindex() {
+    const started = Date.now();
+    const embedForDocument = documentEmbedder || embedder;
+    const stale = store.staleVersions(embedModel);
+    let chunks = 0;
+
+    for (const entry of stale) {
+      const rows = store.chunksForVersion(entry.versionId);
+      try {
+        const vectors = await embedForDocument(rows.map((row) => row.text));
+        if (!Array.isArray(vectors) || vectors.length !== rows.length) {
+          throw new Error('embedder returned ' + (vectors && vectors.length) + ' vectors for ' + rows.length + ' chunks');
+        }
+        store.transaction(() => {
+          rows.forEach((row, index) => store.updateChunkEmbedding(row.id, vectors[index], embedModel));
+        });
+        chunks += rows.length;
+      } catch (err) {
+        const durationMs = Date.now() - started;
+        store.logRun({ agent: 'reindex', versions: stale.length, chunks, model: embedModel, ok: false, error: err.message, durationMs });
+        return { versions: stale.length, chunks, model: embedModel, durationMs, ok: false, error: err.message };
+      }
+    }
+
+    const durationMs = Date.now() - started;
+    store.logRun({ agent: 'reindex', versions: stale.length, chunks, model: embedModel, ok: true, durationMs });
+    return { versions: stale.length, chunks, model: embedModel, durationMs, ok: true };
+  }
+
+  return { ask, search, reindex };
 }
 
 module.exports = { createKnowledgeService };

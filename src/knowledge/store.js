@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS chunks (
   valid_from TEXT NOT NULL, valid_to TEXT
 );
 CREATE INDEX IF NOT EXISTS chunks_model ON chunks(embed_model);
+CREATE TABLE IF NOT EXISTS ingestion_runs (
+  id TEXT PRIMARY KEY, agent TEXT NOT NULL, versions INTEGER, chunks INTEGER,
+  model TEXT, ok INTEGER NOT NULL, error TEXT, duration_ms INTEGER, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS query_log (
   id TEXT PRIMARY KEY, user_id TEXT, role TEXT, audience TEXT, question TEXT NOT NULL,
   status TEXT, citations TEXT, latency_ms INTEGER, created_at TEXT NOT NULL
@@ -93,6 +97,33 @@ function openKnowledgeStore(file) {
     },
 
     getQueryLog: (limit = 20) => db.prepare('SELECT * FROM query_log ORDER BY created_at DESC LIMIT ?').all(limit),
+
+    // Reindex support: which versions still carry another model, their chunks, and a way to rewrite one embedding.
+    staleVersions(currentModel) {
+      return db.prepare(
+        'SELECT version_id AS versionId, COUNT(*) AS chunks FROM chunks WHERE embed_model <> ? GROUP BY version_id',
+      ).all(currentModel);
+    },
+
+    chunksForVersion(versionId) {
+      return db.prepare('SELECT * FROM chunks WHERE version_id = ? ORDER BY id').all(versionId);
+    },
+
+    updateChunkEmbedding(id, embedding, embedModel) {
+      db.prepare('UPDATE chunks SET embedding = ?, embed_model = ? WHERE id = ?')
+        .run(JSON.stringify(embedding), embedModel, id);
+    },
+
+    logRun({ agent, versions, chunks, model, ok, error, durationMs, createdAt = new Date().toISOString() }) {
+      const id = require('node:crypto').randomUUID();
+      db.prepare(`INSERT INTO ingestion_runs (id, agent, versions, chunks, model, ok, error, duration_ms, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        id, agent, versions ?? null, chunks ?? null, model || null, ok ? 1 : 0, error || null, durationMs ?? null, createdAt,
+      );
+      return id;
+    },
+
+    getRuns: (limit = 20) => db.prepare('SELECT * FROM ingestion_runs ORDER BY created_at DESC LIMIT ?').all(limit),
 
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
