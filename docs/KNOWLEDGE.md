@@ -122,3 +122,13 @@ from 75% to 60% on the same 20 questions, so it was reverted at `98e44a4`. The s
 when a passage merely mentions the subject without stating the answer, which is the safer failure for insurance; the
 looser rule turned refusals into guesses. Recorded because the intuition was wrong and the measurement is the
 argument.
+
+### Dedupe attempted twice, both measured harmful (21 October)
+
+The trace showed eight slots filled by three clauses, so dedupe-by-clause looked like free quality. Tried twice: one
+chunk per clause (reverted, broke two recall measures and two access assertions) and two chunks per clause over the
+whole fused list (reverted, still lowered recall). The reason is structural: a long clause's *answer-bearing* chunk can
+be its third or fourth, so any per-clause cap discards exactly the passage the question needs. Keeping the cap means
+raising the fetch pool and choosing per clause by relevance to the question, which is the reranker's job - and the
+reranker is disabled because it measured worse. Conclusion: leave ranking as it is until a reranker can be measured
+better, and treat clause repetition as a known cost rather than a bug.
