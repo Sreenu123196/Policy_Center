@@ -32,7 +32,7 @@ function etagFor(pc, sub) {
   return record ? `"${hash(record).slice(0, 32)}"` : null;
 }
 
-function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption, notifier: notifierOption } = {}) {
+function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption, notifier: notifierOption, knowledge: knowledgeOption } = {}) {
   // Notifications are optional (a test or a bare local run may not configure them). These keep the three outside doors
   // closed with an honest answer instead of failing on an undefined service.
   const notifier = notifierOption || {
@@ -74,6 +74,15 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Setup: until the first account has a password, the app asks the first person to choose one.
   // Is the server up? No sign-in, nothing private: for a load balancer or a container health check.
   route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
+  // Knowledge Assistant. Both are read-only in the app's sense: they change nothing in the store, so the dispatcher
+  // awaits them. The query log lives in the separate knowledge database.
+  const knowledge = knowledgeOption || null;
+  // Customer and agent use arrives in R4; until then the corpus is staff-only.
+  const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
+  const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
+  route('POST', '/knowledge/ask', async ({ user, body }) => (staffOnly(user), knowledge ? knowledge.ask(user, String((body && body.question) || ''), { asOf: body && body.asOf, language: (body && body.language) || 'en' }) : noKnowledge()), { readOnly: true });
+  route('GET', '/knowledge/search', async ({ user, query }) => (staffOnly(user), knowledge ? knowledge.search(user, String(query.get('q') || ''), { asOf: query.get('asOf') || null }) : []), { readOnly: true });
+
   // How the server is doing (UW managers): memory, how many records, what saving the data costs.
   route('GET', '/admin/metrics', ({ user }) => {
     pc.requireAuthority(user, 2, 'see server metrics');
