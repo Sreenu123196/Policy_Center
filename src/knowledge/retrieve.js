@@ -82,12 +82,16 @@ function hybridSearch({ store, embedModel, queryVector, queryText, pool = 50, li
   if (keywordList.length) lists.push(keywordList);
 
   const fused = fuse(lists, {});
-  return fused.slice(0, limit).map(({ id, score }) => ({
-    ...store.getChunk(id),
+  return fused.slice(0, limit).map(({ id, score }) => {
+    const row = store.getChunk(id);
+    return {
+    ...row,
+    headingPath: row.heading_path,
     hybridScore: score,
     fromVector: vectorList.includes(id),
     fromKeyword: keywordList.includes(id),
-  }));
+    };
+  });
 }
 
 module.exports = { hybridSearch, fuse, tokenize, RRF_K };
