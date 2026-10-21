@@ -96,7 +96,8 @@ function openKnowledgeStore(file) {
     },
 
     searchKeyword(term, { limit = 10 } = {}) {
-      return db.prepare('SELECT * FROM chunks WHERE text LIKE ? LIMIT ?').all(`%${term}%`, limit);
+      return db.prepare('SELECT * FROM chunks WHERE text LIKE ? OR context LIKE ? LIMIT ?')
+        .all(`%${term}%`, `%${term}%`, limit);
     },
   };
 }

@@ -119,3 +119,20 @@ test('an ingest without an audience is refused, because the access filter depend
     );
     assert.equal(store.getVersion('v1'), undefined);
   }));
+
+test('every chunk carries a context sentence naming its clause and heading', () =>
+  withStore(async (store) => {
+    const result = await ingestVersion({
+      store, embedder: fakeEmbedder, embedModel: 'voyage-4', document,
+      version: { id: 'v1', version: 1, validFrom: '2026-01-01' }, text: FIXTURE, metadata: META,
+    });
+    const rows = store.searchVector([1, 0, 0], { embedModel: 'voyage-4', limit: 50 });
+    assert.equal(rows.length, result.chunks);
+    for (const row of rows) {
+      assert.ok(row.context, 'a context sentence is stored');
+      assert.match(row.context, /HO-\d\.\d/);
+      assert.match(row.context, /Homeowners/);
+    }
+    const found = store.searchKeyword('Property cover', { limit: 5 });
+    assert.ok(found.length > 0, 'the context is searchable by keyword');
+  }));

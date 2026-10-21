@@ -139,7 +139,7 @@ async function measureRecall() {
       const topPlain = fused.slice(0, k);
       const topReranked = await rerank({ query: question.question, candidates: fused, reranker: overlap, topN: k });
       const hit = (rows) => question.expected_sources.some((clause) => rows.map((r) => r.clause).includes(clause));
-      if (hit(topPlain)) plain += 1;
+      if (hit(topPlain)) plain += 1; else console.log('  miss@' + k + ' ' + question.id + ': ' + question.question + ' (wanted ' + question.expected_sources.join(',') + ', got ' + fused.slice(0, k).map((r) => r.clause).join(',') + ')');
       if (hit(topReranked)) reranked += 1;
     }
     console.log('recall@' + k + ' fused: ' + (plain / answerable.length).toFixed(2) + ' | reranked: ' + (reranked / answerable.length).toFixed(2));

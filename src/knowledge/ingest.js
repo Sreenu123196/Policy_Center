@@ -132,6 +132,7 @@ async function ingestVersion({ store, embedder, embedModel, document, version, t
     documentId: document.id,
     headingPath: part.headingPath,
     clause: part.clause,
+    context: part.clause ? `${part.clause} in "${part.headingPath}" of the ${meta.product || 'policy'} wording.` : null,
     page: part.page,
     text: part.text,
     audience: meta.audience,
