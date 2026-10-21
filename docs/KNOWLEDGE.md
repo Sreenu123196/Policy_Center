@@ -114,3 +114,11 @@ so most of the remaining "not found" answers were the model correctly refusing o
 clause. Correctness is still short of the 90% target, and the seven remaining misses are answerable questions whose
 clause is now in context - which makes the next question an answering one (prompt, or the "say not found" rule firing
 too eagerly), not a retrieval one.
+
+### Prompt change measured and reverted (21 October)
+
+Softening the refusal rule - "answer when a passage addresses the question, even partially" - **lowered** correctness
+from 75% to 60% on the same 20 questions, so it was reverted at `98e44a4`. The stricter rule makes the model refuse
+when a passage merely mentions the subject without stating the answer, which is the safer failure for insurance; the
+looser rule turned refusals into guesses. Recorded because the intuition was wrong and the measurement is the
+argument.
