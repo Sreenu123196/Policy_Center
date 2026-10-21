@@ -10,6 +10,7 @@ const { hybridSearch } = require('./retrieve');
 const { answerQuestion } = require('./answer');
 const { filtersForUser } = require('./access');
 const { safeQuery } = require('./mask');
+const { ingestVersion } = require('./ingest');
 
 const DEFAULT_LIMIT = 8;
 
@@ -110,7 +111,13 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return { versions: stale.length, chunks, model: embedModel, durationMs, ok: true };
   }
 
-  return { ask, search, reindex };
+  /** Publish one document version. Manager-only at the route. */
+  async function ingest({ document, version, text, metadata }) {
+    const embedForDocument = documentEmbedder || embedder;
+    return ingestVersion({ store, embedder: embedForDocument, embedModel, document, version, text, metadata });
+  }
+
+  return { ask, search, reindex, ingest };
 }
 
 module.exports = { createKnowledgeService };

@@ -80,6 +80,22 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Customer and agent use arrives in R4; until then the corpus is staff-only.
   const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
   const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
+  route('POST', '/knowledge/documents', async ({ user, body }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may publish a wording');
+    if (!knowledge) return { ok: false, message: 'The knowledge assistant is not configured on this server' };
+    const title = String((body && body.title) || '').trim();
+    const text = String((body && body.text) || '');
+    if (!title || !text) return { ok: false, message: 'A title and the wording text are required' };
+    const validFrom = String((body && body.validFrom) || new Date().toISOString().slice(0, 10));
+    const product = (body && body.product) || null;
+    return knowledge.ingest({
+      document: { id: (product || 'wording') + '-' + title.toLowerCase().replace(/[^a-z0-9]+/g, '-'), title, source: 'upload' },
+      version: { id: 'v-' + Date.now(), version: 1, validFrom },
+      text,
+      metadata: { audience: String((body && body.audience) || 'underwriting'), product, language: (body && body.language) || 'en', sensitivity: 'internal', validFrom },
+    });
+  }, { readOnly: true });
+
   route('POST', '/knowledge/reindex', async ({ user }) => {
     if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may reindex the corpus');
     if (!knowledge) return { ok: false, message: 'The knowledge assistant is not configured on this server' };
