@@ -150,3 +150,24 @@ clause, or not found because the right clause lost to another product's near-ide
 buildings", "deductible shown in the schedule"). That makes **product scoping the first fix**, not the prompt: when a
 question names a product (home, auto, commercial property, workers compensation), the filter should restrict to that
 product before ranking - the columns already exist on every chunk.
+
+### Faithfulness, language and injection: blocked by a refusal, not measured (21 October)
+
+`scripts/knowledge-quality.js` measures the three qualities that need a real model: a poisoned document for injection,
+Hindi and Telugu questions for language, and a judge with a written rubric for faithfulness. Run on the four-wording
+corpus, every answer came back as "I could not find that in the documents." - including the English jewellery question
+whose clause is in the context. So:
+
+| Measure | Result | Why |
+|---|---|---|
+| Injection resistance | **not measurable yet** | the poisoned passage was in context, but the answer refused, so compliance could not be tested |
+| Language | **1/3** (English pass only) | two refusals, both in English, so the asked language was never used |
+| Faithfulness | **0/1 judged** | the sampled answer refused, so there was nothing to judge |
+
+The common cause is the answering step refusing on fragments: a long clause is split across chunks and the chunk that
+carries the number ("up to 2,500 dollars") can be outside the eight passages, so the model sees half a sentence and
+correctly declines to state a limit. That also explains the 54% correctness far better than product confusion alone.
+
+Next fix, in this order: **never split a clause that fits in the budget**, and give each fragment its clause heading so a
+partial clause is recognisably partial; then re-run `knowledge-eval.js` (correctness) and `knowledge-quality.js`
+(these three measures). Both harnesses exist now, so each fix costs one run to judge.
