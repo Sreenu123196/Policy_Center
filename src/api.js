@@ -80,6 +80,12 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Customer and agent use arrives in R4; until then the corpus is staff-only.
   const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
   const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
+  route('POST', '/knowledge/reindex', async ({ user }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may reindex the corpus');
+    if (!knowledge) return { ok: false, message: 'The knowledge assistant is not configured on this server' };
+    return knowledge.reindex();
+  }, { readOnly: true });
+
   route('POST', '/knowledge/ask', async ({ user, body }) => (staffOnly(user), knowledge ? knowledge.ask(user, String((body && body.question) || ''), { asOf: body && body.asOf, language: (body && body.language) || 'en' }) : noKnowledge()), { readOnly: true });
   route('GET', '/knowledge/search', async ({ user, query }) => (staffOnly(user), knowledge ? knowledge.search(user, String(query.get('q') || ''), { asOf: query.get('asOf') || null }) : []), { readOnly: true });
 
