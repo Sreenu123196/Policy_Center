@@ -125,6 +125,18 @@ function openKnowledgeStore(file) {
 
     getRuns: (limit = 20) => db.prepare('SELECT * FROM ingestion_runs ORDER BY created_at DESC LIMIT ?').all(limit),
 
+    // Everything the admin screen shows, in one call: documents, their versions with chunk counts and models, and
+    // the last runs. Kept here so the screen has no SQL of its own.
+    adminOverview(runLimit = 10) {
+      const documents = db.prepare('SELECT id, title, source, created_at FROM documents ORDER BY created_at DESC').all();
+      const versions = db.prepare(`
+        SELECT v.id, v.document_id, v.version, v.valid_from, v.valid_to,
+               COUNT(c.id) AS chunks, GROUP_CONCAT(DISTINCT c.embed_model) AS models
+        FROM document_versions v LEFT JOIN chunks c ON c.version_id = v.id
+        GROUP BY v.id ORDER BY v.valid_from DESC`).all();
+      return { documents, versions, runs: db.prepare('SELECT * FROM ingestion_runs ORDER BY created_at DESC LIMIT ?').all(runLimit) };
+    },
+
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
 

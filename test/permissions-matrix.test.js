@@ -92,6 +92,7 @@ const MATRIX = {
   'POST /knowledge/ask': ['agent'],
   'POST /knowledge/reindex': ['agent', 'uw', 'exec'],
   'POST /knowledge/documents': ['agent', 'uw', 'exec'],
+  'GET /knowledge/documents': ['agent', 'uw', 'exec'],
   'GET /knowledge/search': ['agent'],
   'POST /agents/suggestions/:id/decision': ['agent', 'exec'],
   'POST /agents/:id/mode': ['agent', 'uw', 'exec'],

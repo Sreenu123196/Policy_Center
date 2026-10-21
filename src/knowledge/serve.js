@@ -117,7 +117,12 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return ingestVersion({ store, embedder: embedForDocument, embedModel, document, version, text, metadata });
   }
 
-  return { ask, search, reindex, ingest };
+  /** The admin screen's data: what is indexed, with which model, and the last runs. */
+  async function overview() {
+    return store.adminOverview();
+  }
+
+  return { ask, search, reindex, ingest, overview };
 }
 
 module.exports = { createKnowledgeService };
