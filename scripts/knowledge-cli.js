@@ -153,6 +153,10 @@ async function main() {
     return 20;
   }
   const fake = process.argv.includes('--fake');
+  // Policy wordings are public documents in most companies; the CLI records which audience a source belongs to so the
+  // same file can be published to staff only (underwriting) or to everyone (public).
+  const audienceFlag = process.argv.indexOf('--audience');
+  const AUDIENCE = audienceFlag > -1 ? process.argv[audienceFlag + 1] : 'underwriting';
   const { questions } = JSON.parse(fs.readFileSync(QUESTIONS, 'utf8'));
   const text = fs.readFileSync(FIXTURE, 'utf8');
 
@@ -170,7 +174,7 @@ async function main() {
     document: { id: 'sample-home', title: 'Sample Homeowners Wording', source: 'test/fixtures/knowledge/sample-home-wording.md' },
     version: { id: 'v-' + stamp, version: 1, validFrom: '2026-01-01' },
     text,
-    metadata: { audience: 'underwriting', product: 'Homeowners', language: 'en', sensitivity: 'internal', validFrom: '2026-01-01' },
+    metadata: { audience: AUDIENCE, product: 'Homeowners', language: 'en', sensitivity: 'internal', validFrom: '2026-01-01' },
   });
 
   // One batch for every question: the free tier allows 3 requests a minute, so per-question calls would 429.
