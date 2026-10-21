@@ -132,3 +132,21 @@ be its third or fourth, so any per-clause cap discards exactly the passage the q
 raising the fetch pool and choosing per clause by relevance to the question, which is the reranker's job - and the
 reranker is disabled because it measured worse. Conclusion: leave ranking as it is until a reranker can be measured
 better, and treat clause repetition as a known cost rather than a bug.
+
+### The number that matters: 54% on the real corpus (21 October)
+
+`scripts/knowledge-eval.js` ingests all four wordings (22 chunks) and asks all 50 cases with the real embedder and
+model:
+
+| Measure | Result |
+|---|---|
+| Correctness | **27/50 (54%)** |
+| Answerable cases that cited the right clause | **7/30 (23%)** |
+| Correct "not found" | 20/20 (100%) |
+
+The earlier 75% was measured against a database holding only the Homeowners wording, so retrieval had no chance to
+confuse products. With four wordings it does: most refusals are the right question answered from the wrong product's
+clause, or not found because the right clause lost to another product's near-identical language ("we cover the
+buildings", "deductible shown in the schedule"). That makes **product scoping the first fix**, not the prompt: when a
+question names a product (home, auto, commercial property, workers compensation), the filter should restrict to that
+product before ranking - the columns already exist on every chunk.
