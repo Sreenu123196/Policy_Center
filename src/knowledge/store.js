@@ -83,8 +83,8 @@ function openKnowledgeStore(file) {
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
 
     // Cosine similarity in JS for R0's corpus size; sqlite-vec replaces this at R1 without changing callers.
-    searchVector(queryVector, { embedModel, limit = 10 } = {}) {
-      const rows = db.prepare('SELECT * FROM chunks').all();
+    searchVector(queryVector, { embedModel, limit = 10, filters = null } = {}) {
+      const rows = db.prepare('SELECT * FROM chunks').all().filter((row) => matchesFilters(row, filters));
       const wrong = rows.find((r) => r.embed_model !== embedModel);
       if (wrong) {
         throw new Error(`refusing to compare embeddings: index has ${wrong.embed_model}, query is ${embedModel}`);
@@ -95,11 +95,24 @@ function openKnowledgeStore(file) {
         .slice(0, limit);
     },
 
-    searchKeyword(term, { limit = 10 } = {}) {
-      return db.prepare('SELECT * FROM chunks WHERE text LIKE ? OR context LIKE ? LIMIT ?')
-        .all(`%${term}%`, `%${term}%`, limit);
+    searchKeyword(term, { limit = 10, filters = null } = {}) {
+      const rows = db.prepare('SELECT * FROM chunks WHERE text LIKE ? OR context LIKE ? LIMIT ?')
+        .all(`%${term}%`, `%${term}%`, limit * 5);
+      return rows.filter((row) => matchesFilters(row, filters)).slice(0, limit);
     },
   };
+}
+
+// Filters run before scoring, not after: a passage the person may not see must never influence the ranking, or its
+// presence would leak through which clause was cited.
+function matchesFilters(row, filters) {
+  if (!filters) return true;
+  if (Array.isArray(filters.audiences) && !filters.audiences.includes(row.audience)) return false;
+  if (filters.asOf) {
+    if (row.valid_from && String(row.valid_from) > String(filters.asOf)) return false;
+    if (row.valid_to && String(row.valid_to) <= String(filters.asOf)) return false;
+  }
+  return true;
 }
 
 function cosine(a, b) {
@@ -108,4 +121,4 @@ function cosine(a, b) {
   return dot / (Math.sqrt(na) * Math.sqrt(nb) || 1);
 }
 
-module.exports = { openKnowledgeStore, cosine, SCHEMA };
+module.exports = { openKnowledgeStore, cosine, matchesFilters, SCHEMA };

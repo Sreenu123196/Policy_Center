@@ -49,12 +49,12 @@ function fuse(lists, { k = RRF_K } = {}) {
  * @param {number} [options.limit]  how many results to return
  * @returns {Array<object>} chunk rows with hybridScore, best first
  */
-function hybridSearch({ store, embedModel, queryVector, queryText, pool = 50, limit = 8 }) {
+function hybridSearch({ store, embedModel, queryVector, queryText, pool = 50, limit = 8, filters = null }) {
   const lists = [];
   const vectorList = [];
 
   if (queryVector) {
-    for (const row of store.searchVector(queryVector, { embedModel, limit: pool })) {
+    for (const row of store.searchVector(queryVector, { embedModel, limit: pool, filters })) {
       vectorList.push(row.id);
     }
     lists.push(vectorList);
@@ -64,7 +64,7 @@ function hybridSearch({ store, embedModel, queryVector, queryText, pool = 50, li
   // and where it appeared. One LIKE per word is enough at this corpus size and keeps the adapter unchanged.
   const keywordHits = new Map();
   for (const term of tokenize(queryText).slice(0, 10)) {
-    const rows = store.searchKeyword(term, { limit: pool });
+    const rows = store.searchKeyword(term, { limit: pool, filters });
     // A term that matches many clauses says little ("cover"); a term that matches one says a lot ("jewellery",
     // "30 days"). Weighting by rarity is what makes the keyword half better than noise.
     const weight = 1 / Math.max(1, rows.length);
