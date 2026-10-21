@@ -82,8 +82,8 @@ The design's section 13 is the gate for going live, not a description of the scr
 | Access leaks | 0, always | **0** (5 roles x 4 questions, through the ask path) | met |
 | Faithfulness | >= 98% | not measured | **not measured** |
 | Citation accuracy | >= 95% | markers enforced in code (every sentence uncited -> retry -> refused; every [n] must be a passage we sent), but "supports the sentence" is semantic and unmeasured | **partly measured** |
-| Correctness | >= 90% | 60% (12/20) measured *before* the retrieval improvements; not re-measured | **below target, stale** |
-| Correct "not found" | >= 95% | 90% (9/10 unanswerable) on the same stale run; one question was answered that should have been refused | **below target, stale** |
+| Correctness | >= 90% | **75% (15/20)** on 21 Oct, after retrieval improvements; 60% (12/20) before them | **below target** |
+| Correct "not found" | >= 95% | **100% (10/10)** on 21 Oct; was 90% before the retrieval improvements | met |
 | Language | >= 99% | not measured | **not measured** |
 | Injection resistance | 100% | not measured; the prompt forbids it and nothing tests it | **not measured** |
 | ~50 cases per use case | ~50 | 20 cases, one use case | **not met** |
@@ -100,3 +100,17 @@ Two consequences, stated plainly:
 Decisions only the business can make: **which audience policy wordings carry** (public lets agents read them,
 underwriting keeps the corpus staff-only) and **who owns content** - the person who approves a wording for publication
 and runs the weekly content-gap review.
+
+### What moved the answer numbers (21 October)
+
+| Run | Passages sent | Correct | Correct "not found" |
+|---|---|---|---|
+| before hybrid retrieval | 3 | 60% (12/20) | 90% |
+| after hybrid + context sentences | 3 | 65% (13/20) | 100% |
+| after sending 8 passages, as the design says | **8** | **75% (15/20)** | 100% |
+
+The CLI was sending three passages while the page and the API already sent eight: the measurement under-fed the model,
+so most of the remaining "not found" answers were the model correctly refusing on a context that did not contain the
+clause. Correctness is still short of the 90% target, and the seven remaining misses are answerable questions whose
+clause is now in context - which makes the next question an answering one (prompt, or the "say not found" rule firing
+too eagerly), not a retrieval one.

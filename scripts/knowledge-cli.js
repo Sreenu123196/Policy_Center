@@ -186,10 +186,10 @@ async function main() {
     let passages;
     if (fake) {
       const keyword = question.question.split(/\s+/).filter((w) => w.length > 6)[0] || question.question.split(/\s+/)[0];
-      passages = store.searchKeyword(keyword, { limit: 3 });
-      if (!passages.length) passages = store.searchKeyword('cover', { limit: 3 });
+      passages = store.searchKeyword(keyword, { limit: 8 });
+      if (!passages.length) passages = store.searchKeyword('cover', { limit: 8 });
     } else {
-      passages = store.searchVector(queryVectors[index], { embedModel: MODEL, limit: 3 });
+      passages = store.searchVector(queryVectors[index], { embedModel: MODEL, limit: 8 });
     }
     const result = await answerQuestion({ client, question: question.question, passages });
     const judged = score(question, result, passages);
