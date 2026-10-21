@@ -71,3 +71,32 @@ Configuration lives in `.env` (git-ignored): `VOYAGE_API_KEY`, `ANTHROPIC_API_KE
 - The audience and date columns exist but no filter uses them yet; they are enforced in R2, and until then retrieval must
   not be exposed to a role that should not see the corpus.
 - No OCR: a scanned PDF will ingest as empty text and is rejected rather than silently indexed.
+
+## R3 exit against section 13 (Evaluation)
+
+The design's section 13 is the gate for going live, not a description of the screens. Scored on 21 October 2026.
+
+| Measure | Target | Measured | State |
+|---|---|---|---|
+| Recall at 8 | >= 90% | **100%** (voyage-4, 22 chunks, 4 wordings) | met |
+| Access leaks | 0, always | **0** (5 roles x 4 questions, through the ask path) | met |
+| Faithfulness | >= 98% | not measured | **not measured** |
+| Citation accuracy | >= 95% | markers enforced in code (every sentence uncited -> retry -> refused; every [n] must be a passage we sent), but "supports the sentence" is semantic and unmeasured | **partly measured** |
+| Correctness | >= 90% | 60% (12/20) measured *before* the retrieval improvements; not re-measured | **below target, stale** |
+| Correct "not found" | >= 95% | 90% (9/10 unanswerable) on the same stale run; one question was answered that should have been refused | **below target, stale** |
+| Language | >= 99% | not measured | **not measured** |
+| Injection resistance | 100% | not measured; the prompt forbids it and nothing tests it | **not measured** |
+| ~50 cases per use case | ~50 | 20 cases, one use case | **not met** |
+| Run on every change, blocking a release | required | CLI only; not in any pipeline | **not met** |
+
+Two consequences, stated plainly:
+
+1. R3's screens and routes are built, but the phase cannot be called done against its own gate: three measures are
+   unmeasured, two are below target on a stale run, and the case count is far short.
+2. The cheapest next measurement is correctness and correct-not-found re-run now that retrieval reaches 100% at 8: the
+   same 20 questions through `scripts/knowledge-cli.js`, which costs a handful of model calls. Faithfulness and
+   citation accuracy need a judge with a written rubric; language and injection need two new case files.
+
+Decisions only the business can make: **which audience policy wordings carry** (public lets agents read them,
+underwriting keeps the corpus staff-only) and **who owns content** - the person who approves a wording for publication
+and runs the weekly content-gap review.
