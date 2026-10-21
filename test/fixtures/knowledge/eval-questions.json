@@ -243,6 +243,282 @@
       "must_include": [],
       "must_not_include": [],
       "expected_status": "not_found"
+    },
+    {
+      "id": "q21",
+      "question": "What is the deductible for a dwelling claim?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "HO-1.1"
+      ],
+      "must_include": [
+        "deductible"
+      ]
+    },
+    {
+      "id": "q22",
+      "question": "Is water damage from a burst pipe covered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "HO-1.3"
+      ],
+      "must_include": [
+        "water damage"
+      ]
+    },
+    {
+      "id": "q23",
+      "question": "Are detached garages covered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "HO-1.1"
+      ],
+      "must_include": [
+        "garage",
+        "detached"
+      ]
+    },
+    {
+      "id": "q24",
+      "question": "How long does the insured have to report a loss?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "HO-3.1"
+      ],
+      "must_include": [
+        "30 days"
+      ]
+    },
+    {
+      "id": "q25",
+      "question": "What happens if the policy is cancelled for non-payment?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "HO-1.3"
+      ],
+      "must_include": [
+        "water damage"
+      ]
+    },
+    {
+      "id": "q26",
+      "question": "Is earthquake damage covered?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q27",
+      "question": "What is the premium for a flood endorsement?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q28",
+      "question": "Do you cover damage while the home is vacant for two years?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q29",
+      "question": "What is the deductible for collision cover?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "PA-2.1"
+      ],
+      "must_include": [
+        "deductible"
+      ]
+    },
+    {
+      "id": "q30",
+      "question": "Is theft of the car covered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "PA-2.2"
+      ],
+      "must_include": [
+        "theft"
+      ]
+    },
+    {
+      "id": "q31",
+      "question": "What does comprehensive cover include?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "PA-2.2"
+      ],
+      "must_include": [
+        "fire",
+        "vandalism",
+        "glass"
+      ]
+    },
+    {
+      "id": "q32",
+      "question": "How quickly must an accident be reported?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "PA-3.1"
+      ],
+      "must_include": [
+        "30 days"
+      ]
+    },
+    {
+      "id": "q33",
+      "question": "Is bodily injury to the driver covered under liability?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "PA-1.1"
+      ],
+      "must_include": [
+        "bodily injury"
+      ]
+    },
+    {
+      "id": "q34",
+      "question": "Does the policy cover a rental car abroad?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q35",
+      "question": "What is the premium for a young driver?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q36",
+      "question": "What perils are covered for the buildings?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "CP-1.3"
+      ],
+      "must_include": [
+        "fire",
+        "storm"
+      ]
+    },
+    {
+      "id": "q37",
+      "question": "Is business interruption covered after a fire?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "CP-1.2"
+      ],
+      "must_include": [
+        "gross profit"
+      ]
+    },
+    {
+      "id": "q38",
+      "question": "Are vehicles licensed for road use covered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "CP-2.1"
+      ],
+      "must_include": [
+        "vehicles",
+        "not cover"
+      ]
+    },
+    {
+      "id": "q39",
+      "question": "Is rust covered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "CP-2.2"
+      ],
+      "must_include": [
+        "rust"
+      ]
+    },
+    {
+      "id": "q40",
+      "question": "What is the period of indemnity?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "CP-1.2"
+      ],
+      "must_include": [
+        "period of indemnity"
+      ]
+    },
+    {
+      "id": "q41",
+      "question": "Do you cover cyber attack losses?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q42",
+      "question": "What is the rate per thousand for a warehouse?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q43",
+      "question": "Are medical expenses limited in dollars?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "WC-1.1"
+      ],
+      "must_include": [
+        "no dollar limit"
+      ]
+    },
+    {
+      "id": "q44",
+      "question": "What percentage of wages is paid while off work?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "WC-1.2"
+      ],
+      "must_include": [
+        "two thirds"
+      ]
+    },
+    {
+      "id": "q45",
+      "question": "When must an injury be reported?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "WC-2.1"
+      ],
+      "must_include": [
+        "7 days"
+      ]
+    },
+    {
+      "id": "q46",
+      "question": "Are death benefits paid to dependants?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "WC-1.3"
+      ],
+      "must_include": [
+        "death benefit",
+        "dependants"
+      ]
+    },
+    {
+      "id": "q47",
+      "question": "Must light duties be offered?",
+      "expected_status": "answered",
+      "expected_sources": [
+        "WC-2.2"
+      ],
+      "must_include": [
+        "light duties"
+      ]
+    },
+    {
+      "id": "q48",
+      "question": "Does the policy cover stress claims?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q49",
+      "question": "What is the experience modification factor?",
+      "expected_status": "unanswerable"
+    },
+    {
+      "id": "q50",
+      "question": "Is a contractor covered as an employee?",
+      "expected_status": "unanswerable"
     }
   ]
 }

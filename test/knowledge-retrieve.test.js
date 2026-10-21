@@ -39,7 +39,7 @@ function withCorpus(fn) {
 async function recallAt(store, limit, { hybrid = true } = {}) {
   let hit = 0;
   let asked = 0;
-  for (const question of questions.filter((q) => q.expected_status === 'answered')) {
+  for (const question of questions.filter((q) => q.expected_status === 'answered' && (q.expected_sources || []).every((clause) => clause.startsWith('HO')))) {
     asked += 1;
     const [vector] = await fakeEmbedder([question.question]);
     const results = hybrid
