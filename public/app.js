@@ -2916,6 +2916,9 @@ async function boot() {
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
   document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="agents"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
+  // The knowledge screens: Ask for anyone who may read the corpus (staff, not agents yet), admin for the manager.
+  document.querySelectorAll('[data-nav="ask"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
+  document.querySelectorAll('[data-nav="knowledge-admin"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="reports"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.getElementById('signout').onclick = async () => {
     await fetch('/api/auth/logout', { method: 'POST' });
