@@ -165,6 +165,7 @@ const productLabel = (code, form) => esc(product(code).name) + (form ? ` <span c
 const ROUTES = [
   [/^#\/desktop$/, pageDesktop],
   [/^#\/ask$/, pageAsk],
+  [/^#\/knowledge-admin$/, pageKnowledgeAdmin],
   [/^#\/accounts$/, pageAccounts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
@@ -1215,6 +1216,34 @@ async function pageQueues() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ knowledge admin
+
+// What is indexed, with which model, and what the last runs did. A manager can reindex from here; the table is the
+// evidence that the corpus is the one they think it is.
+async function pageKnowledgeAdmin() {
+  const data = S.knowledgeAdmin || (S.knowledgeAdmin = await api('GET', '/knowledge/documents'));
+  const versions = (data && data.versions) || [];
+  const runs = (data && data.runs) || [];
+  const sources = (data && data.documents) || [];
+  view(`
+    <div class="eyebrow">Knowledge</div><h1>Knowledge admin</h1>
+    <div class="card"><div class="spread"><h2>Sources</h2>
+      <button class="btn" data-action="knowledge-reindex">Reindex</button></div>
+      ${table(['Document', 'Source'], sources.map((d) => [esc(d.title), esc(d.source)]), 'Nothing indexed yet')}
+    </div>
+    <div class="card"><h2>Versions</h2>
+      ${table(['Version', 'Valid from', 'Chunks', 'Model'], versions.map((v) => [
+        esc(v.id), esc(v.valid_from || ''), esc(String(v.chunks || 0)), esc(v.models || '—'),
+      ]), 'No versions')}
+    </div>
+    <div class="card"><h2>Runs</h2>
+      ${table(['When', 'Agent', 'Versions', 'Chunks', 'Model', 'Outcome'], runs.map((r) => [
+        esc(r.created_at), esc(r.agent), esc(String(r.versions ?? '')), esc(String(r.chunks ?? '')),
+        esc(r.model || ''), r.ok ? 'ok' : 'failed: ' + esc(r.error || ''),
+      ]), 'No runs yet')}
+    </div>`);
+}
+
 // ------------------------------------------------------------------ knowledge assistant
 
 // Ask the wordings. The answer is rendered with numbered citations, and each citation expands to the passage it came
@@ -1702,6 +1731,12 @@ async function pageFinance() {
 }
 
 const ACTIONS = {
+  'knowledge-reindex': async () => {
+    const result = await api('POST', '/knowledge/reindex', {});
+    toast(result && result.ok ? 'Reindexed ' + result.chunks + ' chunks' : 'Reindex failed: ' + ((result && result.error) || 'see runs'), result && result.ok ? 'success' : 'error');
+    S.knowledgeAdmin = null;
+    return pageKnowledgeAdmin();
+  },
   'ask-question': async () => {
     const box = document.querySelector('#ask-question');
     S.ask = { question: box ? box.value : '', result: null };
