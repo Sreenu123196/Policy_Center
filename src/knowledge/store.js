@@ -32,8 +32,25 @@ function openKnowledgeStore(file) {
   return {
     close: () => db.close(),
 
+    // One unit of work for an ingest: either the whole version lands or none of it does.
+    transaction(fn) {
+      db.exec('BEGIN');
+      try {
+        const result = fn();
+        db.exec('COMMIT');
+        return result;
+      } catch (err) {
+        db.exec('ROLLBACK');
+        throw err;
+      }
+    },
+
+    countChunks(versionId) {
+      return db.prepare('SELECT COUNT(*) AS n FROM chunks WHERE version_id = ?').get(versionId).n;
+    },
+
     addDocument({ id, title, source, createdAt = new Date().toISOString() }) {
-      db.prepare('INSERT INTO documents (id, title, source, created_at) VALUES (?, ?, ?, ?)').run(id, title, source, createdAt);
+      db.prepare('INSERT OR IGNORE INTO documents (id, title, source, created_at) VALUES (?, ?, ?, ?)').run(id, title, source, createdAt);
       return id;
     },
 
