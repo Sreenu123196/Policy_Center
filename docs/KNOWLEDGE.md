@@ -29,6 +29,19 @@ fact, under the same access rules as the rest of the application.
 | R4 | Customer and agent use, agentic tools, hand-off to a person. |
 | R5 | Dashboard, content-gap report, nightly drift run. |
 
+## Measured retrieval (2026-10-21, voyage-4, 22 chunks, 4 fictional wordings)
+
+| Step | recall@3 | recall@8 |
+|---|---|---|
+| vector only (R0) | — | — |
+| hybrid + RRF + context sentences | **0.90** | **1.00** |
+| + overlap reranker | 0.80 | 0.90 |
+
+The design target is recall@8 >= 0.90: met by fusion alone. The overlap reranker makes it worse, so it is disabled by
+default (\`rerank.js\` says so in a comment) until a model reranker can be measured on the same set. The one remaining
+miss at k=3 is q01 ("perils under the property section"), which returns HO-1.1, HO-2.1 and CP-1.1 instead of HO-1.3;
+at k=8 it is found.
+
 ## Decisions
 
 | Decision | Choice | Why |
