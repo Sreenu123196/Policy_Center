@@ -15,6 +15,8 @@ const https = require('node:https');
 const { openKnowledgeStore } = require('../src/knowledge/store');
 const { ingestVersion } = require('../src/knowledge/ingest');
 const { answerQuestion } = require('../src/knowledge/answer');
+const { hybridSearch } = require('../src/knowledge/retrieve');
+const { rerank } = require('../src/knowledge/rerank');
 
 require('../src/loadEnv').loadEnv();
 
@@ -94,7 +96,62 @@ function score(question, result, passages) {
   return { correct: sourcesOk && includeOk, why };
 }
 
+// --recall: ingest the four fictional wordings with the REAL embedder and report recall@3 and recall@8, with and
+// without the reranker. No Claude calls, so it costs only the embedding tokens.
+async function measureRecall() {
+  const dir = path.dirname(DB_PATH);
+  fs.mkdirSync(dir, { recursive: true });
+  const dbFile = path.join(dir, 'knowledge-recall.db');
+  if (fs.existsSync(dbFile)) fs.rmSync(dbFile);
+  const store = openKnowledgeStore(dbFile);
+  const files = [
+    ['sample-home-wording.md', 'Homeowners', 'home'],
+    ['sample-personal-auto-wording.md', 'PersonalAuto', 'auto'],
+    ['sample-commercial-property-wording.md', 'CommercialProperty', 'commercial'],
+    ['sample-workers-comp-wording.md', 'WorkersComp', 'workers'],
+  ];
+  for (const [file, product, tag] of files) {
+    const text = fs.readFileSync(path.join(__dirname, '../test/fixtures/knowledge', file), 'utf8');
+    await ingestVersion({
+      store, embedder: (texts) => voyageEmbed(texts, 'document'), embedModel: MODEL,
+      document: { id: tag, title: file, source: file },
+      version: { id: 'v-' + tag, version: 1, validFrom: '2026-01-01' },
+      text,
+      metadata: { audience: 'underwriting', product, language: 'en', sensitivity: 'internal', validFrom: '2026-01-01' },
+    });
+    console.log('ingested', product);
+  }
+
+  const { questions } = JSON.parse(fs.readFileSync(QUESTIONS, 'utf8'));
+  const answerable = questions.filter((q) => q.expected_status === 'answered');
+  const vectors = await voyageEmbed(answerable.map((q) => q.question), 'query');
+
+  const overlap = (query, candidates) => {
+    const words = new Set(query.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 3));
+    return candidates.map((c) => [...words].filter((w) => c.text.toLowerCase().includes(w)).length);
+  };
+
+  for (const k of [3, 8]) {
+    let plain = 0;
+    let reranked = 0;
+    for (const [index, question] of answerable.entries()) {
+      const fused = hybridSearch({ store, embedModel: MODEL, queryVector: vectors[index], queryText: question.question, limit: 30 });
+      const topPlain = fused.slice(0, k);
+      const topReranked = await rerank({ query: question.question, candidates: fused, reranker: overlap, topN: k });
+      const hit = (rows) => question.expected_sources.some((clause) => rows.map((r) => r.clause).includes(clause));
+      if (hit(topPlain)) plain += 1;
+      if (hit(topReranked)) reranked += 1;
+    }
+    console.log('recall@' + k + ' fused: ' + (plain / answerable.length).toFixed(2) + ' | reranked: ' + (reranked / answerable.length).toFixed(2));
+  }
+  store.close();
+}
+
 async function main() {
+  if (process.argv.includes('--recall')) {
+    await measureRecall();
+    return 20;
+  }
   const fake = process.argv.includes('--fake');
   const { questions } = JSON.parse(fs.readFileSync(QUESTIONS, 'utf8'));
   const text = fs.readFileSync(FIXTURE, 'utf8');
