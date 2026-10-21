@@ -1221,7 +1221,18 @@ async function pageQueues() {
 // from: a claim without the clause beside it is not something a person can check.
 async function pageAsk() {
   const question = (S.ask && S.ask.question) || '';
-  const result = S.ask && S.ask.result;
+  let result = S.ask && S.ask.result;
+  // Ask once per question: the page re-renders after the request, and a re-render without a new question must not
+  // call the API again.
+  if (question && !result) {
+    try {
+      result = await api('POST', '/knowledge/ask', { question });
+      S.ask.result = result;
+    } catch (err) {
+      result = { status: 'error', answer: err.message || 'The question could not be answered.' };
+      S.ask.result = result;
+    }
+  }
   const passages = (result && result.passages) || [];
   const sources = ((result && result.citations) || []).map((citation) => {
     const passage = passages.find((p) => p.number === citation.number);
