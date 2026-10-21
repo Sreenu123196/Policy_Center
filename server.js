@@ -63,7 +63,29 @@ async function main() {
   const notifier = notifierFromEnv(pc, { agents });
   store.transaction(() => agents.ensureAccounts()); // each agent has its own account (it cannot sign in)
   bus.register('agents', (event) => agents.onEvent(event)); // an event wakes only the agents that listen for it
-  const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents, notifier });
+  // The knowledge assistant is optional: without a Voyage key or a database file, the app runs exactly as before and the
+// two routes answer that the assistant is not configured.
+let knowledge = null;
+try {
+  const { openKnowledgeStore } = require('./src/knowledge/store');
+  const { createKnowledgeService } = require('./src/knowledge/serve');
+  const { embed, MODEL: EMBED_MODEL } = require('./src/knowledge/voyage');
+  const AnthropicSDK = require('@anthropic-ai/sdk');
+  const Anthropic = AnthropicSDK.default || AnthropicSDK;
+  const workspace = process.env.ANTHROPIC_WORKSPACE_ID;
+  const client = new Anthropic(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {});
+  const knowledgeStore = openKnowledgeStore(process.env.KNOWLEDGE_DB || 'D:\\PolicyCenter-Knowledge\\knowledge.db');
+  knowledge = createKnowledgeService({
+    store: knowledgeStore, embedModel: EMBED_MODEL,
+    embedder: (texts) => embed(texts, 'query'),
+    client,
+  });
+  console.log('Knowledge assistant: ready (' + EMBED_MODEL + ')');
+} catch (err) {
+  console.log('Knowledge assistant: disabled - ' + err.message);
+}
+
+const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents, notifier, knowledge });
   // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
   while (bus.run().some((r) => r.handled > 0 || r.deadLettered.length > 0)) { /* until every consumer has caught up */ }
 
