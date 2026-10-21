@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS chunks (
   valid_from TEXT NOT NULL, valid_to TEXT
 );
 CREATE INDEX IF NOT EXISTS chunks_model ON chunks(embed_model);
+CREATE TABLE IF NOT EXISTS query_log (
+  id TEXT PRIMARY KEY, user_id TEXT, role TEXT, audience TEXT, question TEXT NOT NULL,
+  status TEXT, citations TEXT, latency_ms INTEGER, created_at TEXT NOT NULL
+);
 `;
 
 function openKnowledgeStore(file) {
@@ -78,6 +82,17 @@ function openKnowledgeStore(file) {
       );
       return chunk.id;
     },
+
+    logQuery({ id, userId, role, audience, question, status, citations, latencyMs, createdAt = new Date().toISOString() }) {
+      db.prepare(`INSERT INTO query_log (id, user_id, role, audience, question, status, citations, latency_ms, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+        id, userId || null, role || null, audience || null, question, status || null,
+        JSON.stringify(citations || []), latencyMs ?? null, createdAt,
+      );
+      return id;
+    },
+
+    getQueryLog: (limit = 20) => db.prepare('SELECT * FROM query_log ORDER BY created_at DESC LIMIT ?').all(limit),
 
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
