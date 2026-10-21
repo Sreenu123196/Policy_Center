@@ -1251,7 +1251,7 @@ async function pageAsk() {
         <span class="muted">Answers come only from the company wordings. If they do not contain it, the answer says so.</span>
       </div>
     </div>
-    ${result ? `<div class="card"><h2>${esc(result.status === 'answered' ? 'Answer' : 'No matching clause found')}</h2>
+    ${result ? `<div class="card"><h2>${esc(result.status === 'answered' || result.status === 'error' ? 'Answer' : 'No matching clause found')}</h2>
       <p>${esc(result.answer || result.error || '')}</p>
       ${sources ? `<h3>Sources</h3><ul>${sources}</ul>` : ''}
     </div>` : ''}`);
