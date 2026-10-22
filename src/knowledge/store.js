@@ -39,6 +39,9 @@ CREATE TABLE IF NOT EXISTS ingestion_runs (
   id TEXT PRIMARY KEY, agent TEXT NOT NULL, versions INTEGER, chunks INTEGER,
   model TEXT, ok INTEGER NOT NULL, error TEXT, duration_ms INTEGER, created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS knowledge_feedback (
+  id TEXT PRIMARY KEY, query_id TEXT, verdict TEXT NOT NULL, comment TEXT, user_id TEXT, role TEXT, created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS query_log (
   id TEXT PRIMARY KEY, user_id TEXT, role TEXT, audience TEXT, question TEXT NOT NULL,
   status TEXT, citations TEXT, latency_ms INTEGER, created_at TEXT NOT NULL
@@ -180,6 +183,21 @@ function openKnowledgeStore(file) {
         byDay,
         byRole,
       };
+    },
+
+    // A thumbs-down is a review task, not a metric: it records what the person said, on which answer, and stays until
+    // someone marks it looked at. The comment is masked by the caller, like every other free text.
+    addFeedback({ id, queryId, verdict, comment, userId, role, createdAt = new Date().toISOString() }) {
+      db.prepare('INSERT INTO knowledge_feedback (id, query_id, verdict, comment, user_id, role, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, queryId || null, verdict, comment || null, userId || null, role || null, createdAt);
+      return id;
+    },
+
+    listFeedback({ verdict = null, limit = 50 } = {}) {
+      const sql = verdict
+        ? 'SELECT * FROM knowledge_feedback WHERE verdict = ? ORDER BY created_at DESC LIMIT ?'
+        : 'SELECT * FROM knowledge_feedback ORDER BY created_at DESC LIMIT ?';
+      return verdict ? db.prepare(sql).all(verdict, limit) : db.prepare(sql).all(limit);
     },
 
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),

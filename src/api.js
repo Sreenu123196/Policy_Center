@@ -80,6 +80,22 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Customer and agent use arrives in R4; until then the corpus is staff-only.
   const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
   const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
+  route('POST', '/knowledge/feedback', async ({ user, body }) => {
+    if (!knowledge) return { ok: false, message: 'The knowledge assistant is not configured on this server' };
+    try {
+      return { ok: true, ...(await knowledge.recordFeedback(user, {
+        queryId: body && body.queryId, verdict: body && body.verdict, comment: body && body.comment,
+      })) };
+    } catch (err) {
+      throw new AppError(422, err.message);
+    }
+  }, { readOnly: true });
+  route('GET', '/knowledge/feedback', async ({ user, query }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may see the review queue');
+    if (!knowledge) return { feedback: [] };
+    return { feedback: await knowledge.feedbackQueue({ verdict: query.get('verdict') || 'bad', limit: Number(query.get('limit') || 50) }) };
+  }, { readOnly: true });
+
   route('GET', '/knowledge/dashboard', async ({ user, query }) => {
     if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may see the knowledge dashboard');
     if (!knowledge) return { asked: 0, answered: 0, notFound: 0, notFoundRate: 0, latencyMs: {}, byDay: [], byRole: [] };

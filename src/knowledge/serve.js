@@ -142,7 +142,20 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return store.dashboard(options);
   }
 
-  return { ask, search, reindex, ingest, overview, contentGaps, dashboard };
+  /** A thumbs-up or thumbs-down on an answer. The comment is masked before it is stored. */
+  async function recordFeedback(user, { queryId, verdict, comment }) {
+    if (!['good', 'bad'].includes(verdict)) throw new Error('verdict must be good or bad');
+    const id = randomUUID();
+    store.addFeedback({ id, queryId, verdict, comment: safeQuery(comment || '').masked, userId: user && user.id, role: user && user.role });
+    return { id, verdict };
+  }
+
+  /** The review queue: what people said was wrong, newest first. */
+  async function feedbackQueue({ verdict = 'bad', limit = 50 } = {}) {
+    return store.listFeedback({ verdict, limit });
+  }
+
+  return { ask, search, reindex, ingest, overview, contentGaps, dashboard, recordFeedback, feedbackQueue };
 }
 
 module.exports = { createKnowledgeService };
