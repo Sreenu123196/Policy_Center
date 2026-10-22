@@ -10,6 +10,7 @@ const { hybridSearch } = require('./retrieve');
 const { answerQuestion } = require('./answer');
 const { filtersForUser } = require('./access');
 const { detectProducts } = require('./product');
+const { checkDrift } = require('./drift');
 const { safeQuery } = require('./mask');
 const { ingestVersion } = require('./ingest');
 
@@ -157,7 +158,12 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return store.listFeedback({ verdict, limit });
   }
 
-  return { ask, search, reindex, ingest, overview, contentGaps, dashboard, recordFeedback, feedbackQueue };
+  /** Drift across the sources someone registered: has the wording changed since it was indexed? */
+  async function runDrift(sources) {
+    return checkDrift({ store, sources: sources || [] });
+  }
+
+  return { ask, search, reindex, ingest, overview, contentGaps, dashboard, recordFeedback, feedbackQueue, runDrift };
 }
 
 module.exports = { createKnowledgeService };

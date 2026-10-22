@@ -96,6 +96,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     return { feedback: await knowledge.feedbackQueue({ verdict: query.get('verdict') || 'bad', limit: Number(query.get('limit') || 50) }) };
   }, { readOnly: true });
 
+  route('GET', '/knowledge/drift', async ({ user }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may run the drift check');
+    if (!knowledge) return { checked: 0, drifted: [], rows: [] };
+    // Where the sources come from is the deployment's business: a JSON list in KNOWLEDGE_SOURCES, each
+    // { documentId, path }. Empty means nothing is registered, which is reported rather than guessed at.
+    let sources = [];
+    try { sources = JSON.parse(process.env.KNOWLEDGE_SOURCES || '[]'); } catch { sources = []; }
+    return knowledge.runDrift(sources);
+  }, { readOnly: true });
+
   route('GET', '/knowledge/dashboard', async ({ user, query }) => {
     if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may see the knowledge dashboard');
     if (!knowledge) return { asked: 0, answered: 0, notFound: 0, notFoundRate: 0, latencyMs: {}, byDay: [], byRole: [] };

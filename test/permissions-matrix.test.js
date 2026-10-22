@@ -95,6 +95,7 @@ const MATRIX = {
   'GET /knowledge/documents': ['agent', 'uw', 'exec'],
   'GET /knowledge/gaps': ['agent', 'uw', 'exec'],
   'GET /knowledge/dashboard': ['agent', 'uw', 'exec'],
+  'GET /knowledge/drift': ['agent', 'uw', 'exec'],
   'POST /knowledge/feedback': [],
   'GET /knowledge/feedback': ['agent', 'uw', 'exec'],
   'GET /knowledge/search': [],
