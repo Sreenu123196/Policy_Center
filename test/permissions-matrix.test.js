@@ -91,6 +91,8 @@ const MATRIX = {
   'GET /suggestions/mine': [], // every signed-in person; it only ever returns their own
   'GET /contacts': [],
   'GET /incidents': ['agent'],
+  'GET /claims/:claim/surveyors': ['agent'],
+  'POST /claims/:claim/surveyors': ['agent', 'exec'],
   'POST /incidents': [],
   'POST /incidents/:id/status': ['agent', 'exec'],
   'GET /contacts/:id': [],

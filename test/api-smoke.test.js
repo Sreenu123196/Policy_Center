@@ -100,7 +100,7 @@ test('every read route answers 200 with real data (not just "no 500")', async ()
   try {
     const ids = realIds(book(env));
     // Routes whose subject genuinely does not exist in this small book.
-    const NOTHING_YET = new Set(['GET /claims/:id', 'GET /claims/:id/exposures', 'GET /contacts/:id', 'GET /claims/:claim/recoveries']);
+    const NOTHING_YET = new Set(['GET /claims/:id', 'GET /claims/:id/exposures', 'GET /contacts/:id', 'GET /claims/:claim/recoveries', 'GET /claims/:claim/surveyors']);
     // The Twilio voice door is for a telephone, not a browser: an unknown call correctly answers 404.
     for (const route of api.routes.filter((r) => r.method === 'GET' && r.pattern !== '/health' && !r.pattern.startsWith('/webhooks/'))) {
       const url = realUrl(route.pattern, ids);

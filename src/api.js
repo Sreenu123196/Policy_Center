@@ -86,6 +86,15 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only claims staff may move an incident');
     return incidents.setStatus(params.id, String((body && body.status) || ''));
   }, {});
+  const surveyors = require('./surveyors').createSurveyors(pc);
+  route('GET', '/claims/:claim/surveyors', ({ user, params }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Surveys are not open to agents');
+    return surveyors.list(user, params.claim);
+  }, { readOnly: true });
+  route('POST', '/claims/:claim/surveyors', ({ user, params, body }) => {
+    if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only claims staff may appoint a surveyor');
+    return surveyors.appoint(user, params.claim, body);
+  }, {});
   const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
   route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
     // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
