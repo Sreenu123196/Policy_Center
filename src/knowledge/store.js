@@ -148,6 +148,14 @@ function openKnowledgeStore(file) {
       return { documents, versions, runs: db.prepare('SELECT * FROM ingestion_runs ORDER BY created_at DESC LIMIT ?').all(runLimit) };
     },
 
+    // Content gaps: what people asked and the documents could not answer. The questions are already masked, so this is
+    // safe to hand to a document owner. Grouped by the masked text, because the same question worded identically is the
+    // same gap.
+    contentGaps(limit = 20) {
+      return db.prepare(`SELECT question, COUNT(*) AS asked, MAX(created_at) AS last_asked
+        FROM query_log WHERE status = 'not_found' GROUP BY question ORDER BY asked DESC, last_asked DESC LIMIT ?`).all(limit);
+    },
+
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
 

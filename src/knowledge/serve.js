@@ -132,7 +132,12 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return store.adminOverview();
   }
 
-  return { ask, search, reindex, ingest, overview };
+  /** The report a document owner reads: questions nothing in the corpus answered. */
+  async function contentGaps(limit = 20) {
+    return store.contentGaps(limit);
+  }
+
+  return { ask, search, reindex, ingest, overview, contentGaps };
 }
 
 module.exports = { createKnowledgeService };

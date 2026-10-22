@@ -80,6 +80,12 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Customer and agent use arrives in R4; until then the corpus is staff-only.
   const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
   const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
+  route('GET', '/knowledge/gaps', async ({ user, query }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may see the content gaps');
+    if (!knowledge) return { gaps: [] };
+    return { gaps: await knowledge.contentGaps(Number(query.get('limit') || 20)) };
+  }, { readOnly: true });
+
   route('GET', '/knowledge/documents', async ({ user }) => {
     if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may see the corpus inventory');
     if (!knowledge) return { configured: false, documents: [], versions: [], runs: [] };
