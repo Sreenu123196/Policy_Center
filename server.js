@@ -85,6 +85,25 @@ try {
   console.log('Knowledge assistant: disabled - ' + err.message);
 }
 
+// The nightly drift run, only when sources are registered. A deployment with a scheduler should call
+// GET /knowledge/drift instead and leave this off.
+try {
+  if (knowledge && process.env.KNOWLEDGE_SOURCES) {
+    const { startNightlyDrift } = require('./src/knowledge/schedule');
+    const sources = JSON.parse(process.env.KNOWLEDGE_SOURCES);
+    startNightlyDrift({
+      run: async () => {
+        const report = await knowledge.runDrift(sources);
+        console.log('Knowledge drift:', report.checked, 'checked,', report.drifted.length, 'changed');
+      },
+      onError: (err) => console.error('Knowledge drift failed:', err.message),
+    });
+    console.log('Knowledge drift: nightly at 02:00');
+  }
+} catch (err) {
+  console.log('Knowledge drift: not scheduled -', err.message);
+}
+
 // The assistant is built before the knowledge service, so the handle is attached once both exist.
 if (knowledge && chatbot) chatbot.knowledge = knowledge;
 
