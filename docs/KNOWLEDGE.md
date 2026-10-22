@@ -396,3 +396,26 @@ are the manual entry points, `knowledge:gate` is the one a pipeline should call.
 
 Remaining for a complete gate: faithfulness at scale (thirty judged answers), the customer use case's fifty cases, and
 correctness tuning toward 90%. None of those is plumbing; two are measurement and one is writing.
+
+### Faithfulness at scale: 4 of 10 (22 October)
+
+Twelve sampled answers, ten judged (two were refusals, which cannot be faithful or unfaithful), rubric: every factual
+sentence must be supported by the quoted passages, ignoring general truths and the mandatory claims sentence.
+
+| result | count |
+|---|---|
+| fully supported | **4** |
+| at least one unsupported sentence | **6** |
+
+That is 40%, against a target of 98%, and it is the worst number in this document. It also contradicts the reassuring
+figure in the evaluation - zero wrong or uncited facts - because the two measure different things: the evaluation checks
+that a cited clause exists and the must-contain facts appear, while faithfulness asks whether every sentence is supported
+by the passage it cites. An answer can cite HO-1.2 correctly and still add a sentence the clause does not contain.
+
+The likely causes, to be checked by reading the six failures rather than guessing: answers that combine two clauses and
+then state the combination as fact; answers that restate an example as a rule; and the model's habit of adding a short
+summary sentence with no citation. Each is fixable in the prompt, but the fix must be judged by this measurement, which
+now exists and is reproducible.
+
+Language regressed to 2/3 in the same run - the Telugu question refused again - which is further evidence that one run is
+not a result and that the earlier 3/3 was one favourable sample.
