@@ -224,3 +224,21 @@ declines to answer while the correct clause sits at rank 1. The next investigati
 actually builds - whether the passages reach the model as citable blocks, and whether the "reply exactly this" rule is
 discharging on its own caution. Everything upstream of that is now measured and, for three separate hypotheses, proven
 innocent.
+
+### What actually moved the number (22 October)
+
+| Change | Correctness (50 cases) | Right clause cited (30 answerable) |
+|---|---|---|
+| baseline, four wordings | 27/50 (54%) | 7/30 (23%) |
+| literal citation markers instead of structured citations | (12-case run: 3 answerable questions stopped refusing) | |
+| clause heading in each passage + "match on meaning, not phrasing" | **30/50 (60%)** | **11/30 (37%)** |
+
+The citation mismatch was the single largest defect: the request asked for structured citations while validation
+checked literal [n] markers, so genuine answers were retried and returned as "I could not find that in the documents."
+Four retrieval hypotheses were measured and refuted before that was found; the fault was in how the answer was checked,
+not in what was retrieved.
+
+Remaining gap to 90%: questions phrased in a person's words ("settle a claim myself", "special limits") still sometimes
+miss a clause that says "written consent" or "jewellery, watches and furs". Next levers, in order: index the clause
+heading as part of the embedded text so paraphrase meets paraphrase, raise the number of passages for long wordings, and
+only then consider a model reranker.
