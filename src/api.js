@@ -76,6 +76,13 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
   const contacts = require('./contacts').createContacts(store);
   route('GET', '/contacts', () => contacts.list(), { readOnly: true });
+  route('POST', '/contacts', ({ user, body }) => contacts.create(user, body), {});
+  route('POST', '/contacts/:id/kyc', ({ user, params }) => {
+    // A refusal is a refusal whatever the id is: checking the role before the lookup keeps an agent from learning
+    // whether a contact exists by the difference between 403 and 404.
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may verify a contact');
+    return contacts.verify(params.id, user);
+  }, {});
   // Knowledge Assistant. Both are read-only in the app's sense: they change nothing in the store, so the dispatcher
   // awaits them. The query log lives in the separate knowledge database.
   const knowledge = knowledgeOption || null;
