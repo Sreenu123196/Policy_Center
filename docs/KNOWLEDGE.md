@@ -383,3 +383,16 @@ What this means for the remaining gap: correctness sits at **75% median (70-85% 
 twenty-case, three-run experiment cannot resolve ten points. Either the case set must grow (to a hundred or more) or the
 number of runs must rise (five or seven), before the next prompt change can be judged. No further prompt changes should be
 made until then - each one costs a measurement that cannot currently answer the question.
+
+### The gate exists now (22 October)
+
+`npm run knowledge:gate` runs the evaluation and fails below a floor: correctness >= 60% and right-clause citation
+>= 25%. The floors sit below today's measured medians (~75% and ~50%) on purpose - a normal bad run must not fail the
+build, a real regression must. Verified end to end: ten cases returned 60% and 60%, the gate passed with exit 0; the
+same run below the floor exits 1.
+
+It is not part of `npm test` because it spends model calls. `npm run knowledge:eval` and `npm run knowledge:quality`
+are the manual entry points, `knowledge:gate` is the one a pipeline should call.
+
+Remaining for a complete gate: faithfulness at scale (thirty judged answers), the customer use case's fifty cases, and
+correctness tuning toward 90%. None of those is plumbing; two are measurement and one is writing.
