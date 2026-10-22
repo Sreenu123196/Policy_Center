@@ -170,6 +170,8 @@ const ROUTES = [
   [/^#\/knowledge-stats$/, pageKnowledgeStats],
   [/^#\/accounts$/, pageAccounts],
   [/^#\/contacts$/, pageContacts],
+  [/^#\/claims-ops$/, pageClaimsOps],
+  [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
@@ -1312,6 +1314,48 @@ async function pageContacts() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ claims operations
+
+// The claims lifecycle stages that are not the FNOL-to-payment path: incidents reported before a claim, and a claim's
+// recoveries, surveys and litigation. Read-only for agents; recording is claims staff.
+async function pageClaimsOps() {
+  const incidents = (S.claimsOps && S.claimsOps.incidents) || await api('GET', '/incidents').then((r) => r.incidents).catch(() => []);
+  const claimNumber = (S.claimsOps && S.claimsOps.claim) || '';
+  const detail = (S.claimsOps && S.claimsOps.detail) || null;
+
+  const incidentRows = incidents.map((i) => [
+    esc(i.id), esc(i.type), esc(i.occurredOn), esc(i.status),
+    (i.status === 'closed' ? '' : '<button class="btn" data-action="incident-status" data-id="' + esc(i.id) + '" data-status="under-review">Under review</button> ')
+      + (i.status === 'closed' ? '' : '<button class="btn" data-action="incident-status" data-id="' + esc(i.id) + '" data-status="closed">Close</button>'),
+  ]);
+
+  const listTable = (rows, empty) => table(['Item', 'Detail'], rows, empty);
+  const recoveries = detail ? (detail.recoveries || []).map((r) => [esc(r.source + ' ' + r.amount), esc(r.receivedOn)]) : [];
+  const surveys = detail ? (detail.surveys || []).map((s) => [esc(s.firm), esc(s.recommendation || '—')]) : [];
+  const litigation = detail && detail.litigation ? [[esc(detail.litigation.stage), esc(detail.litigation.authorisedBy)]] : [];
+
+  view(`
+    <div class="eyebrow">Claims</div><h1>Claims operations</h1>
+    <div class="card"><h2>Incidents</h2>
+      ${table(['Id', 'Type', 'Occurred', 'Status', ''], incidentRows, 'No incidents yet')}
+    </div>
+    <div class="card"><h2>Claim</h2>
+      <div class="toolbar">
+        <input id="claim-number" placeholder="CL-0000001" value="${esc(claimNumber)}">
+        <button class="btn primary" data-action="claim-load">Load</button>
+      </div>
+      ${detail ? `
+        <h3>Recoveries</h3>${listTable(recoveries, 'No recoveries recorded')}
+        <h3>Surveys</h3>${listTable(surveys, 'No surveys appointed')}
+        <h3>Litigation</h3>${listTable(litigation, 'Not in litigation')}
+        <div class="toolbar" style="margin-top:10px">
+          <select id="rec-source"><option value="subrogation">Subrogation</option><option value="salvage">Salvage</option></select>
+          <input id="rec-amount" placeholder="Amount" type="number">
+          <button class="btn" data-action="recovery-add">Record recovery</button>
+        </div>` : '<p class="muted">Load a claim to see its recoveries, surveys and litigation.</p>'}
+    </div>`);
+}
+
 // ------------------------------------------------------------------ knowledge assistant
 
 // Ask the wordings. The answer is rendered with numbered citations, and each citation expands to the passage it came
@@ -1807,6 +1851,37 @@ const ACTIONS = {
     toast(result && result.ok ? 'Reindexed ' + result.chunks + ' chunks' : 'Reindex failed: ' + ((result && result.error) || 'see runs'), result && result.ok ? 'success' : 'error');
     S.knowledgeAdmin = null;
     return pageKnowledgeAdmin();
+  },
+  'incident-status': async (d) => {
+    await api('POST', '/incidents/' + encodeURIComponent(d.id) + '/status', { status: d.status });
+    S.claimsOps = null;
+    return pageClaimsOps();
+  },
+  'claim-load': async () => {
+    const box = document.querySelector('#claim-number');
+    const claim = box ? box.value.trim() : '';
+    const [recoveries, surveyors, litigation] = await Promise.all([
+      api('GET', '/claims/' + encodeURIComponent(claim) + '/recoveries').catch(() => null),
+      api('GET', '/claims/' + encodeURIComponent(claim) + '/surveyors').catch(() => null),
+      api('GET', '/claims/' + encodeURIComponent(claim) + '/litigation').catch(() => null),
+    ]);
+    S.claimsOps = { incidents: null, claim, detail: recoveries ? {
+      recoveries: recoveries.recoveries || [],
+      surveys: (surveyors && surveyors.surveys) || [],
+      litigation: (litigation && litigation.litigation) || null,
+    } : null };
+    if (!recoveries) toast('Claim not found or not available to you', 'error');
+    return pageClaimsOps();
+  },
+  'recovery-add': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const claim = (S.claimsOps && S.claimsOps.claim) || '';
+    const sent = await api('POST', '/claims/' + encodeURIComponent(claim) + '/recoveries', {
+      source: value('#rec-source'), amount: Number(value('#rec-amount')),
+    }).catch(() => null);
+    toast(sent && sent.id ? 'Recovery recorded' : 'Recovery refused', sent && sent.id ? 'success' : 'error');
+    S.claimsOps = { incidents: null, claim, detail: null };
+    return pageClaimsOps();
   },
   'contact-create': async () => {
     const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
@@ -3009,6 +3084,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="claims-ops"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="contact"]').forEach((el) => { el.hidden = false; });
   document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="agents"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
