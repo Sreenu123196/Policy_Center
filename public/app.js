@@ -169,6 +169,8 @@ const ROUTES = [
   [/^#\/knowledge-stats$/, pageKnowledgeStats],
   [/^#\/knowledge-stats$/, pageKnowledgeStats],
   [/^#\/accounts$/, pageAccounts],
+  [/^#\/contacts$/, pageContacts],
+  [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
   [/^#\/account\/([^/]+)$/, pageAccount],
@@ -1274,6 +1276,42 @@ async function pageKnowledgeAdmin() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ contacts
+
+// People the business deals with, and their identity check. The identifier is masked at the point it is stored, so this
+// screen never shows a raw Aadhaar or PAN - not because the field is hidden, but because the number was never kept.
+async function pageContacts() {
+  const contacts = S.contacts || (S.contacts = await api('GET', '/contacts'));
+  const rows = contacts.map((c) => [
+    esc(c.firstName + ' ' + c.lastName),
+    esc(c.kyc.idType || '—'),
+    esc(c.kyc.idNumberMasked || '—'),
+    c.kyc.status === 'verified' ? 'Verified' : 'Pending',
+    c.kyc.status === 'verified'
+      ? ''
+      : '<button class="btn" data-action="contact-verify" data-id="' + esc(c.id) + '">Verify</button>',
+  ]);
+  view(`
+    <div class="eyebrow">Customers</div><h1>Contacts</h1>
+    <div class="card"><h2>New contact</h2>
+      <div class="grid">
+        <div><label for="c-first">First name</label><input id="c-first"></div>
+        <div><label for="c-last">Last name</label><input id="c-last"></div>
+        <div><label for="c-type">ID type</label>
+          <select id="c-type"><option value="">None</option><option value="aadhaar">Aadhaar</option>
+            <option value="pan">PAN</option><option value="passport">Passport</option></select></div>
+        <div><label for="c-number">ID number</label><input id="c-number"></div>
+      </div>
+      <div class="toolbar" style="margin-top:8px">
+        <button class="btn primary" data-action="contact-create">Create contact</button>
+        <span class="muted">An identifier is masked before it is stored.</span>
+      </div>
+    </div>
+    <div class="card"><h2>All contacts</h2>
+      ${table(['Name', 'ID type', 'Identifier', 'KYC', ''], rows, 'No contacts yet')}
+    </div>`);
+}
+
 // ------------------------------------------------------------------ knowledge assistant
 
 // Ask the wordings. The answer is rendered with numbered citations, and each citation expands to the passage it came
@@ -1769,6 +1807,22 @@ const ACTIONS = {
     toast(result && result.ok ? 'Reindexed ' + result.chunks + ' chunks' : 'Reindex failed: ' + ((result && result.error) || 'see runs'), result && result.ok ? 'success' : 'error');
     S.knowledgeAdmin = null;
     return pageKnowledgeAdmin();
+  },
+  'contact-create': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const sent = await api('POST', '/contacts', {
+      firstName: value('#c-first'), lastName: value('#c-last'),
+      idType: value('#c-type') || undefined, idNumber: value('#c-number') || undefined,
+    });
+    S.contacts = null;
+    toast(sent && sent.id ? 'Contact ' + sent.id + ' created' : 'Contact could not be created', sent && sent.id ? 'success' : 'error');
+    return pageContacts();
+  },
+  'contact-verify': async (d) => {
+    const sent = await api('POST', '/contacts/' + encodeURIComponent(d.id) + '/kyc', {});
+    S.contacts = null;
+    toast(sent && sent.kyc && sent.kyc.status === 'verified' ? 'Contact verified' : 'Verification refused', sent && sent.kyc ? 'success' : 'error');
+    return pageContacts();
   },
   'ask-feedback': async (d) => {
     const sent = await api('POST', '/knowledge/feedback', { queryId: d.query, verdict: d.verdict });
