@@ -50,3 +50,15 @@ test('verification records who checked it and when', () => {
   assert.equal(verified.kyc.checkedBy, 'u2');
   assert.match(verified.kyc.checkedAt, /\d{4}-\d{2}-\d{2}T/);
 });
+
+test('the dummy identifier 4522 4751 2035 is stored masked and the record can be read back', () => {
+  const store = freshStore();
+  const contacts = createContacts(store);
+  const created = contacts.create({ id: 'u1' }, { firstName: 'Dummy', lastName: 'Test', idType: 'aadhaar', idNumber: '4522 4751 2035' });
+  assert.equal(created.kyc.idNumberMasked, '[AADHAAR]');
+  assert.equal(JSON.stringify(created).includes('4522'), false);
+  const readBack = contacts.find(created.id);
+  assert.equal(readBack.id, created.id);
+  assert.equal(readBack.kyc.status, 'pending');
+  assert.throws(() => contacts.find('CT-9999999'), /Contact not found/);
+});

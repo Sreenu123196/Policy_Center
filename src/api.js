@@ -77,6 +77,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const contacts = require('./contacts').createContacts(store);
   route('GET', '/contacts', () => contacts.list(), { readOnly: true });
   route('POST', '/contacts', ({ user, body }) => contacts.create(user, body), {});
+  route('GET', '/contacts/:id', ({ params }) => contacts.find(params.id), { readOnly: true });
   route('POST', '/contacts/:id/kyc', ({ user, params }) => {
     // A refusal is a refusal whatever the id is: checking the role before the lookup keeps an agent from learning
     // whether a contact exists by the difference between 403 and 404.
