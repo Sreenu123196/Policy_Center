@@ -74,6 +74,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Setup: until the first account has a password, the app asks the first person to choose one.
   // Is the server up? No sign-in, nothing private: for a load balancer or a container health check.
   route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
+  const contacts = require('./contacts').createContacts(store);
+  route('GET', '/contacts', () => contacts.list(), { readOnly: true });
   // Knowledge Assistant. Both are read-only in the app's sense: they change nothing in the store, so the dispatcher
   // awaits them. The query log lives in the separate knowledge database.
   const knowledge = knowledgeOption || null;
