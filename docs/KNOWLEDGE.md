@@ -291,3 +291,28 @@ That leaves three candidate causes, in order of cost: (1) the model declining wh
 reading the failures one by one rather than another prompt change; (2) a reranker that would change which eight are sent;
 (3) query expansion, rewriting a colloquial question in the wording's vocabulary before retrieval. The harness now has a
 `--passages` flag, so any of the three can be judged by one run of the same fifty cases.
+
+### Every failure is a refusal, and the score moves between identical runs (22 October)
+
+A complete fifty-case run, with the reasons counted rather than eyeballed:
+
+| Outcome | Count |
+|---|---|
+| refused an answerable question | **20** |
+| answered with wrong or uncited facts | **0** |
+| answered what should have been "not found" | **0** |
+
+Two conclusions:
+
+1. **The system never fabricates.** Across fifty cases and repeated runs it has never asserted a fact the passages do not
+   support and has never answered a question the corpus cannot answer. Its failure mode is silence, which is the right
+   one for insurance - and it means the 60% is 60% answered, not 60% correct.
+2. **The score is not stable between identical runs.** The same code measured 34/50 (68%) and 30/50 (60%) a few minutes
+   apart, and q01/q02 answered in one run and refused in the next. With twenty refusals and no wrong answers, the honest
+   statement is "60-68% answered, 0% wrong", and a fifty-case set cannot resolve differences smaller than about four
+   cases. Any future comparison needs either repeated runs or a larger set - otherwise a change that "gains two points"
+   may be noise.
+
+The next experiment should therefore be repeated runs of the same configuration (three runs, report the range) before any
+new change is believed, and the refusal cases read one by one: the model is declining while the clause is present, which
+is now the only failure left.
