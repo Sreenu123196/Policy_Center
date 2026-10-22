@@ -266,3 +266,21 @@ main:focus-visible { outline: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
+
+/* Vertical navigation: the tabs stack in one column beside the brand rather than running across the bar. The bar is
+   aligned to the top so the first tab lines up with the brand, and the menu can scroll on its own if a role sees all
+   fifteen entries. */
+.topbar { align-items: flex-start; flex-wrap: wrap; }
+.mainnav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: calc(100vh - 72px);
+  overflow-y: auto;
+  position: sticky;
+  top: 60px;
+}
+.mainnav a { padding: 8px 12px; white-space: nowrap; }
+@media (max-width: 900px) {
+  .mainnav { flex-direction: row; flex-wrap: wrap; position: static; max-height: none; overflow: visible; }
+}
