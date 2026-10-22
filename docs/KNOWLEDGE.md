@@ -280,3 +280,14 @@ clause as needed; a relevant passage is relevant whatever language the question 
 
 That leaves faithfulness as the only quality measure still short: 2/4 on a sample of four, which is too small to act on.
 The next step is a larger sample and reading the unsupported sentences, not changing the prompt again.
+
+### More passages is not the lever either (22 October)
+
+`knowledge-eval.js --passages 12` reports 35/50 (70%) and 15/30 (50%), against 34/50 (68%) and 14/30 (47%) with eight.
+One case on each measure: inside the noise of a fifty-case set. So the remaining gap is not "the right clause was
+fetched but ranked ninth".
+
+That leaves three candidate causes, in order of cost: (1) the model declining while the clause is present, which needs
+reading the failures one by one rather than another prompt change; (2) a reranker that would change which eight are sent;
+(3) query expansion, rewriting a colloquial question in the wording's vocabulary before retrieval. The harness now has a
+`--passages` flag, so any of the three can be judged by one run of the same fifty cases.

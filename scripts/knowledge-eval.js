@@ -39,6 +39,7 @@ const argValue = (flag, fallback) => {
 async function main() {
   const dbFile = argValue('--db', path.join(os.tmpdir(), 'knowledge-eval-' + Date.now() + '.db'));
   const limit = Number(argValue('--limit', '0')) || Infinity;
+  const passagesPerQuestion = Number(argValue('--passages', '8'));
   const store = openKnowledgeStore(dbFile);
   const client = new Anthropic(process.env.ANTHROPIC_WORKSPACE_ID
     ? { defaultHeaders: { 'anthropic-workspace-id': process.env.ANTHROPIC_WORKSPACE_ID } } : {});
@@ -73,7 +74,7 @@ async function main() {
     const products = detectProducts(item.question);
     if (products.length) scoped.products = products;
     const passages = hybridSearch({
-      store, embedModel: MODEL, queryVector: vectors[index], queryText: item.question, limit: 8, filters: scoped,
+      store, embedModel: MODEL, queryVector: vectors[index], queryText: item.question, limit: passagesPerQuestion, filters: scoped,
     });
     const result = await answerQuestion({ client, question: item.question, passages, language: 'en' });
     const clauses = passages.map((p) => p.clause);
