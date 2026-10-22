@@ -167,6 +167,7 @@ const ROUTES = [
   [/^#\/ask$/, pageAsk],
   [/^#\/knowledge-admin$/, pageKnowledgeAdmin],
   [/^#\/knowledge-stats$/, pageKnowledgeStats],
+  [/^#\/knowledge-stats$/, pageKnowledgeStats],
   [/^#\/accounts$/, pageAccounts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
