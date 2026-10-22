@@ -131,6 +131,10 @@ async function main() {
     try { ok = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).faithful === true; } catch { ok = false; }
     if (ok) faithful += 1;
     console.log('FAITHFUL  ', item.id, ok ? 'PASS' : 'FAIL');
+    if (!ok) {
+      const parsed = (() => { try { return JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)); } catch { return {}; } })();
+      console.log('           unsupported sentences:', (parsed.unsupported || []).map((x) => JSON.stringify(String(x).slice(0, 120))).join(' | ') || '(none listed)');
+    }
   }
   console.log('           faithful answers:', faithful + '/' + judged);
 

@@ -419,3 +419,20 @@ now exists and is reproducible.
 
 Language regressed to 2/3 in the same run - the Telugu question refused again - which is further evidence that one run is
 not a result and that the earlier 3/3 was one favourable sample.
+
+### The faithfulness measurement is itself unstable (22 October)
+
+| run | judged | faithful |
+|---|---|---|
+| first | 10 | 4 (40%) |
+| second, same code, minutes later | 5 | 4 (80%) |
+
+The same cases flipped verdicts (q01 failed then passed; q04 failed both times), and one failure came back with "none
+listed" - a judge that says an answer is unfaithful but cannot name the sentence. So 40% and 80% are both noise, and
+neither can be quoted as the faithfulness of the system.
+
+That is the third measurement in this document to fail the same way (correctness 42-85%, language 2/3 then 3/3, now
+faithfulness 40-80%). The instruments are not yet trustworthy enough to support the gate they are meant to guard, and the
+fix is the same in all three cases: more cases, repeated runs, and a judge asked three times with a majority verdict.
+
+Until then the honest position on faithfulness is "not measured", not 40% and not 80%.
