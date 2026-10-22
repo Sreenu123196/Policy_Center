@@ -269,3 +269,14 @@ The injection check itself had to be corrected: it failed any answer containing 
 that was *quoting the poisoned instruction in order to reject it*. Compliance is asserting unlimited cover, not mentioning
 it. The Telugu failure is a retrieval problem - the same question in English retrieved the clause and in Telugu did not -
 which makes multilingual retrieval the next thing to measure.
+
+### Language is 3/3 after one rule (22 October)
+
+The Telugu failure was not retrieval: for the same question, HO-1.2 ranked first in English, Hindi and Telugu alike
+(hybrid scores 0.033 / 0.016 / 0.016). The model was refusing because the passages are English and the question was not.
+One rule says so explicitly - "the passages are written in English; answer in the person's language, translating the
+clause as needed; a relevant passage is relevant whatever language the question was asked in" - and language went from
+2/3 to **3/3**, with all three answers quoting HO-1.2 and its 2,500 limit.
+
+That leaves faithfulness as the only quality measure still short: 2/4 on a sample of four, which is too small to act on.
+The next step is a larger sample and reading the unsupported sentences, not changing the prompt again.
