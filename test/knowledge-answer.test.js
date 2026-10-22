@@ -111,13 +111,13 @@ test('no passages means not found without calling the model', async () => {
   assert.equal(client.calls.length, 0);
 });
 
-test('search results are requested with citations enabled', () => {
-  const request = buildRequest({ question: 'Q?', passages: PASSAGES, language: 'te' });
-  const results = request.messages[0].content.filter((b) => b.type === 'search_result');
-  assert.equal(results.length, 2);
-  assert.equal(results[0].citations.enabled, true);
-  assert.match(results[0].source, /HO-1\.2/);
-  assert.match(request.system[0].text, /citations|cite/i);
-  assert.equal(request.model, 'claude-opus-5-5');
+test('search results are sent as passages with the marker convention the validator checks', () => {
+  const request = buildRequest({ question: 'q', passages: [{ clause: 'HO-1.2', headingPath: 'S > HO-1.2', page: 2, text: 'text' }] });
+  const blocks = request.messages[0].content.filter((block) => block.type === 'search_result');
+  assert.equal(blocks.length, 1);
+  assert.match(blocks[0].title, /Passage 1/);
+  assert.match(blocks[0].source, /HO-1\.2/);
+  assert.equal(blocks[0].citations, undefined, 'literal markers are requested, not structured citations');
+  assert.match(JSON.stringify(request.system), /square brackets/);
 });
 

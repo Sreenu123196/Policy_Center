@@ -38,7 +38,6 @@ function buildRequest({ question, passages, language = 'en' }) {
     source: `clause ${passage.clause || 'unknown'} of ${passage.headingPath || 'the wording'}, page ${passage.page || 1}`,
     title: `Passage ${index + 1}: ${passage.clause || passage.headingPath || 'wording'}`,
     content: [{ type: 'text', text: passage.text }],
-    citations: { enabled: true },
   }));
 
   return {
