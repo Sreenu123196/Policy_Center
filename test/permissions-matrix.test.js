@@ -92,6 +92,8 @@ const MATRIX = {
   'GET /contacts': [],
   'GET /incidents': ['agent'],
   'GET /claims/:claim/surveyors': ['agent'],
+  'GET /claims/:claim/litigation': ['agent'],
+  'POST /claims/:claim/litigation': ['agent', 'exec'],
   'POST /claims/:claim/surveyors': ['agent', 'exec'],
   'POST /incidents': [],
   'POST /incidents/:id/status': ['agent', 'exec'],
