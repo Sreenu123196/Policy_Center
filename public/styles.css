@@ -284,3 +284,50 @@ main:focus-visible { outline: none; }
 @media (max-width: 900px) {
   .mainnav { flex-direction: row; flex-wrap: wrap; position: static; max-height: none; overflow: visible; }
 }
+
+/* Left rail layout: the header becomes a sticky sidebar, so every tab is visible under the brand and the page content
+   sits beside it instead of under an overflowing menu. Below 900px the layout returns to the plain stacked page. */
+@media (min-width: 901px) {
+  body {
+    display: grid;
+    grid-template-columns: 250px minmax(0, 1fr);
+    grid-template-rows: auto 1fr;
+    align-items: start;
+  }
+  .topbar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    padding: 14px 12px;
+    border-right: 3px solid #2f6feb;
+    border-bottom: 0;
+  }
+  .mainnav {
+    flex-direction: column;
+    width: 100%;
+    max-height: none;
+    overflow: visible;
+    position: static;
+    border-top: 1px solid rgba(255,255,255,.18);
+    border-bottom: 1px solid rgba(255,255,255,.18);
+    padding: 6px 0;
+  }
+  .mainnav a { display: block; width: 100%; }
+  .topsearch { width: 100%; }
+  .topsearch input { width: 100%; }
+  #app, main {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    padding: 20px 24px 40px;
+    min-width: 0;
+  }
+}
+@media (max-width: 900px) {
+  .mainnav { flex-direction: row; flex-wrap: wrap; }
+}
