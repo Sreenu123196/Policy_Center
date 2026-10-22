@@ -91,3 +91,22 @@ test('no filters means everything, which is what the tests above are contrasted 
     const rows = hybridSearch({ store, embedModel: 'voyage-4', queryVector: embed(1), queryText: 'dwelling claim payout guidance', limit: 10 });
     assert.ok(rows.some((row) => row.audience === 'claims'), 'unfiltered retrieval can see both audiences');
   }));
+
+test('the product filter excludes the other products, and only when it is set', () =>
+  withStore((store) => {
+    const scoped = hybridSearch({ store, embedModel: 'voyage-4', queryVector: embed(1), queryText: 'dwelling cover',
+      limit: 10, filters: { ...UNDERWRITING, products: ['PersonalAuto'] } });
+    assert.equal(scoped.length, 0, 'the Homeowners clause is not returned when the question is about auto');
+
+    const unscoped = hybridSearch({ store, embedModel: 'voyage-4', queryVector: embed(1), queryText: 'dwelling cover',
+      limit: 10, filters: UNDERWRITING });
+    assert.ok(unscoped.length > 0, 'without a product the search stays open');
+  }));
+
+test('the detector reads the product from the question, and returns nothing when it is not named', () => {
+  const { detectProducts } = require('../src/knowledge/product');
+  assert.deepEqual(detectProducts('What is the deductible for collision cover?'), ['PersonalAuto']);
+  assert.deepEqual(detectProducts('How much cover is there for jewellery and watches?'), ['Homeowners']);
+  assert.deepEqual(detectProducts('Are light duties offered after a work-related injury?'), ['WorkersComp']);
+  assert.deepEqual(detectProducts('What is the period of indemnity?'), []);
+});

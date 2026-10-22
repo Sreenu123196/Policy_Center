@@ -177,6 +177,7 @@ function openKnowledgeStore(file) {
 function matchesFilters(row, filters) {
   if (!filters) return true;
   if (Array.isArray(filters.audiences) && !filters.audiences.includes(row.audience)) return false;
+  if (Array.isArray(filters.products) && filters.products.length && !filters.products.includes(row.product)) return false;
   if (filters.asOf) {
     if (row.valid_from && String(row.valid_from) > String(filters.asOf)) return false;
     if (row.valid_to && String(row.valid_to) <= String(filters.asOf)) return false;

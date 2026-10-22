@@ -18,6 +18,7 @@ const { hybridSearch } = require('../src/knowledge/retrieve');
 const { answerQuestion, NOT_FOUND } = require('../src/knowledge/answer');
 const { embed, MODEL } = require('../src/knowledge/voyage');
 const { audiencesFor } = require('../src/knowledge/access');
+const { detectProducts } = require('../src/knowledge/product');
 
 const AnthropicSDK = require('@anthropic-ai/sdk');
 const Anthropic = AnthropicSDK.default || AnthropicSDK;
@@ -68,8 +69,11 @@ async function main() {
   const rows = [];
 
   for (const [index, item] of cases.entries()) {
+    const scoped = { ...filters };
+    const products = detectProducts(item.question);
+    if (products.length) scoped.products = products;
     const passages = hybridSearch({
-      store, embedModel: MODEL, queryVector: vectors[index], queryText: item.question, limit: 8, filters,
+      store, embedModel: MODEL, queryVector: vectors[index], queryText: item.question, limit: 8, filters: scoped,
     });
     const result = await answerQuestion({ client, question: item.question, passages, language: 'en' });
     const clauses = passages.map((p) => p.clause);

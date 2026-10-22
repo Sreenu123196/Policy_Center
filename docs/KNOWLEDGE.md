@@ -204,3 +204,23 @@ Which means the 54% is genuine cross-product retrieval: with four wordings, the 
 quarter of the time. The next lever is product scoping - `product` is on every chunk, and a question that names a
 product should restrict the candidates before ranking, exactly as the audience filter does. That change is measurable
 by the same run.
+
+### Product scoping works, and still the model refuses (22 October)
+
+The probe, per question, with and without the product filter:
+
+| question | detected | open top-8 | scoped top-8 |
+|---|---|---|---|
+| collision deductible | PersonalAuto | PA-2.1, PA-2.2, HO-1.1, HO-2.1, ... | six PersonalAuto clauses only |
+| theft of the car | PersonalAuto | PA-2.2, PA-2.1, ..., HO-1.2, CP-1.2 | six PersonalAuto clauses only |
+| jewellery and watches | Homeowners | HO-1.2 first, then two Homeowners, then three other products | six Homeowners clauses |
+| period of indemnity | none | CP-1.2 first, then mixed | (left open, as designed) |
+
+So the filter does what it claims: the wrong product's clauses disappear. And the measured score did not move - 27/50,
+7/30 - because the clause was already first in the open list for the jewellery question, and the model refused anyway.
+
+That places the bottleneck precisely: not retrieval, not the index, not product noise, but the answering step, which
+declines to answer while the correct clause sits at rank 1. The next investigation is the request the answer layer
+actually builds - whether the passages reach the model as citable blocks, and whether the "reply exactly this" rule is
+discharging on its own caution. Everything upstream of that is now measured and, for three separate hypotheses, proven
+innocent.

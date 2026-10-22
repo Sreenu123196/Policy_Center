@@ -9,6 +9,7 @@ const { randomUUID } = require('node:crypto');
 const { hybridSearch } = require('./retrieve');
 const { answerQuestion } = require('./answer');
 const { filtersForUser } = require('./access');
+const { detectProducts } = require('./product');
 const { safeQuery } = require('./mask');
 const { ingestVersion } = require('./ingest');
 
@@ -32,6 +33,9 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
   async function ask(user, question, { asOf = null, language = 'en', limit = DEFAULT_LIMIT } = {}) {
     const started = Date.now();
     const filters = filtersForUser(user, { asOf });
+    // A question that names a product is narrowed to it; one that does not is left open.
+    const products = detectProducts(question);
+    if (products.length) filters.products = products;
     const [vector] = await embedder([question]);
     const candidates = hybridSearch({
       store, embedModel, queryVector: vector, queryText: question, limit, filters,
