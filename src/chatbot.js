@@ -909,4 +909,4 @@ class Chatbot {
   }
 }
 
-module.exports = { Chatbot, TOOLS, runTool, offlineAnswer, validateInput, replyLanguage, replyStyle };
+module.exports = { Chatbot, TOOLS, runTool, safeRunTool, offlineAnswer, validateInput, replyLanguage, replyStyle };
