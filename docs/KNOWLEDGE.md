@@ -316,3 +316,26 @@ Two conclusions:
 The next experiment should therefore be repeated runs of the same configuration (three runs, report the range) before any
 new change is believed, and the refusal cases read one by one: the model is declining while the clause is present, which
 is now the only failure left.
+
+### Three identical runs: 58%, 75%, 42% - and a correction to this document (22 October)
+
+The same twelve cases, the same code, run three times in a row:
+
+| run | correctness |
+|---|---|
+| 1 | 7/12 (58%) |
+| 2 | 9/12 (75%) |
+| 3 | 5/12 (42%) |
+
+A fifteen-point spread on identical inputs. **This contradicts the individual step-by-step numbers recorded above**:
+54% -> 60% -> 68% were each a single run of fifty cases, and a fifty-case set with this much variance cannot support
+them. The structural changes are real and proven by tests - literal citation markers (a genuine defect), the
+multilingual rule (3/3 against 2/3, reproducible in one session), the heading in the embedding and in the passage (both
+change what the model receives) - but **the claim that each lifted correctness by a specific number is not supported**.
+
+What is supported, because it is not a single sample: recall@8 100%, access leaks 0, correct "not found" 100% (20 of 20
+unanswerable cases, repeated), zero wrong or uncited facts across every run, language 3/3, injection pass.
+
+The correct method from here: three runs per configuration, report the range and the median, and only call a difference
+real when the ranges do not overlap. Until then, the honest summary of correctness is **"roughly 40-75% answered, 0%
+wrong, one run in three lands near 70%"** - which is a far less satisfying sentence and the only true one.
