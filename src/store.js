@@ -30,6 +30,7 @@ class Store {
     if (this.file && fs.existsSync(this.file)) this.data = { ...empty(), ...JSON.parse(fs.readFileSync(this.file, 'utf8')) };
     migrateClaims(this.data.claims);
     if (!Array.isArray(this.data.contacts)) this.data.contacts = [];
+    if (!Array.isArray(this.data.incidents)) this.data.incidents = [];
   }
 
   next(name) {

@@ -76,6 +76,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
   const contacts = require('./contacts').createContacts(store);
   route('GET', '/contacts', () => contacts.list(), { readOnly: true });
+  const incidents = require('./incidents').createIncidents(store, pc);
+  route('GET', '/incidents', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Incidents are not open to agents');
+    return { incidents: incidents.list() };
+  }, { readOnly: true });
+  route('POST', '/incidents', ({ user, body }) => incidents.create(user, body), {});
+  route('POST', '/incidents/:id/status', ({ user, params, body }) => {
+    if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only claims staff may move an incident');
+    return incidents.setStatus(params.id, String((body && body.status) || ''));
+  }, {});
   const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
   route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
     // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
