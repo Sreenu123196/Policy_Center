@@ -137,7 +137,12 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     return store.contentGaps(limit);
   }
 
-  return { ask, search, reindex, ingest, overview, contentGaps };
+  /** The numbers a manager looks at: volume, failure rate, latency, who is asking. */
+  async function dashboard(options = {}) {
+    return store.dashboard(options);
+  }
+
+  return { ask, search, reindex, ingest, overview, contentGaps, dashboard };
 }
 
 module.exports = { createKnowledgeService };

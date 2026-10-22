@@ -156,6 +156,32 @@ function openKnowledgeStore(file) {
         FROM query_log WHERE status = 'not_found' GROUP BY question ORDER BY asked DESC, last_asked DESC LIMIT ?`).all(limit);
     },
 
+    // The dashboard's numbers, from the query log alone: how much is asked, how often the documents fail, how slow it
+    // is, and which roles and audiences are asking. Percentiles are computed in code because SQLite has no percentile.
+    dashboard({ days = 7 } = {}) {
+      const since = new Date(Date.now() - days * 86400000).toISOString();
+      const totals = db.prepare(`SELECT COUNT(*) AS asked,
+          SUM(CASE WHEN status = 'not_found' THEN 1 ELSE 0 END) AS notFound,
+          SUM(CASE WHEN status = 'answered' THEN 1 ELSE 0 END) AS answered
+        FROM query_log WHERE created_at >= ?`).get(since);
+      const latencies = db.prepare('SELECT latency_ms FROM query_log WHERE created_at >= ? AND latency_ms IS NOT NULL ORDER BY latency_ms').all(since).map((r) => r.latency_ms);
+      const percentile = (values, p) => (values.length ? values[Math.min(values.length - 1, Math.floor((p / 100) * values.length))] : null);
+      const byDay = db.prepare(`SELECT substr(created_at, 1, 10) AS day, COUNT(*) AS asked,
+          SUM(CASE WHEN status = 'not_found' THEN 1 ELSE 0 END) AS notFound
+        FROM query_log WHERE created_at >= ? GROUP BY day ORDER BY day`).all(since);
+      const byRole = db.prepare('SELECT role, COUNT(*) AS asked FROM query_log WHERE created_at >= ? GROUP BY role ORDER BY asked DESC').all(since);
+      return {
+        days,
+        asked: totals.asked || 0,
+        answered: totals.answered || 0,
+        notFound: totals.notFound || 0,
+        notFoundRate: totals.asked ? Number(((totals.notFound || 0) / totals.asked).toFixed(3)) : 0,
+        latencyMs: { p50: percentile(latencies, 50), p95: percentile(latencies, 95), samples: latencies.length },
+        byDay,
+        byRole,
+      };
+    },
+
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
     getVersion: (id) => db.prepare('SELECT * FROM document_versions WHERE id = ?').get(id),
 
