@@ -191,3 +191,16 @@ Two attempts to filter the index to current versions both failed and were revert
 cleanly. The next attempt must first decide what marks a retired version - the publishing code sets the previous
 version's `valid_to` to the publication time, so either that convention is made explicit with a `retired` flag or the
 query uses the newest row per document with a test that proves it, before any measurement is believed again.
+
+### The version filter was right, and it changed nothing in the measurement (22 October)
+
+After filtering retrieval to the newest publication, the fifty-case run reported exactly the same numbers as before:
+**27/50 correctness, 7/30 right-clause citation**. That is a useful correction to my own diagnosis: `knowledge-eval.js`
+ingests into a fresh temporary database, so it never had five publications to confuse it. The duplicated clauses were
+real in the **live** database - the one the Ask page and the assistant use - which had accumulated five re-ingests.
+So the filter fixes the user-facing path and leaves the evaluation untouched.
+
+Which means the 54% is genuine cross-product retrieval: with four wordings, the right clause is found less than a
+quarter of the time. The next lever is product scoping - `product` is on every chunk, and a question that names a
+product should restrict the candidates before ranking, exactly as the audience filter does. That change is measurable
+by the same run.
