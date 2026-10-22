@@ -166,6 +166,7 @@ const ROUTES = [
   [/^#\/desktop$/, pageDesktop],
   [/^#\/ask$/, pageAsk],
   [/^#\/knowledge-admin$/, pageKnowledgeAdmin],
+  [/^#\/knowledge-stats$/, pageKnowledgeStats],
   [/^#\/accounts$/, pageAccounts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
   [/^#\/account\/([^/]+)\/edit$/, (id) => pageAccountForm(id)],
@@ -1213,6 +1214,34 @@ async function pageQueues() {
         `<span class="${a.overdue ? 'warning' : ''}">${esc(a.dueDate || '—')}${a.overdue ? ' · late' : ''}</span>`,
         u.authority >= 1 ? `${a.takenBy ? '' : `<button class="btn small" data-action="take-activity" data-id="${esc(a.id)}">Take</button> `}${u.authority >= 2 ? `<button class="btn small" data-action="assign-activity" data-id="${esc(a.id)}">Assign</button> ` : ''}<button class="btn small" data-action="queue-complete" data-id="${esc(a.id)}">Complete</button>` : '',
       ]), 'Nothing is waiting')}
+    </div>`);
+}
+
+// ------------------------------------------------------------------ knowledge stats
+
+// How the assistant is doing and what it cannot answer. Two calls, no state: the dashboard aggregates and the gap
+// report are both read-only and cheap.
+async function pageKnowledgeStats() {
+  const [dash, gapsResult] = await Promise.all([
+    api('GET', '/knowledge/dashboard?days=7'),
+    api('GET', '/knowledge/gaps'),
+  ]);
+  const gaps = (gapsResult && gapsResult.gaps) || [];
+  const latency = (dash && dash.latencyMs) || {};
+  view(`
+    <div class="eyebrow">Knowledge</div><h1>Knowledge dashboard</h1>
+    <div class="card"><h2>Last seven days</h2>
+      <div class="grid">
+        <div><div class="muted">Asked</div><strong>${esc(String(dash.asked || 0))}</strong></div>
+        <div><div class="muted">Answered</div><strong>${esc(String(dash.answered || 0))}</strong></div>
+        <div><div class="muted">Not found</div><strong>${esc(String(dash.notFound || 0))}</strong></div>
+        <div><div class="muted">Not found rate</div><strong>${esc(String(Math.round((dash.notFoundRate || 0) * 100)))}\%</strong></div>
+        <div><div class="muted">p50</div><strong>${esc(latency.p50 === null || latency.p50 === undefined ? '—' : latency.p50 + ' ms')}</strong></div>
+        <div><div class="muted">p95</div><strong>${esc(latency.p95 === null || latency.p95 === undefined ? '—' : latency.p95 + ' ms')}</strong></div>
+      </div>
+    </div>
+    <div class="card"><h2>Content gaps</h2>
+      ${table(['Question', 'Asked'], gaps.map((g) => [esc(g.question), esc(String(g.asked))]), 'Nothing unanswered this week')}
     </div>`);
 }
 
