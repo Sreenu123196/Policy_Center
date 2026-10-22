@@ -435,7 +435,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       res.end(JSON.stringify(payload));
     };
     try {
-      const sub = pathname.replace(/^\/api/, '') || '/';
+      const sub = require('./paths').normalizePath(pathname);
       let match = null;
       let found = null;
       for (const r of routes) {
