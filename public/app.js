@@ -1320,6 +1320,7 @@ async function pageContacts() {
 // recoveries, surveys and litigation. Read-only for agents; recording is claims staff.
 async function pageClaimsOps() {
   const incidents = (S.claimsOps && S.claimsOps.incidents) || await api('GET', '/incidents').then((r) => r.incidents).catch(() => []);
+  const claims = (S.claimsOps && S.claimsOps.claims) || await api('GET', '/claims').then((r) => r.claims || []).catch(() => []);
   const claimNumber = (S.claimsOps && S.claimsOps.claim) || '';
   const detail = (S.claimsOps && S.claimsOps.detail) || null;
 
@@ -1336,6 +1337,12 @@ async function pageClaimsOps() {
 
   view(`
     <div class="eyebrow">Claims</div><h1>Claims operations</h1>
+    <div class="card"><h2>Claims</h2>
+      ${table(['Claim', 'Status', ''], claims.map((c) => [
+        esc(c.claimNumber), esc(c.status),
+        '<button class="btn" data-action="claim-load" data-claim="' + esc(c.claimNumber) + '">Load</button>',
+      ]), 'No claims yet - file one from the Claims screen, then load it here')}
+    </div>
     <div class="card"><h2>Incidents</h2>
       ${table(['Id', 'Type', 'Occurred', 'Status', ''], incidentRows, 'No incidents yet')}
     </div>
@@ -1887,9 +1894,9 @@ const ACTIONS = {
     S.claimsOps = null;
     return pageClaimsOps();
   },
-  'claim-load': async () => {
+  'claim-load': async (d) => {
     const box = document.querySelector('#claim-number');
-    const claim = box ? box.value.trim() : '';
+    const claim = (d && d.claim) || (box ? box.value.trim() : '');
     const [recoveries, surveyors, litigation] = await Promise.all([
       api('GET', '/claims/' + encodeURIComponent(claim) + '/recoveries').catch(() => null),
       api('GET', '/claims/' + encodeURIComponent(claim) + '/surveyors').catch(() => null),
