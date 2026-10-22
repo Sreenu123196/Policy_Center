@@ -6,6 +6,17 @@
 
 const { DatabaseSync } = require('node:sqlite');
 
+// Only the newest publication of a document is searchable. Re-ingesting a wording leaves the old chunks in the table
+// as history; without this, retrieval chooses among several copies of every clause and the model sees the same
+// passage repeated instead of a different one.
+const CURRENT_VERSION = "version_id IN (SELECT v.id FROM document_versions v WHERE NOT EXISTS (SELECT 1 FROM document_versions w WHERE w.document_id = v.document_id AND (w.created_at > v.created_at OR (w.created_at = v.created_at AND w.version > v.version) OR (w.created_at = v.created_at AND w.version = v.version AND w.rowid > v.rowid))))";
+const ASOF_VERSION = "version_id IN (SELECT v.id FROM document_versions v WHERE v.valid_from <= '%DATE%' AND (v.valid_to IS NULL OR v.valid_to > '%DATE%'))";
+
+function versionFilter(filters) {
+  const asOf = filters && typeof filters.asOf === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(filters.asOf) ? filters.asOf : null;
+  return asOf ? ASOF_VERSION.replace(/%DATE%/g, asOf) : CURRENT_VERSION;
+}
+
 const SCHEMA = `
 PRAGMA journal_mode = WAL;
 CREATE TABLE IF NOT EXISTS documents (
@@ -142,7 +153,7 @@ function openKnowledgeStore(file) {
 
     // Cosine similarity in JS for R0's corpus size; sqlite-vec replaces this at R1 without changing callers.
     searchVector(queryVector, { embedModel, limit = 10, filters = null } = {}) {
-      const rows = db.prepare('SELECT * FROM chunks').all().filter((row) => matchesFilters(row, filters));
+      const rows = db.prepare('SELECT * FROM chunks WHERE ' + versionFilter(filters)).all().filter((row) => matchesFilters(row, filters));
       const wrong = rows.find((r) => r.embed_model !== embedModel);
       if (wrong) {
         throw new Error(`refusing to compare embeddings: index has ${wrong.embed_model}, query is ${embedModel}`);
@@ -154,7 +165,7 @@ function openKnowledgeStore(file) {
     },
 
     searchKeyword(term, { limit = 10, filters = null } = {}) {
-      const rows = db.prepare('SELECT * FROM chunks WHERE text LIKE ? OR context LIKE ? LIMIT ?')
+      const rows = db.prepare('SELECT * FROM chunks WHERE ' + versionFilter(filters) + ' AND (text LIKE ? OR context LIKE ?) LIMIT ?')
         .all(`%${term}%`, `%${term}%`, limit * 5);
       return rows.filter((row) => matchesFilters(row, filters)).slice(0, limit);
     },

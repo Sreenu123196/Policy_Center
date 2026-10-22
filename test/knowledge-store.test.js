@@ -80,3 +80,24 @@ test('search refuses to compare vectors from two different models', () => {
     );
   });
 });
+
+test('only the newest publication of a document is searchable', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-current-'));
+  const store = openKnowledgeStore(path.join(dir, 'knowledge.db'));
+  try {
+    store.addDocument({ id: 'home', title: 'Homeowners', source: 'fixture' });
+    store.addVersion({ id: 'v1', documentId: 'home', version: 1, validFrom: '2026-01-01' });
+    store.addVersion({ id: 'v2', documentId: 'home', version: 2, validFrom: '2027-01-01' });
+    const base = { documentId: 'home', headingPath: 'S > C', clause: 'HO-1.1', page: 1, audience: 'underwriting', product: 'Homeowners', language: 'en', sensitivity: 'internal', embedModel: 'voyage-4', context: 'HO-1.1 in "S > C" of the Homeowners wording.', validFrom: '2026-01-01', validTo: null };
+    store.addChunk({ ...base, id: 'old', versionId: 'v1', text: 'old wording text', embedding: [1, 0, 0] });
+    store.addChunk({ ...base, id: 'new', versionId: 'v2', text: 'new wording text', embedding: [1, 0, 0] });
+
+    const found = store.searchVector([1, 0, 0], { embedModel: 'voyage-4', limit: 10 });
+    assert.deepEqual(found.map((row) => row.id), ['new'], 'the retired publication is not searchable');
+    const keyword = store.searchKeyword('wording', { limit: 10 });
+    assert.deepEqual(keyword.map((row) => row.id), ['new'], 'the keyword half respects it too');
+  } finally {
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
