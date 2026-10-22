@@ -108,8 +108,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     return knowledge.reindex();
   }, { readOnly: true });
 
-  route('POST', '/knowledge/ask', async ({ user, body }) => (staffOnly(user), knowledge ? knowledge.ask(user, String((body && body.question) || ''), { asOf: body && body.asOf, language: (body && body.language) || 'en' }) : noKnowledge()), { readOnly: true });
-  route('GET', '/knowledge/search', async ({ user, query }) => (staffOnly(user), knowledge ? knowledge.search(user, String(query.get('q') || ''), { asOf: query.get('asOf') || null }) : []), { readOnly: true });
+  route('POST', '/knowledge/ask', async ({ user, body }) => (knowledge ? knowledge.ask(user, String((body && body.question) || ''), { asOf: body && body.asOf, language: (body && body.language) || 'en' }) : noKnowledge()), { readOnly: true });
+  route('GET', '/knowledge/search', async ({ user, query }) => (knowledge ? knowledge.search(user, String(query.get('q') || ''), { asOf: query.get('asOf') || null }) : []), { readOnly: true });
 
   // How the server is doing (UW managers): memory, how many records, what saving the data costs.
   route('GET', '/admin/metrics', ({ user }) => {

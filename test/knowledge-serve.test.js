@@ -83,3 +83,18 @@ test('search returns numbered passages without asking the model', () =>
     assert.equal(rows[0].number, 1);
     assert.equal(rows[0].clause, 'HO-1.1');
   }));
+
+test('an unanswered question is handed to a queue instead of dead-ending', () =>
+  withService(async ({ service }) => {
+    const result = await service.ask({ id: 'u1', role: 'Underwriter' }, 'What is the flood premium?');
+    assert.equal(result.status, 'not_found');
+    assert.equal(result.handOff.suggested, 'underwriting-queue');
+    assert.match(result.handOff.reason, /No passage/);
+  }, 'I could not find that in the documents.'));
+
+test('an answered question carries no hand-off', () =>
+  withService(async ({ service }) => {
+    const result = await service.ask({ id: 'u1', role: 'Underwriter' }, 'What does the wording cover?');
+    assert.equal(result.status, 'answered');
+    assert.equal(result.handOff, null);
+  }));

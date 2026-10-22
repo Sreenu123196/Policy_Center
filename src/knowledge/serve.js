@@ -51,8 +51,14 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
       latencyMs: Date.now() - started,
     });
 
+    // When the documents cannot answer, say where the question should go rather than leaving the person at a wall.
+    const handOff = result.status === 'not_found'
+      ? { suggested: 'underwriting-queue', reason: 'No passage in the indexed wordings answers this question.' }
+      : null;
+
     return {
       status: result.status,
+      handOff,
       answer: result.answer,
       citations: result.citations.map((number) => ({
         number,
