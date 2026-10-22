@@ -339,3 +339,27 @@ unanswerable cases, repeated), zero wrong or uncited facts across every run, lan
 The correct method from here: three runs per configuration, report the range and the median, and only call a difference
 real when the ranges do not overlap. Until then, the honest summary of correctness is **"roughly 40-75% answered, 0%
 wrong, one run in three lands near 70%"** - which is a far less satisfying sentence and the only true one.
+
+### The first defensible number: median 75%, range 70-85% (22 October)
+
+Three runs of the same twenty cases, same configuration:
+
+| run | correctness | right clause cited |
+|---|---|---|
+| 1 | 14/20 (70%) | 4/10 (40%) |
+| 2 | 17/20 (85%) | 7/10 (70%) |
+| 3 | 15/20 (75%) | 5/10 (50%) |
+| **median** | **75%** | **50%** |
+| range | 70-85% | 40-70% |
+
+This is the first figure in this document that rests on repeated runs rather than one sample, and it replaces every
+single-run correctness number recorded above. Two things follow:
+
+1. **Correctness is around 75%, not 60-68%.** The earlier figures were taken on the first twelve cases, which are a
+   harder slice than the first twenty, and each was one sample.
+2. **Right-clause citation is around 50%, with a wider range.** The model can answer correctly from a passage that is not
+   the one the case names - which is why correctness sits well above citation accuracy. That is a measurement artefact as
+   much as a quality signal: a question can be answered from a neighbouring clause that states the same rule.
+
+The gap to 90% is now about fifteen points, inside the range's upper half, and the method to close it is fixed: three
+runs per configuration, median reported, a difference believed only when ranges do not overlap.
