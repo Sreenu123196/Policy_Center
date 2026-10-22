@@ -331,3 +331,27 @@ main:focus-visible { outline: none; }
 @media (max-width: 900px) {
   .mainnav { flex-direction: row; flex-wrap: wrap; }
 }
+
+/* Search and the user controls belong at the top right, above the page, not inside the rail: the rail is the brand and
+   the tabs, and nothing else. Fixed rather than sticky so they stay put when the page scrolls. */
+@media (min-width: 901px) {
+  .topbar { justify-content: flex-start; }
+  .topsearch {
+    position: fixed;
+    top: 12px;
+    right: 300px;
+    width: 320px;
+    z-index: 20;
+    margin: 0;
+  }
+  .userpick {
+    position: fixed;
+    top: 12px;
+    right: 16px;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #app, main { padding-top: 64px; }
+}
