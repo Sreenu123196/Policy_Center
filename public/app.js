@@ -1352,6 +1352,16 @@ async function pageClaimsOps() {
           <select id="rec-source"><option value="subrogation">Subrogation</option><option value="salvage">Salvage</option></select>
           <input id="rec-amount" placeholder="Amount" type="number">
           <button class="btn" data-action="recovery-add">Record recovery</button>
+        <div class="toolbar" style="margin-top:10px">
+          <input id="sv-firm" placeholder="Surveyor firm">
+          <select id="sv-rec"><option value="repair">Repair</option><option value="pay">Pay</option><option value="total-loss">Total loss</option><option value="decline">Decline</option><option value="further-investigation">Further investigation</option></select>
+          <button class="btn" data-action="surveyor-add">Appoint surveyor</button>
+        </div>
+        <div class="toolbar" style="margin-top:10px">
+          <select id="lit-stage"><option value="notified">Notified</option><option value="defended">Defended</option><option value="settled">Settled</option><option value="withdrawn">Withdrawn</option></select>
+          <input id="lit-by" placeholder="Authorised by">
+          <button class="btn" data-action="litigation-add">Record litigation</button>
+        </div>
         </div>` : '<p class="muted">Load a claim to see its recoveries, surveys and litigation.</p>'}
     </div>`);
 }
@@ -1851,6 +1861,26 @@ const ACTIONS = {
     toast(result && result.ok ? 'Reindexed ' + result.chunks + ' chunks' : 'Reindex failed: ' + ((result && result.error) || 'see runs'), result && result.ok ? 'success' : 'error');
     S.knowledgeAdmin = null;
     return pageKnowledgeAdmin();
+  },
+  'surveyor-add': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const claim = (S.claimsOps && S.claimsOps.claim) || '';
+    const sent = await api('POST', '/claims/' + encodeURIComponent(claim) + '/surveyors', {
+      firm: value('#sv-firm'), recommendation: value('#sv-rec') || undefined,
+    }).catch(() => null);
+    toast(sent && sent.id ? 'Surveyor appointed' : 'Appointment refused', sent && sent.id ? 'success' : 'error');
+    S.claimsOps = { incidents: null, claim, detail: null };
+    return pageClaimsOps();
+  },
+  'litigation-add': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const claim = (S.claimsOps && S.claimsOps.claim) || '';
+    const sent = await api('POST', '/claims/' + encodeURIComponent(claim) + '/litigation', {
+      stage: value('#lit-stage'), authorisedBy: value('#lit-by') || undefined,
+    }).catch(() => null);
+    toast(sent && sent.litigation ? 'Litigation recorded' : 'Litigation refused', sent && sent.litigation ? 'success' : 'error');
+    S.claimsOps = { incidents: null, claim, detail: null };
+    return pageClaimsOps();
   },
   'incident-status': async (d) => {
     await api('POST', '/incidents/' + encodeURIComponent(d.id) + '/status', { status: d.status });
