@@ -1,0 +1,4025 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "PolicyCenter Simulator API",
+    "version": "1.0.0",
+    "description": "Every route the server registers, generated from the route table. Sign-in uses the session cookie."
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This server"
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "pc_session"
+      }
+    }
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "get_health",
+        "summary": "Read: /health",
+        "tags": [
+          "health"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/knowledge/feedback": {
+      "post": {
+        "operationId": "post_knowledge_feedback",
+        "summary": "Read: /knowledge/feedback",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "get": {
+        "operationId": "get_knowledge_feedback",
+        "summary": "Read: /knowledge/feedback",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/drift": {
+      "get": {
+        "operationId": "get_knowledge_drift",
+        "summary": "Read: /knowledge/drift",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/dashboard": {
+      "get": {
+        "operationId": "get_knowledge_dashboard",
+        "summary": "Read: /knowledge/dashboard",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/gaps": {
+      "get": {
+        "operationId": "get_knowledge_gaps",
+        "summary": "Read: /knowledge/gaps",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/documents": {
+      "get": {
+        "operationId": "get_knowledge_documents",
+        "summary": "Read: /knowledge/documents",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_knowledge_documents",
+        "summary": "Read: /knowledge/documents",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/reindex": {
+      "post": {
+        "operationId": "post_knowledge_reindex",
+        "summary": "Read: /knowledge/reindex",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/ask": {
+      "post": {
+        "operationId": "post_knowledge_ask",
+        "summary": "Read: /knowledge/ask",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/knowledge/search": {
+      "get": {
+        "operationId": "get_knowledge_search",
+        "summary": "Read: /knowledge/search",
+        "tags": [
+          "knowledge"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/metrics": {
+      "get": {
+        "operationId": "get_admin_metrics",
+        "summary": "Read: /admin/metrics",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/backup": {
+      "post": {
+        "operationId": "post_admin_backup",
+        "summary": "Read: /admin/backup",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/backups": {
+      "get": {
+        "operationId": "get_admin_backups",
+        "summary": "Read: /admin/backups",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounts/{id}/personal-data": {
+      "get": {
+        "operationId": "get_accounts_id_personal_data",
+        "summary": "Read: /accounts/:id/personal-data",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounts/{id}/erase": {
+      "post": {
+        "operationId": "post_accounts_id_erase",
+        "summary": "Change: /accounts/:id/erase",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/data-requests": {
+      "get": {
+        "operationId": "get_admin_data_requests",
+        "summary": "Read: /admin/data-requests",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/audit": {
+      "get": {
+        "operationId": "get_audit",
+        "summary": "Read: /audit",
+        "tags": [
+          "audit"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "operationId": "get_audit_verify",
+        "summary": "Read: /audit/verify",
+        "tags": [
+          "audit"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents": {
+      "get": {
+        "operationId": "get_agents",
+        "summary": "Read: /agents",
+        "tags": [
+          "agents"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents/run": {
+      "post": {
+        "operationId": "post_agents_run",
+        "summary": "Change: /agents/run",
+        "tags": [
+          "agents"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents/suggestions": {
+      "get": {
+        "operationId": "get_agents_suggestions",
+        "summary": "Read: /agents/suggestions",
+        "tags": [
+          "agents"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/suggestions/mine": {
+      "get": {
+        "operationId": "get_suggestions_mine",
+        "summary": "Read: /suggestions/mine",
+        "tags": [
+          "suggestions"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/webhooks/telegram": {
+      "post": {
+        "operationId": "post_webhooks_telegram",
+        "summary": "Change: /webhooks/telegram",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/webhooks/twilio/voice": {
+      "get": {
+        "operationId": "get_webhooks_twilio_voice",
+        "summary": "Read: /webhooks/twilio/voice",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/webhooks/twilio/decision": {
+      "post": {
+        "operationId": "post_webhooks_twilio_decision",
+        "summary": "Change: /webhooks/twilio/decision",
+        "tags": [
+          "webhooks"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/agents/suggestions/{id}/decision": {
+      "post": {
+        "operationId": "post_agents_suggestions_id_decision",
+        "summary": "Change: /agents/suggestions/:id/decision",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents/{id}/mode": {
+      "post": {
+        "operationId": "post_agents_id_mode",
+        "summary": "Change: /agents/:id/mode",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents/{id}/limits": {
+      "post": {
+        "operationId": "post_agents_id_limits",
+        "summary": "Change: /agents/:id/limits",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/agents/{id}/backtest": {
+      "get": {
+        "operationId": "get_agents_id_backtest",
+        "summary": "Read: /agents/:id/backtest",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/auth/status": {
+      "get": {
+        "operationId": "get_auth_status",
+        "summary": "Read: /auth/status",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/setup": {
+      "post": {
+        "operationId": "post_auth_setup",
+        "summary": "Change: /auth/setup",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/login": {
+      "post": {
+        "operationId": "post_auth_login",
+        "summary": "Change: /auth/login",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "operationId": "post_auth_logout",
+        "summary": "Change: /auth/logout",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "operationId": "get_auth_me",
+        "summary": "Read: /auth/me",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/auth/password": {
+      "post": {
+        "operationId": "post_auth_password",
+        "summary": "Change: /auth/password",
+        "tags": [
+          "auth"
+        ],
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/staff": {
+      "get": {
+        "operationId": "get_staff",
+        "summary": "Read: /staff",
+        "tags": [
+          "staff"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_staff",
+        "summary": "Change: /staff",
+        "tags": [
+          "staff"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/staff/{id}/reset": {
+      "post": {
+        "operationId": "post_staff_id_reset",
+        "summary": "Change: /staff/:id/reset",
+        "tags": [
+          "staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/staff/{id}/active": {
+      "post": {
+        "operationId": "post_staff_id_active",
+        "summary": "Change: /staff/:id/active",
+        "tags": [
+          "staff"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/meta": {
+      "get": {
+        "operationId": "get_meta",
+        "summary": "Read: /meta",
+        "tags": [
+          "meta"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/desktop": {
+      "get": {
+        "operationId": "get_desktop",
+        "summary": "Read: /desktop",
+        "tags": [
+          "desktop"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/search": {
+      "get": {
+        "operationId": "get_search",
+        "summary": "Read: /search",
+        "tags": [
+          "search"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounts": {
+      "get": {
+        "operationId": "get_accounts",
+        "summary": "Read: /accounts",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_accounts",
+        "summary": "Change: /accounts",
+        "tags": [
+          "accounts"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounts/{id}": {
+      "get": {
+        "operationId": "get_accounts_id",
+        "summary": "Read: /accounts/:id",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "put": {
+        "operationId": "put_accounts_id",
+        "summary": "Change: /accounts/:id",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "get": {
+        "operationId": "get_jobs",
+        "summary": "Read: /jobs",
+        "tags": [
+          "jobs"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/submission": {
+      "post": {
+        "operationId": "post_jobs_submission",
+        "summary": "Change: /jobs/submission",
+        "tags": [
+          "jobs"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "operationId": "get_jobs_id",
+        "summary": "Read: /jobs/:id",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/period": {
+      "put": {
+        "operationId": "put_jobs_id_period",
+        "summary": "Change: /jobs/:id/period",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/quote": {
+      "post": {
+        "operationId": "post_jobs_id_quote",
+        "summary": "Change: /jobs/:id/quote",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/bind": {
+      "post": {
+        "operationId": "post_jobs_id_bind",
+        "summary": "Change: /jobs/:id/bind",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/withdraw": {
+      "post": {
+        "operationId": "post_jobs_id_withdraw",
+        "summary": "Change: /jobs/:id/withdraw",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/decline": {
+      "post": {
+        "operationId": "post_jobs_id_decline",
+        "summary": "Change: /jobs/:id/decline",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/uw-issues/{key}/approve": {
+      "post": {
+        "operationId": "post_jobs_id_uw_issues_key_approve",
+        "summary": "Change: /jobs/:id/uw-issues/:key/approve",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies": {
+      "get": {
+        "operationId": "get_policies",
+        "summary": "Read: /policies",
+        "tags": [
+          "policies"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims": {
+      "get": {
+        "operationId": "get_claims",
+        "summary": "Read: /claims",
+        "tags": [
+          "claims"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}": {
+      "get": {
+        "operationId": "get_claims_id",
+        "summary": "Read: /claims/:id",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}": {
+      "get": {
+        "operationId": "get_policies_id",
+        "summary": "Read: /policies/:id",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/claims": {
+      "post": {
+        "operationId": "post_policies_id_claims",
+        "summary": "Change: /policies/:id/claims",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/change": {
+      "post": {
+        "operationId": "post_policies_id_change",
+        "summary": "Change: /policies/:id/change",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/cancel": {
+      "post": {
+        "operationId": "post_policies_id_cancel",
+        "summary": "Change: /policies/:id/cancel",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/reinstate": {
+      "post": {
+        "operationId": "post_policies_id_reinstate",
+        "summary": "Change: /policies/:id/reinstate",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/renew": {
+      "post": {
+        "operationId": "post_policies_id_renew",
+        "summary": "Change: /policies/:id/renew",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/audit": {
+      "post": {
+        "operationId": "post_policies_id_audit",
+        "summary": "Change: /policies/:id/audit",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/audit-actuals": {
+      "post": {
+        "operationId": "post_jobs_id_audit_actuals",
+        "summary": "Change: /jobs/:id/audit-actuals",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/rewrite": {
+      "post": {
+        "operationId": "post_policies_id_rewrite",
+        "summary": "Change: /policies/:id/rewrite",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/billing": {
+      "get": {
+        "operationId": "get_policies_id_billing",
+        "summary": "Read: /policies/:id/billing",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/payments": {
+      "post": {
+        "operationId": "post_policies_id_payments",
+        "summary": "Change: /policies/:id/payments",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/ledger": {
+      "get": {
+        "operationId": "get_policies_id_ledger",
+        "summary": "Read: /policies/:id/ledger",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/policies/{id}/refunds/{refundId}/issue": {
+      "post": {
+        "operationId": "post_policies_id_refunds_refundId_issue",
+        "summary": "Change: /policies/:id/refunds/:refundId/issue",
+        "tags": [
+          "policies"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "refundId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/billing/delinquency": {
+      "post": {
+        "operationId": "post_billing_delinquency",
+        "summary": "Change: /billing/delinquency",
+        "tags": [
+          "billing"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/events/dead": {
+      "get": {
+        "operationId": "get_admin_events_dead",
+        "summary": "Read: /admin/events/dead",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/events/run": {
+      "post": {
+        "operationId": "post_admin_events_run",
+        "summary": "Change: /admin/events/run",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/events/dead/{consumer}/{eventId}/redrive": {
+      "post": {
+        "operationId": "post_admin_events_dead_consumer_eventId_redrive",
+        "summary": "Change: /admin/events/dead/:consumer/:eventId/redrive",
+        "tags": [
+          "admin"
+        ],
+        "parameters": [
+          {
+            "name": "consumer",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "eventId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}/exposures": {
+      "post": {
+        "operationId": "post_claims_id_exposures",
+        "summary": "Change: /claims/:id/exposures",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}/exposures/{number}/reserve": {
+      "post": {
+        "operationId": "post_claims_id_exposures_number_reserve",
+        "summary": "Change: /claims/:id/exposures/:number/reserve",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}/exposures/{number}/payments": {
+      "post": {
+        "operationId": "post_claims_id_exposures_number_payments",
+        "summary": "Change: /claims/:id/exposures/:number/payments",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "number",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}/payments/{paymentId}/approve": {
+      "post": {
+        "operationId": "post_claims_id_payments_paymentId_approve",
+        "summary": "Change: /claims/:id/payments/:paymentId/approve",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "paymentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/documents/{id}/render": {
+      "get": {
+        "operationId": "get_documents_id_render",
+        "summary": "Read: /documents/:id/render",
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/documents/{id}/view": {
+      "get": {
+        "operationId": "get_documents_id_view",
+        "summary": "Read: /documents/:id/view",
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/documents/{id}/sign": {
+      "post": {
+        "operationId": "post_documents_id_sign",
+        "summary": "Change: /documents/:id/sign",
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/documents/{id}/verify": {
+      "get": {
+        "operationId": "get_documents_id_verify",
+        "summary": "Read: /documents/:id/verify",
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/documents/{id}/deliver": {
+      "post": {
+        "operationId": "post_documents_id_deliver",
+        "summary": "Read: /documents/:id/deliver",
+        "tags": [
+          "documents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/trial-balance": {
+      "get": {
+        "operationId": "get_accounting_trial_balance",
+        "summary": "Read: /accounting/trial-balance",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/journal": {
+      "get": {
+        "operationId": "get_accounting_journal",
+        "summary": "Read: /accounting/journal",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/gl.csv": {
+      "get": {
+        "operationId": "get_accounting_gl_csv",
+        "summary": "Read: /accounting/gl.csv",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/reconciliation": {
+      "get": {
+        "operationId": "get_accounting_reconciliation",
+        "summary": "Read: /accounting/reconciliation",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/closings": {
+      "get": {
+        "operationId": "get_accounting_closings",
+        "summary": "Read: /accounting/closings",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_accounting_closings",
+        "summary": "Change: /accounting/closings",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/producers": {
+      "get": {
+        "operationId": "get_accounting_producers",
+        "summary": "Read: /accounting/producers",
+        "tags": [
+          "accounting"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/producers/{code}/rate": {
+      "post": {
+        "operationId": "post_accounting_producers_code_rate",
+        "summary": "Change: /accounting/producers/:code/rate",
+        "tags": [
+          "accounting"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounting/producers/{code}/payments": {
+      "post": {
+        "operationId": "post_accounting_producers_code_payments",
+        "summary": "Change: /accounting/producers/:code/payments",
+        "tags": [
+          "accounting"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/producers/{code}/statement": {
+      "get": {
+        "operationId": "get_producers_code_statement",
+        "summary": "Read: /producers/:code/statement",
+        "tags": [
+          "producers"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/producers/{code}/statement.csv": {
+      "get": {
+        "operationId": "get_producers_code_statement_csv",
+        "summary": "Read: /producers/:code/statement.csv",
+        "tags": [
+          "producers"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/producers/{code}/statement.pdf": {
+      "get": {
+        "operationId": "get_producers_code_statement_pdf",
+        "summary": "Read: /producers/:code/statement.pdf",
+        "tags": [
+          "producers"
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/activities": {
+      "get": {
+        "operationId": "get_activities",
+        "summary": "Read: /activities",
+        "tags": [
+          "activities"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/queues": {
+      "get": {
+        "operationId": "get_queues",
+        "summary": "Read: /queues",
+        "tags": [
+          "queues"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/activities/{id}/take": {
+      "post": {
+        "operationId": "post_activities_id_take",
+        "summary": "Change: /activities/:id/take",
+        "tags": [
+          "activities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/activities/{id}/assign": {
+      "post": {
+        "operationId": "post_activities_id_assign",
+        "summary": "Change: /activities/:id/assign",
+        "tags": [
+          "activities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/activities/{id}/complete": {
+      "post": {
+        "operationId": "post_activities_id_complete",
+        "summary": "Change: /activities/:id/complete",
+        "tags": [
+          "activities"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/ratebooks": {
+      "get": {
+        "operationId": "get_ratebooks",
+        "summary": "Read: /ratebooks",
+        "tags": [
+          "ratebooks"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/events": {
+      "get": {
+        "operationId": "get_events",
+        "summary": "Read: /events",
+        "tags": [
+          "events"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/batch/renewals": {
+      "post": {
+        "operationId": "post_batch_renewals",
+        "summary": "Change: /batch/renewals",
+        "tags": [
+          "batch"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/chat/status": {
+      "get": {
+        "operationId": "get_chat_status",
+        "summary": "Read: /chat/status",
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/chat": {
+      "post": {
+        "operationId": "post_chat",
+        "summary": "Read: /chat",
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/chat/stream": {
+      "post": {
+        "operationId": "post_chat_stream",
+        "summary": "Read: /chat/stream",
+        "tags": [
+          "chat"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/speech/status": {
+      "get": {
+        "operationId": "get_speech_status",
+        "summary": "Read: /speech/status",
+        "tags": [
+          "speech"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/speech": {
+      "post": {
+        "operationId": "post_speech",
+        "summary": "Read: /speech",
+        "tags": [
+          "speech"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/sales/analytics": {
+      "get": {
+        "operationId": "get_sales_analytics",
+        "summary": "Read: /sales/analytics",
+        "tags": [
+          "sales"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/sales/lapsing": {
+      "get": {
+        "operationId": "get_sales_lapsing",
+        "summary": "Read: /sales/lapsing",
+        "tags": [
+          "sales"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/sales/followups": {
+      "get": {
+        "operationId": "get_sales_followups",
+        "summary": "Read: /sales/followups",
+        "tags": [
+          "sales"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/sales/policies/{id}/followups": {
+      "get": {
+        "operationId": "get_sales_policies_id_followups",
+        "summary": "Read: /sales/policies/:id/followups",
+        "tags": [
+          "sales"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_sales_policies_id_followups",
+        "summary": "Change: /sales/policies/:id/followups",
+        "tags": [
+          "sales"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/claims": {
+      "get": {
+        "operationId": "get_reports_claims",
+        "summary": "Read: /reports/claims",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/collections": {
+      "get": {
+        "operationId": "get_reports_collections",
+        "summary": "Read: /reports/collections",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/refunds": {
+      "get": {
+        "operationId": "get_reports_refunds",
+        "summary": "Read: /reports/refunds",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/claim-approvals": {
+      "get": {
+        "operationId": "get_reports_claim_approvals",
+        "summary": "Read: /reports/claim-approvals",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/billing": {
+      "get": {
+        "operationId": "get_reports_billing",
+        "summary": "Read: /reports/billing",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/insights": {
+      "get": {
+        "operationId": "get_insights",
+        "summary": "Read: /insights",
+        "tags": [
+          "insights"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/finance/report": {
+      "get": {
+        "operationId": "get_finance_report",
+        "summary": "Read: /finance/report",
+        "tags": [
+          "finance"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/finance/expenses": {
+      "get": {
+        "operationId": "get_finance_expenses",
+        "summary": "Read: /finance/expenses",
+        "tags": [
+          "finance"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_finance_expenses",
+        "summary": "Change: /finance/expenses",
+        "tags": [
+          "finance"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/finance/commission": {
+      "post": {
+        "operationId": "post_finance_commission",
+        "summary": "Change: /finance/commission",
+        "tags": [
+          "finance"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/profitability.xlsx": {
+      "get": {
+        "operationId": "get_reports_profitability_xlsx",
+        "summary": "Read: /reports/profitability.xlsx",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/reports/profitability.pdf": {
+      "get": {
+        "operationId": "get_reports_profitability_pdf",
+        "summary": "Read: /reports/profitability.pdf",
+        "tags": [
+          "reports"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets": {
+      "get": {
+        "operationId": "get_tickets",
+        "summary": "Read: /tickets",
+        "tags": [
+          "tickets"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      },
+      "post": {
+        "operationId": "post_tickets",
+        "summary": "Change: /tickets",
+        "tags": [
+          "tickets"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets/queue": {
+      "get": {
+        "operationId": "get_tickets_queue",
+        "summary": "Read: /tickets/queue",
+        "tags": [
+          "tickets"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets/{id}": {
+      "get": {
+        "operationId": "get_tickets_id",
+        "summary": "Read: /tickets/:id",
+        "tags": [
+          "tickets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets/{id}/assign": {
+      "post": {
+        "operationId": "post_tickets_id_assign",
+        "summary": "Change: /tickets/:id/assign",
+        "tags": [
+          "tickets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets/{id}/status": {
+      "post": {
+        "operationId": "post_tickets_id_status",
+        "summary": "Change: /tickets/:id/status",
+        "tags": [
+          "tickets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/tickets/{id}/notes": {
+      "post": {
+        "operationId": "post_tickets_id_notes",
+        "summary": "Change: /tickets/:id/notes",
+        "tags": [
+          "tickets"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/claims/{id}/stage": {
+      "post": {
+        "operationId": "post_claims_id_stage",
+        "summary": "Change: /claims/:id/stage",
+        "tags": [
+          "claims"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/messages/status": {
+      "get": {
+        "operationId": "get_messages_status",
+        "summary": "Read: /messages/status",
+        "tags": [
+          "messages"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/messages/preview": {
+      "post": {
+        "operationId": "post_messages_preview",
+        "summary": "Read: /messages/preview",
+        "tags": [
+          "messages"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/messages/send": {
+      "post": {
+        "operationId": "post_messages_send",
+        "summary": "Read: /messages/send",
+        "tags": [
+          "messages"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/accounts/{id}/messages": {
+      "get": {
+        "operationId": "get_accounts_id_messages",
+        "summary": "Read: /accounts/:id/messages",
+        "tags": [
+          "accounts"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    },
+    "/admin/reset": {
+      "post": {
+        "operationId": "post_admin_reset",
+        "summary": "Change: /admin/reset",
+        "tags": [
+          "admin"
+        ],
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Refused by the role"
+          }
+        }
+      }
+    }
+  }
+}

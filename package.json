@@ -15,7 +15,8 @@
     "migrate-to-pg": "node scripts/migrate-to-pg.js",
     "knowledge:eval": "node scripts/knowledge-eval.js",
     "knowledge:quality": "node scripts/knowledge-quality.js",
-    "knowledge:gate": "node scripts/knowledge-gate.js"
+    "knowledge:gate": "node scripts/knowledge-gate.js",
+    "openapi": "node scripts/build-openapi.js"
   },
   "engines": {
     "node": ">=20"
