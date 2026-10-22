@@ -594,6 +594,26 @@ function runTool(pc, user, name, input) {
 }
 
 async function safeRunTool(pc, user, name, input, options = {}) {
+  if (name === 'get_claim') {
+    const number = String((input && input.claim) || '').trim();
+    const claim = number && pc && pc.db && Array.isArray(pc.db.claims)
+      ? pc.db.claims.find((row) => row.claimNumber === number) : null;
+    // Access is the application's: a claim the person may not see is indistinguishable from one that does not exist.
+    let policy = null;
+    if (claim) {
+      try { policy = pc.policy(claim.policyId, user); } catch { policy = null; }
+    }
+    if (!claim || !policy) return { ok: true, result: { found: false, claimNumber: number } };
+    const canSeeReserve = Boolean(claim.reserve !== undefined && policy && user && ['Underwriter', 'UW Manager', 'Insurance Executive'].includes(user.role));
+    return { ok: true, result: {
+      found: true,
+      claimNumber: claim.claimNumber,
+      status: claim.status,
+      dateOfLoss: claim.dateOfLoss || null,
+      policyNumber: policy.policyNumber,
+      ...(canSeeReserve ? { reserve: claim.reserve } : {}),
+    } };
+  }
   if (name === 'get_policy_as_of') {
     try {
       const { policyFacts } = require('./knowledge/policy-facts');

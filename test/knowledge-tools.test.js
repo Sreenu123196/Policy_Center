@@ -58,3 +58,28 @@ test('every tool in the list is one the model can actually reach', async () => {
   const names = TOOLS.map((t) => t.name);
   for (const name of ['search_knowledge', 'get_policy_as_of']) assert.ok(names.includes(name));
 });
+
+test('get_claim returns the claim a person may see, without the reserve for an agent', async () => {
+  const pc = {
+    db: { claims: [{ claimNumber: 'CL-1', policyId: 'p1', status: 'Open', dateOfLoss: '2026-02-01', reserve: 50000 }] },
+    policy: () => ({ policyNumber: 'PA-0000001' }),
+  };
+  const staff = await safeRunTool(pc, { role: 'Underwriter' }, 'get_claim', { claim: 'CL-1' }, {});
+  assert.equal(staff.result.found, true);
+  assert.equal(staff.result.status, 'Open');
+  assert.equal(staff.result.reserve, 50000, 'a person who may see reserves gets one');
+
+  const agent = await safeRunTool(pc, { role: 'Agent' }, 'get_claim', { claim: 'CL-1' }, {});
+  assert.equal(agent.result.found, true);
+  assert.equal(agent.result.reserve, undefined, 'an agent does not see the reserve');
+});
+
+test('a claim the person may not see looks like a claim that does not exist', async () => {
+  const pc = {
+    db: { claims: [{ claimNumber: 'CL-2', policyId: 'p2', status: 'Open' }] },
+    policy: () => { throw new Error('not found'); },
+  };
+  const result = await safeRunTool(pc, { role: 'Agent' }, 'get_claim', { claim: 'CL-2' }, {});
+  assert.equal(result.result.found, false);
+  assert.equal(result.result.status, undefined);
+});
