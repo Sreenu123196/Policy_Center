@@ -99,6 +99,7 @@ async function main() {
     if (ok) correct += 1;
     rows.push([item.id, result.status, ok ? 'yes' : 'no', note]);
     console.log(item.id.padEnd(5), result.status.padEnd(11), ok ? 'yes' : 'no ', note);
+    if (!ok && note.includes('refused')) console.log('      clauses sent:', clauses.join(','), '| expected', (item.expected_sources || []).join(','));
   }
 
   console.log('');
