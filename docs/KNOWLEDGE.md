@@ -363,3 +363,23 @@ single-run correctness number recorded above. Two things follow:
 
 The gap to 90% is now about fifteen points, inside the range's upper half, and the method to close it is fixed: three
 runs per configuration, median reported, a difference believed only when ranges do not overlap.
+
+### The refusal-rule experiment was inconclusive, so the rule is unchanged (22 October)
+
+The four refusals all had their expected clause in context, which pointed at the answering instruction. The softened rule
+was restored and measured repeatedly:
+
+| configuration | runs | median |
+|---|---|---|
+| strict rule | 70%, 85%, 75% | **75%** |
+| softened rule | 80%, 60% | 70% |
+| softened rule, earlier attempt | 60% | - |
+
+The spread within each configuration is wider than the difference between them, so the change is **not proven** and has
+been reverted. The earlier decision to revert it "because 60% < 75%" was also unjustified - it compared two single runs -
+but the right response to that mistake is a proper experiment, and the proper experiment says: no detectable difference.
+
+What this means for the remaining gap: correctness sits at **75% median (70-85% range)** regardless of this rule, and a
+twenty-case, three-run experiment cannot resolve ten points. Either the case set must grow (to a hundred or more) or the
+number of runs must rise (five or seven), before the next prompt change can be judged. No further prompt changes should be
+made until then - each one costs a measurement that cannot currently answer the question.
