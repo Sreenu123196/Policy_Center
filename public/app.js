@@ -1313,6 +1313,9 @@ async function pageAsk() {
     ${result ? `<div class="card"><h2>${esc(result.status === 'answered' ? 'Answer' : result.status === 'error' ? 'Not available for your role' : 'No matching clause found')}</h2>
       <p>${esc(result.answer || result.error || '')}</p>
       ${sources ? `<h3>Sources</h3><ul>${sources}</ul>` : ''}
+      ${result.queryId ? `<div class="toolbar" style="margin-top:10px"><span class="muted">Was this helpful?</span>
+        <button class="btn" data-action="ask-feedback" data-query="${esc(result.queryId)}" data-verdict="good">Yes</button>
+        <button class="btn" data-action="ask-feedback" data-query="${esc(result.queryId)}" data-verdict="bad">No</button></div>` : ''}
     </div>` : ''}`);
 }
 
@@ -1766,6 +1769,14 @@ const ACTIONS = {
     toast(result && result.ok ? 'Reindexed ' + result.chunks + ' chunks' : 'Reindex failed: ' + ((result && result.error) || 'see runs'), result && result.ok ? 'success' : 'error');
     S.knowledgeAdmin = null;
     return pageKnowledgeAdmin();
+  },
+  'ask-feedback': async (d) => {
+    const sent = await api('POST', '/knowledge/feedback', { queryId: d.query, verdict: d.verdict });
+    if (sent && sent.ok) {
+      S.ask = { ...(S.ask || {}), thanks: 'Thank you — the manager reviews answers marked unhelpful.' };
+      return pageAsk();
+    }
+    return undefined;
   },
   'ask-question': async () => {
     const box = document.querySelector('#ask-question');

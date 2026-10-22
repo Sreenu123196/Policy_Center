@@ -44,8 +44,9 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
     const result = await answerQuestion({ client, question, passages: candidates, language });
 
     const logged = safeQuery(question);
+    const queryId = randomUUID();
     store.logQuery({
-      id: randomUUID(),
+      id: queryId,
       userId: user && user.id,
       role: user && user.role,
       audience: filters.audiences.join(','),
@@ -61,6 +62,7 @@ function createKnowledgeService({ store, embedModel, embedder, client, documentE
       : null;
 
     return {
+      queryId,
       status: result.status,
       handOff,
       answer: result.answer,
