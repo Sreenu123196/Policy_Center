@@ -52,6 +52,7 @@ test('tool definitions are well formed and every tool runs', () => {
     assert.equal(t.input_schema.additionalProperties, false);
   }
   const inputs = {
+  get_policy_as_of: { policy: 'PA-0000001' },
   search_knowledge: { question: 'dwelling cover' },
   quote_submission: { job: 'J0000001' },
   create_submission: { account: 'A0000001', product: 'Homeowners', effectiveDate: '2026-04-01' },

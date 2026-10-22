@@ -69,6 +69,11 @@ const TOOLS = [
     },
   },
   {
+    name: 'get_policy_as_of',
+    description: 'Get a policy as it stood on a date: status, term, effective and expiration dates, product and form. Use this for questions about a specific policy; never answer them from the wordings.',
+    input_schema: { type: 'object', properties: { policy: { type: 'string' }, asOf: { type: 'string', description: 'YYYY-MM-DD' } }, required: ['policy'], additionalProperties: false },
+  },
+  {
     name: 'search_knowledge',
     description: 'Search the company policy wordings. Returns clauses with heading, page and audience so you can cite them. Use this for what a wording says; never answer those from memory.',
     input_schema: { type: 'object', properties: { question: { type: 'string' } }, required: ['question'], additionalProperties: false },
@@ -432,6 +437,9 @@ function runTool(pc, user, name, input) {
       const job = pc.store.transaction(() => pc.startSubmission({ accountId: detail.account.id, product: input.product, effectiveDate: input.effectiveDate }, user));
       return { created: true, jobNumber: job.jobNumber, status: job.status, product: job.product, effectiveDate: job.effectiveDate, account: detail.account.accountNumber, insured: detail.account.name };
     }
+    case 'get_policy_as_of': {
+      return { available: false, message: 'get_policy_as_of runs on the async path' };
+    }
     case 'search_knowledge': {
       return { available: false, message: 'search_knowledge runs on the async path' };
     }
@@ -586,6 +594,14 @@ function runTool(pc, user, name, input) {
 }
 
 async function safeRunTool(pc, user, name, input, options = {}) {
+  if (name === 'get_policy_as_of') {
+    try {
+      const { policyFacts } = require('./knowledge/policy-facts');
+      return { ok: true, result: policyFacts({ pc, user, policyNumber: String((input && input.policy) || ''), asOf: (input && input.asOf) || null }) };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
   if (name === 'search_knowledge') {
     if (!options.knowledge) return { ok: true, result: { available: false, message: 'The knowledge assistant is not configured on this server' } };
     try {
