@@ -171,3 +171,23 @@ correctly declines to state a limit. That also explains the 54% correctness far 
 Next fix, in this order: **never split a clause that fits in the budget**, and give each fragment its clause heading so a
 partial clause is recognisably partial; then re-run `knowledge-eval.js` (correctness) and `knowledge-quality.js`
 (these three measures). Both harnesses exist now, so each fix costs one run to judge.
+
+### The duplicate clauses were real, and they were five versions of one wording (22 October)
+
+`SELECT version_id, COUNT(*) FROM chunks GROUP BY version_id` on the evaluation database:
+
+| version | chunks |
+|---|---|
+| v-1792581834852 ... v-1792601280351 | 6 each, **30 in total** |
+| document_versions rows | 5, each a full re-ingest of the same wording |
+
+So every "duplicate clause" in a top-8 was the same clause from a different publication of the same document. The
+answer path was shown the correct passage four times and near-identical wording of other clauses, which is a plausible
+cause of the refusals recorded above - and it makes the 54% correctness a measure of a polluted index, not only of
+retrieval.
+
+Two attempts to filter the index to current versions both failed and were reverted: `valid_to IS NULL` is wrong because
+`valid_to` is a version's own end date, not a retirement marker, and a "latest by created_at" variant was not applied
+cleanly. The next attempt must first decide what marks a retired version - the publishing code sets the previous
+version's `valid_to` to the publication time, so either that convention is made explicit with a `retired` flag or the
+query uses the newest row per document with a test that proves it, before any measurement is believed again.
