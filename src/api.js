@@ -76,6 +76,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
   const contacts = require('./contacts').createContacts(store);
   route('GET', '/contacts', () => contacts.list(), { readOnly: true });
+  const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
+  route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
+    // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Recoveries are not open to agents');
+    return claimRecoveries.list(user, params.claim);
+  }, { readOnly: true });
+  route('POST', '/claims/:claim/recoveries', ({ user, params, body }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Only a manager may record a recovery');
+    return claimRecoveries.add(user, params.claim, body);
+  }, {});
   route('POST', '/contacts', ({ user, body }) => contacts.create(user, body), {});
   route('GET', '/contacts/:id', ({ params }) => contacts.find(params.id), { readOnly: true });
   route('POST', '/contacts/:id/kyc', ({ user, params }) => {
