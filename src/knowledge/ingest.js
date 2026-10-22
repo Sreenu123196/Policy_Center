@@ -121,7 +121,9 @@ async function ingestVersion({ store, embedder, embedModel, document, version, t
   if (!parts.length) throw new Error('the wording produced no chunks');
 
   // Embed first: a failure here must leave the store untouched, so it happens before any write.
-  const vectors = await embedder(parts.map((part) => part.text));
+  const embedText = (part) => [part.clause, part.headingPath ? String(part.headingPath).split('>').pop().trim() : null, part.text]
+    .filter(Boolean).join(' - ');
+  const vectors = await embedder(parts.map(embedText));
   if (!Array.isArray(vectors) || vectors.length !== parts.length) {
     throw new Error(`embedder returned ${vectors && vectors.length} vectors for ${parts.length} chunks`);
   }

@@ -232,6 +232,7 @@ innocent.
 | baseline, four wordings | 27/50 (54%) | 7/30 (23%) |
 | literal citation markers instead of structured citations | (12-case run: 3 answerable questions stopped refusing) | |
 | clause heading in each passage + "match on meaning, not phrasing" | **30/50 (60%)** | **11/30 (37%)** |
+| clause number and heading embedded with the body | **34/50 (68%)** | **14/30 (47%)** |
 
 The citation mismatch was the single largest defect: the request asked for structured citations while validation
 checked literal [n] markers, so genuine answers were retried and returned as "I could not find that in the documents."
@@ -242,3 +243,14 @@ Remaining gap to 90%: questions phrased in a person's words ("settle a claim mys
 miss a clause that says "written consent" or "jewellery, watches and furs". Next levers, in order: index the clause
 heading as part of the embedded text so paraphrase meets paraphrase, raise the number of passages for long wordings, and
 only then consider a model reranker.
+
+### Embedding the heading was the second real gain
+
+Storing the body alone meant a question phrased in the words of a heading ("special limits", "dwelling") had nothing to
+match. Embedding "clause - heading - body" while still storing the body alone lifted correctness 60% -> 68% and
+right-clause citation 37% -> 47% on the same fifty cases.
+
+Remaining gap to 90% is now concentrated in questions phrased loosely ("settle a claim myself", "third party injured on
+my property"), where the clause exists but shares few words with the question. Next levers, in expected order: more
+passages for the long wordings (8 of 22 chunks is a third of the corpus), then a model reranker measured against this
+same harness.
