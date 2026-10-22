@@ -148,9 +148,12 @@ async function ingestVersion({ store, embedder, embedModel, document, version, t
   }));
 
   const publishedAt = new Date().toISOString();
+  const contentHash = require('node:crypto').createHash('sha256')
+    .update(String(text).replace(/\r\n/g, '\n').replace(/[ \t]+/g, ' ').trim()).digest('hex');
   store.transaction(() => {
     store.addDocument({ id: document.id, title: document.title, source: document.source });
     store.addVersion({
+      contentHash,
       id: version.id,
       documentId: document.id,
       version: version.version,

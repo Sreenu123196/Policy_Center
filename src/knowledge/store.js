@@ -24,7 +24,8 @@ CREATE TABLE IF NOT EXISTS documents (
 );
 CREATE TABLE IF NOT EXISTS document_versions (
   id TEXT PRIMARY KEY, document_id TEXT NOT NULL, version INTEGER NOT NULL,
-  valid_from TEXT NOT NULL, valid_to TEXT, created_at TEXT NOT NULL
+  valid_from TEXT NOT NULL, valid_to TEXT, created_at TEXT NOT NULL,
+  content_hash TEXT
 );
 CREATE TABLE IF NOT EXISTS chunks (
   id TEXT PRIMARY KEY, version_id TEXT NOT NULL, document_id TEXT NOT NULL,
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS query_log (
 function openKnowledgeStore(file) {
   const db = new DatabaseSync(file);
   db.exec(SCHEMA);
+  try { db.exec('ALTER TABLE document_versions ADD COLUMN content_hash TEXT'); } catch { /* already present */ }
   return {
     close: () => db.close(),
 
@@ -76,9 +78,9 @@ function openKnowledgeStore(file) {
       return id;
     },
 
-    addVersion({ id, documentId, version, validFrom, validTo = null, createdAt = new Date().toISOString() }) {
-      db.prepare('INSERT INTO document_versions (id, document_id, version, valid_from, valid_to, created_at) VALUES (?, ?, ?, ?, ?, ?)')
-        .run(id, documentId, version, validFrom, validTo, createdAt);
+    addVersion({ id, documentId, version, validFrom, validTo = null, createdAt = new Date().toISOString(), contentHash = null }) {
+      db.prepare('INSERT INTO document_versions (id, document_id, version, valid_from, valid_to, created_at, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(id, documentId, version, validFrom, validTo, createdAt, contentHash);
       return id;
     },
 
@@ -198,6 +200,12 @@ function openKnowledgeStore(file) {
         ? 'SELECT * FROM knowledge_feedback WHERE verdict = ? ORDER BY created_at DESC LIMIT ?'
         : 'SELECT * FROM knowledge_feedback ORDER BY created_at DESC LIMIT ?';
       return verdict ? db.prepare(sql).all(verdict, limit) : db.prepare(sql).all(limit);
+    },
+
+    // Drift: the hash of the source text as it was when this version was indexed.
+    currentVersionHash(documentId) {
+      const row = db.prepare('SELECT content_hash FROM document_versions WHERE document_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1').get(documentId);
+      return row ? row.content_hash : null;
     },
 
     getChunk: (id) => db.prepare('SELECT * FROM chunks WHERE id = ?').get(id),
