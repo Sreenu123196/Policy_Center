@@ -542,3 +542,19 @@ dataset hid.
 
 The importer and its tests remain, and they are useful regardless: they prove the write path and the verification, which is the
 part that caught the empty-database failure.
+
+## Policy caps versus product validation: the cap is unreachable (23 October)
+
+Attempting to price a capped limit exposed that the product model already caps: a homeowners personal-property limit above the cap is
+refused by quote validation ("1 validation error"), so no valid input can reach the cap table. Two rules enforce the same ceiling, and
+the newer one - the caps table - is dead code for that coverage.
+
+The rating change that resolved caps was therefore reverted rather than left in place looking correct. The honest position:
+
+- **Caps are enforced by the product model's validation today.** The caps table and `resolveLimit` are used by the admin route that
+  explains a limit, not by rating.
+- **Making rating use them requires deciding which is authoritative.** Either validation allows larger limits and the cap table becomes
+  the guard, or the cap table documents a ceiling validation enforces. Doing both means two places to change and one of them silently
+  stale - the same failure shape as the GST require, the missing route and the empty database.
+
+Recorded so the next attempt starts with the decision, not with a change to rating.

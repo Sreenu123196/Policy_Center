@@ -22,9 +22,6 @@ const band = (rows, value) => rows.find((r) => r.max === undefined || value <= r
 const ageBand = (rows, age) => (rows.find((r) => age >= r.min && age <= r.max) || rows[rows.length - 1]).f;
 
 // Simulated territory lookup: a real implementation reads a ZIP-to-territory rate table.
-const { resolveLimit } = require('./policyCaps');
-const { CAPS } = require('./policyCapsData');
-
 function territoryOf(zip) {
   const n = parseInt(String(zip || '').slice(0, 3), 10);
   return Number.isFinite(n) ? (n % 5) + 1 : 3;
@@ -181,13 +178,7 @@ function rateHomeowners(period, ctx) {
   const termMonths = period.termMonths || 12;
   const rl = round4(book.rateLevel * (termMonths / 12));
   const rlLabel = termMonths === 12 ? `Rate level (book ${book.version})` : `Rate level (book ${book.version}) x term ${termMonths} months`;
-  // The cap that applies is the limit that is priced. A contents limit above the cap is written at the cap, so the premium
-  // follows the cover actually granted rather than the number someone asked for.
-  const lim = (code) => {
-    const requested = c[code] && c[code].selected ? Number(c[code].terms.limit) : 0;
-    if (!requested) return 0;
-    return resolveLimit({ product: 'Homeowners', coverage: code, requested, caps: CAPS }).limit;
-  };
+  const lim = (code) => (c[code] && c[code].selected ? Number(c[code].terms.limit) : 0);
   const A = lim('HODwellingCov');
   const B = lim('HOOtherStructuresCov');
   const C = lim('HOPersonalPropertyCov');
