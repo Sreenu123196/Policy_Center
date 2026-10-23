@@ -162,6 +162,15 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const signatures = createSignatures(store);
   // Signing is recorded against the bytes of the document. The body carries the document as text for the simulator; a real
   // client would post a file and the hash would be taken over the uploaded bytes.
+  route('GET', '/sso/sessions', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Sessions are staff material');
+    // The challenge code is never returned here: it is only handed back at creation, and only because this is a simulation.
+    return { sessions: (store.data.ssoSessions || []).map((s) => ({ id: s.id, subject: s.subject, role: s.role, state: s.state, createdAt: s.createdAt, expiresAt: s.expiresAt })) };
+  }, { readOnly: true });
+  route('GET', '/esign/signatures', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Signatures are staff material');
+    return { signatures: store.data.signatures || [] };
+  }, { readOnly: true });
   route('POST', '/esign/signatures', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     const input = body || {};

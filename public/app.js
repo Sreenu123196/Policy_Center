@@ -173,6 +173,7 @@ const ROUTES = [
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/bind-approvals$/, pageBindApprovals],
   [/^#\/mandates$/, pageMandates],
+  [/^#\/platform-admin$/, pagePlatformAdmin],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
@@ -1376,6 +1377,37 @@ async function pageClaimsOps() {
           <button class="btn" data-action="litigation-add">Record litigation</button>
         </div>
         </div>` : '<p class="muted">Load a claim to see its recoveries, surveys and litigation.</p>'}
+    </div>`);
+}
+
+// ------------------------------------------------------------------ platform admin
+
+// The operational view of the platform pieces: who is signed in and at what state, what has been signed, and what work is overdue.
+// Read-only, staff only, and deliberately plain - these are checks an administrator runs, not a dashboard to admire.
+async function pagePlatformAdmin() {
+  const [sessions, signatures, due] = await Promise.all([
+    api('GET', '/sso/sessions').then((r) => r.sessions || []).catch(() => []),
+    api('GET', '/esign/signatures').then((r) => r.signatures || []).catch(() => []),
+    api('GET', '/workflow/due').then((r) => r.due || []).catch(() => []),
+  ]);
+  view(`
+    <div class="eyebrow">Platform</div><h1>Platform admin</h1>
+    <div class="card"><h2>Sign-in sessions</h2>
+      ${table(['Session', 'Person', 'Role', 'State', 'Created'], sessions.map((s) => [
+        esc(s.id), esc(s.subject), esc(s.role || '—'), esc(s.state), esc(String(s.createdAt).slice(0, 19).replace('T', ' ')),
+      ]), 'No sessions')}
+      <p class="muted">A session is refused by every protected call until its challenge is satisfied.</p>
+    </div>
+    <div class="card"><h2>Signatures</h2>
+      ${table(['Signature', 'Document', 'Signer', 'Signed'], signatures.map((s) => [
+        esc(s.id), esc(s.documentRef), esc(s.signerId), esc(String(s.signedAt).slice(0, 19).replace('T', ' ')),
+      ]), 'Nothing signed yet')}
+      <p class="muted">A signature covers the document's bytes: an altered document reports as unsigned.</p>
+    </div>
+    <div class="card"><h2>Overdue work</h2>
+      ${table(['Item', 'Action', 'Age (hours)', 'Reason'], due.map((d) => [
+        esc(d.id), esc(d.action), esc(String(d.ageHours)), esc(d.reason),
+      ]), 'Nothing overdue')}
     </div>`);
 }
 
@@ -3225,6 +3257,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="platform-admin"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="mandates"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="bind-approvals"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="claims-ops"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });

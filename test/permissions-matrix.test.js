@@ -91,6 +91,8 @@ const MATRIX = {
   'GET /suggestions/mine': [], // every signed-in person; it only ever returns their own
   'GET /contacts': [],
   'GET /products/:product/version': ['agent'],
+  'GET /sso/sessions': ['agent'],
+  'GET /esign/signatures': ['agent'],
   'POST /esign/signatures': [],
   'POST /esign/verify': [],
   'GET /workflow/due': ['agent'],
