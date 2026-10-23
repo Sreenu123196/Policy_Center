@@ -1320,7 +1320,7 @@ async function pageContacts() {
 // recoveries, surveys and litigation. Read-only for agents; recording is claims staff.
 async function pageClaimsOps() {
   const incidents = (S.claimsOps && S.claimsOps.incidents) || await api('GET', '/incidents').then((r) => r.incidents).catch(() => []);
-  const claims = (S.claimsOps && S.claimsOps.claims) || await api('GET', '/claims')
+  const claims = await api('GET', '/claims')
     .then((r) => (Array.isArray(r) ? r : (r.claims || r.items || r.rows || [])))
     .catch(() => []);
   const claimNumber = (S.claimsOps && S.claimsOps.claim) || '';
