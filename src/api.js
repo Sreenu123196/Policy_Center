@@ -145,6 +145,17 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       throw new AppError(422, err.message);
     }
   }, { readOnly: true });
+  const { allocatePayment } = require('./paymentAllocation');
+  // A receipt and the invoices it might settle. Nothing is written: the answer says where every rupee would go, and the
+  // caller decides whether to post it - allocation is a question before it is a transaction.
+  route('POST', '/billing/allocate', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    try {
+      return allocatePayment({ amount: (body && body.amount), invoices: (body && body.invoices) || [], reference: (body && body.reference) || null });
+    } catch (err) {
+      throw new AppError(422, err.message);
+    }
+  }, { readOnly: true });
   route('GET', '/products/:product/caps', ({ user, params, query }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Product caps are staff material');
     const caps = capsFor(params.product, CAPS);
