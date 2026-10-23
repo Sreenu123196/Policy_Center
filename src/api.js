@@ -158,6 +158,26 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const { dueActions } = require('./workflowTimers');
   // What is overdue right now. Read-only: the caller decides whether to remind or escalate, and the item's lastActionAt
   // is what stops the same stage firing twice.
+  const { createSignatures, hashDocument } = require('./esign');
+  const signatures = createSignatures(store);
+  // Signing is recorded against the bytes of the document. The body carries the document as text for the simulator; a real
+  // client would post a file and the hash would be taken over the uploaded bytes.
+  route('POST', '/esign/signatures', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    try {
+      return signatures.sign({ signer: user, document: String(input.document || ''), documentRef: String(input.documentRef || '') });
+    } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  route('POST', '/esign/verify', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    try {
+      const hash = hashDocument(String(input.document || ''));
+      const result = signatures.check(String(input.document || ''), { documentRef: input.documentRef || null });
+      return { documentHash: hash, signed: result.signed, signatures: result.signatures, stale: result.stale };
+    } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, { readOnly: true });
   route('GET', '/workflow/due', ({ user, query }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Workflow timers are staff material');
     const items = (store.data.workflowItems || []);
