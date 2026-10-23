@@ -123,6 +123,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, {});
   const { CAPS } = require('./policyCapsData');
   const { resolveLimit, capsFor } = require('./policyCaps');
+  const { inferForm, formsFor } = require('./formInference');
+  route('POST', '/products/:product/form', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Form inference is staff material');
+    const forms = formsFor(params.product);
+    // An unknown product is bad input, not a broken server: 422 with the reason, never a 500.
+    if (!forms.length) throw new AppError(422, 'No forms are defined for ' + params.product);
+    return { product: params.product, forms, ...inferForm({ product: params.product, facts: body || {} }) };
+  }, { readOnly: true });
   route('GET', '/products/:product/caps', ({ user, params, query }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Product caps are staff material');
     const caps = capsFor(params.product, CAPS);
