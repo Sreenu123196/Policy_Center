@@ -18,17 +18,22 @@ async function importJson({ store, json, log = console }) {
   let rows = 0;
   for (const name of collections) rows += json[name].length;
 
+  const started = Date.now();
+  const timings = [];
   await store.transaction(() => {
     // Rows are pushed one by one: the store notices row changes through a proxy, and assigning a whole array is not a change it
     // records. Replacing the array in memory left the database empty while the in-memory counts said otherwise - which is exactly
     // the failure the verification step caught.
     for (const name of collections) {
+      const t0 = Date.now();
       // A collection may exist in the file but not in a fresh store's shape (contacts, mandates, signatures were added since).
       // Creating the array first, then pushing, keeps the tracker's view of each row honest.
       if (!Array.isArray(store.data[name])) store.data[name] = [];
       const target = store.data[name];
       target.length = 0;
       for (const row of json[name]) target.push(row);
+      timings.push({ collection: name, rows: json[name].length, ms: Date.now() - t0 });
+      if (timings.length % 5 === 0) log.log('  pushed', timings.length + '/' + collections.length, 'collections,', Date.now() - started, 'ms');
     }
     for (const [key, value] of Object.entries(json)) {
       if (!Array.isArray(value) && value && typeof value === 'object') {

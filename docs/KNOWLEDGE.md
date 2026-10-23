@@ -558,3 +558,21 @@ The rating change that resolved caps was therefore reverted rather than left in 
   stale - the same failure shape as the GST require, the missing route and the empty database.
 
 Recorded so the next attempt starts with the decision, not with a change to rating.
+
+### The import works; reopening the database does not (23 October)
+
+With per-collection progress logging the import of the real book finished in **seconds**, not minutes:
+
+    pushed 20/23 collections, 56 ms
+    imported 23 collections, 2470 rows - verified
+
+So the earlier "hang" was never the import. It was the step after it: **opening the same PGlite directory in a fresh process blocks**.
+The importing process closes its store and exits cleanly, yet the next process waits - most likely a directory lock PGlite does not
+release on close, or a shutdown it needs that `close()` does not perform.
+
+That is why the default runtime was **not** switched: an app that cannot reopen its own database is worse than one on a JSON file.
+`.env` is untouched, `src/pg/open.js` is unchanged, and the suite is 604 passing.
+
+The imported directory (`data/pgdata`, 42 MB, verified rows) is left in place as evidence. Next step: prove a reopen in a fresh
+process against a *copy* of the directory, and if the lock is the cause, find the PGlite shutdown that releases it - or run the
+database in a separate process from the outset, which is what production does anyway.
