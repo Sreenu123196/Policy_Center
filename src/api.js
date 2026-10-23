@@ -414,9 +414,26 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('POST', '/auth/setup', (ctx) => {
     const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });
     const { token } = auth.login(view.username, ctx.body.password);
+  if (process.env.SSO_ENFORCE_MFA === '1') {
+    const started = sso.startSession({ subject: view.username, role: view.role, mfaRequired: true });
+    pendingTokens.set(started.session.id, token);
+    return { mfaRequired: true, sessionId: started.session.id, simulatedCode: started.simulatedCode };
+  }
     ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
     return { user: view, mustChangePassword: false };
   }, { isPublic: true });
+  // Sign-in with a second factor, when SSO_ENFORCE_MFA=1. The password is checked first; the session cookie is not issued
+  // until the challenge is satisfied. Off by default, so an install without the flag behaves exactly as before.
+  const sso = require('./sso').createSso({ store });
+  route('POST', '/auth/sso/mfa', ({ body }) => {
+    const input = body || {};
+    const session = sso.satisfyChallenge(String(input.sessionId || ''), String(input.code || ''));
+    const token = pendingTokens.get(session.id);
+    if (!token) throw new AppError(401, 'This sign-in has expired; sign in again');
+    pendingTokens.delete(session.id);
+    return { user: session.subject, cookie: `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800` };
+  }, { isPublic: true });
+
   // Sign-in
   route('POST', '/auth/login', (ctx) => {
     const { token, ...rest } = auth.login(ctx.body.username, ctx.body.password);
