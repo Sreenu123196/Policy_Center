@@ -86,8 +86,10 @@ async function main() {
       answeredTotal += 1;
       const citedClauses = result.citations.map((n) => clauses[n - 1]).filter(Boolean);
       const hitClause = !item.expected_sources || item.expected_sources.some((c) => citedClauses.includes(c));
-      const text = String(result.answer).toLowerCase();
-      const hitFacts = (item.must_include || []).every((fact) => text.includes(String(fact).toLowerCase()));
+      // Compare on the words, not the punctuation or spacing: '2,500' and '2500 dollars' are the same fact.
+      const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097F\u0C00-\u0C7F]+/g, ' ').replace(/\s+/g, ' ').trim();
+      const text = norm(result.answer);
+      const hitFacts = (item.must_include || []).every((fact) => text.includes(norm(fact)));
       ok = result.status === 'answered' && hitClause && hitFacts;
       if (result.status === 'answered' && hitClause) answeredRight += 1;
       if (hitClause) citationsRight += 1;

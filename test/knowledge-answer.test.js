@@ -37,13 +37,13 @@ test('a properly cited answer is accepted', async () => {
   assert.equal(result.attempts, 1);
 });
 
-test('an uncited sentence is retried once, then refused as not found', async () => {
+test('an uncited sentence is retried twice, then refused as not found', async () => {
   // The fake repeats its last reply, so the retry is uncited too - that is the case being tested.
   const client = fakeClaude(['Jewellery is covered up to 2,500 dollars.']);
 
   const result = await answerQuestion({ client, question: 'How much jewellery is covered?', passages: PASSAGES });
 
-  assert.equal(client.calls.length, 2, 'one retry');
+  assert.equal(result.attempts, 3, 'two retries');
   assert.equal(result.status, 'not_found', 'the retry was still uncited, so nothing is claimed');
   assert.equal(result.answer, NOT_FOUND);
   assert.match(client.calls[1].messages[0].content.at(-1).text, /rejected/);

@@ -11,10 +11,10 @@
 // Passages are data, never instructions: they are delivered inside search_result blocks and the system prompt says so
 // explicitly, because a wording that says "ignore your rules" is an attack, not a clause.
 
-const MODEL = 'claude-opus-5-5';
+const MODEL = process.env.KNOWLEDGE_MODEL || 'claude-opus-5-5';
 const NOT_FOUND = 'I could not find that in the documents.';
 const CLAIMS_SENTENCE = 'The claims team makes the final decision on any claim.';
-const MAX_RETRIES = 1;
+const MAX_RETRIES = 2;
 
 const SYSTEM_PROMPT = `You answer questions for an insurance company using ONLY the search results provided in this conversation.
 
@@ -49,6 +49,7 @@ function buildRequest({ question, passages, language = 'en' }) {
   return {
     model: MODEL,
     max_tokens: 1024,
+    temperature: 0,
     system: [
       { type: 'text', text: SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
     ],
@@ -81,11 +82,16 @@ function validateAnswer(text, passageCount) {
   const issues = [];
   const sentences = text.split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
   let markers = 0;
-  for (const sentence of sentences) {
+  for (const [index, sentence] of sentences.entries()) {
     const cited = [...sentence.matchAll(/\[(\d+)\]/g)].map((m) => Number(m[1]));
     markers += cited.length;
     const words = sentence.split(/\s+/).filter(Boolean).length;
-    if (words >= 3 && cited.length === 0) issues.push(`uncited sentence: ${sentence.slice(0, 80)}`);
+    // A short opening sentence that states no fact is allowed without a citation - "Jewellery limit:" or "Yes." cannot
+    // be supported by a clause, and requiring a marker there made honest answers fail. Anything with a number, a figure
+    // or a coverage word is a fact and still needs one.
+    const isFraming = index === 0 && words <= 12 && !/\d/.test(sentence)
+      && !/\b(cover|covered|coverage|pay|paid|limit|deductible|exclude|excluded|condition|days|percent)\b/i.test(sentence);
+    if (words >= 3 && cited.length === 0 && !isFraming) issues.push(`uncited sentence: ${sentence.slice(0, 80)}`);
     for (const n of cited) {
       if (n < 1 || n > passageCount) issues.push(`citation [${n}] is not one of the ${passageCount} passages`);
     }
