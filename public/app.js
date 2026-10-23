@@ -1332,8 +1332,10 @@ async function pageClaimsOps() {
       + (i.status === 'closed' ? '' : '<button class="btn" data-action="incident-status" data-id="' + esc(i.id) + '" data-status="closed">Close</button>'),
   ]);
 
-  const listTable = (rows, empty) => table(['Item', 'Detail'], rows, empty);
-  const recoveries = detail ? (detail.recoveries || []).map((r) => [esc(r.source + ' ' + r.amount), esc(r.receivedOn)]) : [];
+  // Money and dates the way the rest of the app shows them, rather than raw numbers and ISO strings.
+  const money = (n) => '₹' + Number(n || 0).toLocaleString('en-IN');
+  const day = (iso) => (iso ? new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—');
+  const recoveries = detail ? (detail.recoveries || []).map((r) => [esc(r.source), esc(money(r.amount)), esc(day(r.receivedOn))]) : [];
   const surveys = detail ? (detail.surveys || []).map((s) => [esc(s.firm), esc(s.recommendation || '—')]) : [];
   const litigation = detail && detail.litigation ? [[esc(detail.litigation.stage), esc(detail.litigation.authorisedBy)]] : [];
 
@@ -1354,9 +1356,9 @@ async function pageClaimsOps() {
         <button class="btn primary" data-action="claim-load">Load</button>
       </div>
       ${detail ? `
-        <h3>Recoveries</h3>${listTable(recoveries, 'No recoveries recorded')}
-        <h3>Surveys</h3>${listTable(surveys, 'No surveys appointed')}
-        <h3>Litigation</h3>${listTable(litigation, 'Not in litigation')}
+        <h3>Recoveries</h3>${table(['Source', 'Amount', 'Date'], recoveries, 'No recoveries recorded')}
+        <h3>Surveys</h3>${table(['Firm', 'Recommendation'], surveys, 'No surveys appointed')}
+        <h3>Litigation</h3>${table(['Stage', 'Authorised by'], litigation, 'Not in litigation')}
         <div class="toolbar" style="margin-top:10px">
           <select id="rec-source"><option value="subrogation">Subrogation</option><option value="salvage">Salvage</option></select>
           <input id="rec-amount" placeholder="Amount" type="number">
