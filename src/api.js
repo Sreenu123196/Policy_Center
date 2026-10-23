@@ -33,6 +33,9 @@ function etagFor(pc, sub) {
 }
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption, notifier: notifierOption, knowledge: knowledgeOption } = {}) {
+  // The second-factor gate: a token waits here until its challenge is satisfied, and the SSO module holds the sessions.
+  const pendingTokens = new Map();
+  const sso = require('./sso').createSso({ store });
   // Notifications are optional (a test or a bare local run may not configure them). These keep the three outside doors
   // closed with an honest answer instead of failing on an undefined service.
   const notifier = notifierOption || {
@@ -433,19 +436,26 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, { isPublic: true });
   // Sign-in with a second factor, when SSO_ENFORCE_MFA=1. The password is checked first; the session cookie is not issued
   // until the challenge is satisfied. Off by default, so an install without the flag behaves exactly as before.
-  const sso = require('./sso').createSso({ store });
-  route('POST', '/auth/sso/mfa', ({ body }) => {
-    const input = body || {};
+  route('POST', '/auth/sso/mfa', (ctx) => {
+    const input = ctx.body || {};
     const session = sso.satisfyChallenge(String(input.sessionId || ''), String(input.code || ''));
     const token = pendingTokens.get(session.id);
     if (!token) throw new AppError(401, 'This sign-in has expired; sign in again');
     pendingTokens.delete(session.id);
-    return { user: session.subject, cookie: `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800` };
+    ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
+    return { user: session.subject };
   }, { isPublic: true });
 
   // Sign-in
   route('POST', '/auth/login', (ctx) => {
     const { token, ...rest } = auth.login(ctx.body.username, ctx.body.password);
+    // With SSO_ENFORCE_MFA=1 the cookie is withheld: the token waits in pendingTokens until the challenge is satisfied, and the
+    // code is returned only because this is a simulation.
+    if (process.env.SSO_ENFORCE_MFA === '1') {
+      const started = sso.startSession({ subject: rest.user && rest.user.username, role: rest.user && rest.user.role, mfaRequired: true });
+      pendingTokens.set(started.session.id, token);
+      return { mfaRequired: true, sessionId: started.session.id, simulatedCode: started.simulatedCode };
+    }
     ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
     return rest;
   }, { isPublic: true });
