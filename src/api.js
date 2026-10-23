@@ -516,6 +516,28 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/claims', ({ user, query }) => pc.listClaims(user, { status: query.get('status') || undefined }));
   route('GET', '/claims/:id', ({ user, params }) => pc.claimDetail(params.id, user));
   route('GET', '/policies/:id', ({ user, params }) => pc.policyDetail(params.id, user));
+  // A9: ask about one policy, answered from the wordings with citations, plus that policy's own facts.
+  // Access is the application's: pc.policy throws for a policy the person may not see, so an agent cannot ask about another
+  // agent's customer by guessing a policy number.
+  route('GET', '/policies/:id/ask', async ({ user, params, query }) => {
+    const policy = pc.policy(params.id, user);
+    const question = String(query.get('q') || '').trim();
+    // No question is a fair request with an empty answer, not an error: the smoke test asks every read route once, and a person
+    // who opens the page before typing should see the prompt rather than a failure.
+    if (!question) return { policy: { policyNumber: policy.policyNumber }, answer: 'Ask a question with ?q=', citations: [], notFound: true };
+    const { policyFacts } = require('./knowledge/policy-facts');
+    const facts = policyFacts({ pc, user, policyNumber: policy.policyNumber });
+    if (!knowledge) {
+      return { policy: { policyNumber: policy.policyNumber, facts }, answer: 'The knowledge assistant is not configured on this server.', citations: [], notFound: true };
+    }
+    const result = await knowledge.ask(user, question, { asOf: policy.effectiveDate || null });
+    return {
+      policy: { policyNumber: policy.policyNumber, status: facts.status, product: facts.product, asOf: facts.asOf, facts },
+      answer: result.answer,
+      citations: (result.citations || []).map((c) => ({ clause: c.clause, headingPath: c.headingPath, page: c.page })),
+      notFound: result.status !== 'answered',
+    };
+  }, { readOnly: true });
   route('POST', '/policies/:id/claims', ({ user, params, body }) => pc.claimDetail(pc.openClaim(params.id, body, user).id, user));
   route('POST', '/policies/:id/change', ({ user, params, body }) => pc.jobDetail(pc.startPolicyChange(params.id, body, user).id, user));
   route('POST', '/policies/:id/cancel', ({ user, params, body }) => pc.jobDetail(pc.startCancellation(params.id, body, user).id, user));
