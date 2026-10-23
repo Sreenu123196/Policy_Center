@@ -121,6 +121,18 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'Agents cannot bind');
     return bindGate.bind(user, params.id, body && body.approvalId);
   }, {});
+  const { CAPS } = require('./policyCapsData');
+  const { resolveLimit, capsFor } = require('./policyCaps');
+  route('GET', '/products/:product/caps', ({ user, params, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Product caps are staff material');
+    const caps = capsFor(params.product, CAPS);
+    const coverage = query.get('coverage');
+    const requested = query.get('requested');
+    const resolution = coverage && requested !== null && requested !== ''
+      ? resolveLimit({ product: params.product, coverage, requested: Number(requested), caps })
+      : null;
+    return { product: params.product, caps, resolution };
+  }, { readOnly: true });
   const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
   route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
     // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
