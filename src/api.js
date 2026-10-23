@@ -131,6 +131,20 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!forms.length) throw new AppError(422, 'No forms are defined for ' + params.product);
     return { product: params.product, forms, ...inferForm({ product: params.product, facts: body || {} }) };
   }, { readOnly: true });
+  const { resolveVersion, versionsFor } = require('./productVersions');
+  route('GET', '/products/:product/version', ({ user, params, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Product versions are staff material');
+    const asOf = query.get('asOf') || new Date().toISOString().slice(0, 10);
+    const versions = versionsFor(params.product);
+    // An unknown product is an empty collection, not an error: asking about something that does not exist is a fair
+    // question with an empty answer. A malformed date is still bad input and says so.
+    if (!versions.length) return { product: params.product, asOf, versions: [], resolved: null, reason: 'No versions are defined for ' + params.product };
+    try {
+      return { product: params.product, asOf, versions, resolved: resolveVersion({ product: params.product, asOf }) };
+    } catch (err) {
+      throw new AppError(422, err.message);
+    }
+  }, { readOnly: true });
   route('GET', '/products/:product/caps', ({ user, params, query }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Product caps are staff material');
     const caps = capsFor(params.product, CAPS);
