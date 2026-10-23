@@ -1384,8 +1384,14 @@ async function pageClaimsOps() {
 // e-NACH mandates: the standing permission a debit depends on. A debit that is not allowed says why, and nothing moves.
 async function pageMandates() {
   const mandates = await api('GET', '/billing/mandates').then((r) => r.mandates || []).catch(() => []);
+  // The debit needs a policy id; the screen offers the policies a person can actually see, by number.
+  const policies = await api('GET', '/policies').then((r) => (Array.isArray(r) ? r : (r.policies || []))).catch(() => []);
   const rows = mandates.map((m) => [
     esc(m.reference), esc('₹' + Number(m.cap || 0).toLocaleString('en-IN')), esc(m.frequency), esc(m.status),
+    esc(String((m.notices || []).length)),
+    esc((m.debits || []).length
+      ? (m.debits || []).map((d) => '₹' + Number(d.amount).toLocaleString('en-IN') + ' (' + d.period + ')').join(', ')
+      : '—'),
     m.status === 'created' ? '<button class="btn" data-action="mandate-authorise" data-ref="' + esc(m.reference) + '">Authorise</button>'
       : (m.status === 'active' ? '<button class="btn" data-action="mandate-notice" data-ref="' + esc(m.reference) + '">Give notice</button> '
         + '<button class="btn" data-action="mandate-debit" data-ref="' + esc(m.reference) + '">Debit</button>' : ''),
@@ -1402,7 +1408,12 @@ async function pageMandates() {
       </div>
     </div>
     <div class="card"><h2>All mandates</h2>
-      ${table(['Reference', 'Cap', 'Frequency', 'Status', ''], rows, 'No mandates yet')}
+      <div class="toolbar" style="margin-bottom:8px">
+        <label for="md-policy">Policy</label>
+        <select id="md-policy">${policies.map((p) => '<option value="' + esc(p.id) + '">' + esc(p.policyNumber) + '</option>').join('')}</select>
+        <span class="muted">A debit is recorded against the selected policy.</span>
+      </div>
+      ${table(['Reference', 'Cap', 'Frequency', 'Status', 'Notices', 'Debits', ''], rows, 'No mandates yet')}
     </div>`);
 }
 
@@ -1965,7 +1976,8 @@ const ACTIONS = {
     return pageMandates();
   },
   'mandate-debit': async (d) => {
-    const policyId = window.prompt('Policy id to credit');
+    const picker = document.querySelector('#md-policy');
+    const policyId = picker ? picker.value : '';
     const on = window.prompt('Debit date (YYYY-MM-DD)');
     const amount = window.prompt('Amount');
     const period = window.prompt('Period, e.g. 2026-11');
