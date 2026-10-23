@@ -174,6 +174,7 @@ const ROUTES = [
   [/^#\/bind-approvals$/, pageBindApprovals],
   [/^#\/mandates$/, pageMandates],
   [/^#\/platform-admin$/, pagePlatformAdmin],
+  [/^#\/allocations$/, pageAllocations],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
@@ -1377,6 +1378,28 @@ async function pageClaimsOps() {
           <button class="btn" data-action="litigation-add">Record litigation</button>
         </div>
         </div>` : '<p class="muted">Load a claim to see its recoveries, surveys and litigation.</p>'}
+    </div>`);
+}
+
+// ------------------------------------------------------------------ allocations
+
+// What was done with each receipt: which invoices it settled and what is still unallocated. Read-only, because recording an
+// allocation is a decision made on the mandate and billing screens; this is where it is checked.
+async function pageAllocations() {
+  const data = await api('GET', '/billing/allocations').then((r) => r).catch(() => ({ allocations: [], suspenseTotal: 0 }));
+  const rows = (data.allocations || []).map((a) => [
+    esc(a.id),
+    esc('₹' + Number(a.amount || 0).toLocaleString('en-IN')),
+    esc((a.allocations || []).map((x) => x.invoiceNumber + ' ₹' + Number(x.amount).toLocaleString('en-IN')).join(', ') || '—'),
+    esc('₹' + Number(a.suspense || 0).toLocaleString('en-IN')),
+    esc(a.allocatedBy || '—'),
+    esc(String(a.allocatedAt).slice(0, 19).replace('T', ' ')),
+  ]);
+  view(`
+    <div class="eyebrow">Billing</div><h1>Allocations</h1>
+    <div class="card"><h2>Recorded allocations</h2>
+      ${table(['Allocation', 'Received', 'Settled', 'Suspense', 'By', 'When'], rows, 'No allocations recorded')}
+      <p class="muted">Suspense total: ₹${Number(data.suspenseTotal || 0).toLocaleString('en-IN')} - every rupee is either on an invoice or here, visibly.</p>
     </div>`);
 }
 
@@ -3257,6 +3280,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="allocations"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter', 'Insurance Executive'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="platform-admin"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="mandates"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="bind-approvals"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
