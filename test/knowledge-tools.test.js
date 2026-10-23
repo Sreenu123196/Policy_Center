@@ -83,3 +83,29 @@ test('a claim the person may not see looks like a claim that does not exist', as
   assert.equal(result.result.found, false);
   assert.equal(result.result.status, undefined);
 });
+
+test('the assistant asks for an approval rather than binding', async () => {
+  const calls = [];
+  const bindGate = {
+    requestApproval: (user, job) => { calls.push(['request', job]); return { id: 'BA-0000001', jobId: job, status: 'pending' }; },
+    bind: (user, job, approvalId) => { calls.push(['bind', job, approvalId]); return { bound: true, policyNumber: 'PA-0000100', approvalId }; },
+  };
+  const asked = await safeRunTool({}, { id: 'uwm', role: 'UW Manager' }, 'request_bind_approval', { job: 'job1' }, { bindGate });
+  assert.equal(asked.result.id, 'BA-0000001');
+  assert.equal(asked.result.status, 'pending');
+  const bound = await safeRunTool({}, { id: 'uwm', role: 'UW Manager' }, 'bind_policy', { job: 'job1', approvalId: 'BA-0000001' }, { bindGate });
+  assert.equal(bound.result.bound, true);
+  assert.deepEqual(calls, [['request', 'job1'], ['bind', 'job1', 'BA-0000001']]);
+});
+
+test('a gate refusal comes back as an error result, not an exception', async () => {
+  const bindGate = { requestApproval: () => ({}), bind: () => { throw new Error('The approval has expired; ask again'); } };
+  const result = await safeRunTool({}, { role: 'UW Manager' }, 'bind_policy', { job: 'job1', approvalId: 'X' }, { bindGate });
+  assert.equal(result.ok, false);
+  assert.match(result.error, /expired/);
+});
+
+test('without a gate the tools say so instead of pretending', async () => {
+  const result = await safeRunTool({}, { role: 'UW Manager' }, 'request_bind_approval', { job: 'job1' }, {});
+  assert.equal(result.result.available, false);
+});

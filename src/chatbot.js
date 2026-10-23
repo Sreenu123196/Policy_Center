@@ -172,6 +172,16 @@ const TOOLS = [
     },
   },
   {
+    name: 'request_bind_approval',
+    description: 'Ask a person to approve binding or issuing this job. Use this instead of binding; it creates an approval request and you must then stop and tell the person to decide in the app or on Telegram.',
+    input_schema: { type: 'object', properties: { job: { type: 'string' } }, required: ['job'], additionalProperties: false },
+  },
+  {
+    name: 'bind_policy',
+    description: 'Bind a job that a person has already approved. Requires the approval id. Refuses unless the approval is for this job, approved, unused, unexpired and within the approver authority.',
+    input_schema: { type: 'object', properties: { job: { type: 'string' }, approvalId: { type: 'string' } }, required: ['job', 'approvalId'], additionalProperties: false },
+  },
+  {
     name: 'get_claim',
     description: 'Get one claim by claim number (CL-0000001) or id: policy, loss details, status, payments, and reserve when the user may see it.',
     input_schema: { type: 'object', properties: { claim: { type: 'string' } }, required: ['claim'], additionalProperties: false },
@@ -440,6 +450,10 @@ function runTool(pc, user, name, input) {
     case 'get_policy_as_of': {
       return { available: false, message: 'get_policy_as_of runs on the async path' };
     }
+    case 'request_bind_approval':
+    case 'bind_policy': {
+      return { available: false, message: name + ' runs on the async path' };
+    }
     case 'search_knowledge': {
       return { available: false, message: 'search_knowledge runs on the async path' };
     }
@@ -594,6 +608,18 @@ function runTool(pc, user, name, input) {
 }
 
 async function safeRunTool(pc, user, name, input, options = {}) {
+  if (name === 'request_bind_approval' || name === 'bind_policy') {
+    if (!options.bindGate) return { ok: true, result: { available: false, message: 'The bind gate is not configured on this server' } };
+    try {
+      const result = name === 'request_bind_approval'
+        ? options.bindGate.requestApproval(user, String((input && input.job) || ''))
+        : options.bindGate.bind(user, String((input && input.job) || ''), String((input && input.approvalId) || ''));
+      return { ok: true, result };
+    } catch (err) {
+      // A refusal is an answer, not a crash: the model must see why so it can ask a person rather than try again blindly.
+      return { ok: false, error: err.message };
+    }
+  }
   if (name === 'get_claim') {
     const number = String((input && input.claim) || '').trim();
     const claim = number && pc && pc.db && Array.isArray(pc.db.claims)
@@ -768,10 +794,11 @@ function hasCredentials() {
 const NO_KEY = 'No Anthropic credentials found, so the assistant is in offline mode (lookups and summaries only). Set ANTHROPIC_API_KEY and restart the server for full answers.';
 
 class Chatbot {
-  constructor(pc, { client, knowledge = null } = {}) {
+  constructor(pc, { client, knowledge = null, bindGate = null } = {}) {
     this.pc = pc;
     this.conversations = new Map();
     this.knowledge = knowledge;
+    this.bindGate = bindGate;
     this.offlineReason = null;
     if (client !== undefined) this.client = client;
     else if (!hasCredentials()) this.client = null;
@@ -907,7 +934,7 @@ class Chatbot {
             return { type: 'tool_result', tool_use_id: call.id, is_error: true, content: JSON.stringify({ INVALID_INPUT: problem, received: call.input }) };
           }
           emit('tool', { name: call.name, label: toolLabel(call.name, call.input) });
-          const { ok, result } = await safeRunTool(this.pc, user, call.name, call.input, { knowledge: this.knowledge });
+          const { ok, result } = await safeRunTool(this.pc, user, call.name, call.input, { knowledge: this.knowledge, bindGate: this.bindGate });
           return { type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(result), is_error: !ok };
         }));
         pending.push({ role: 'user', content: results });

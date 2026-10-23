@@ -106,6 +106,13 @@ try {
 
 // The assistant is built before the knowledge service, so the handle is attached once both exist.
 if (knowledge && chatbot) chatbot.knowledge = knowledge;
+// The bind gate is always available: it does not depend on the knowledge database or on any key.
+try {
+  const { createBindGate } = require('./src/bindGate');
+  chatbot.bindGate = createBindGate(pc, store);
+} catch (err) {
+  console.log('Bind gate: not configured -', err.message);
+}
 
 const api = createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir: BACKUP_DIR, audit, agents, notifier, knowledge });
   // Events written before this start (a backlog is worked off in batches, so this takes seconds, not minutes).
