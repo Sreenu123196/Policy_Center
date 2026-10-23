@@ -148,6 +148,46 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const { allocatePayment } = require('./paymentAllocation');
   // A receipt and the invoices it might settle. Nothing is written: the answer says where every rupee would go, and the
   // caller decides whether to post it - allocation is a question before it is a transaction.
+  const mandates = require('./mandates').createMandates();
+  const mandateStore = () => { store.data.mandates = store.data.mandates || []; return store.data.mandates; };
+  const findMandate = (reference) => {
+    const mandate = mandateStore().find((m) => m.reference === reference);
+    if (!mandate) throw new AppError(404, 'Mandate not found');
+    return mandate;
+  };
+  route('POST', '/billing/mandates', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try {
+      const mandate = mandates.create(body || {});
+      mandateStore().push(mandate);
+      return mandate;
+    } catch (err) { throw new AppError(422, err.message); }
+  }, {});
+  route('POST', '/billing/mandates/:reference/authorise', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try { return mandates.authorise(findMandate(params.reference), body || {}); }
+    catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  route('POST', '/billing/mandates/:reference/notice', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try { return mandates.notice(findMandate(params.reference), body || {}); }
+    catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  // The debit is the only part that moves money: the mandate rules decide, then billing records the payment.
+  route('POST', '/billing/mandates/:reference/debit', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    const input = body || {};
+    try {
+      const mandate = mandates.debit(findMandate(params.reference), { on: input.on, amount: input.amount, period: input.period });
+      const payment = billing.receivePayment(user, {
+        policyId: input.policyId, amount: input.amount, method: input.method || 'eNACH',
+        reference: mandate.reference + '/' + input.period, receivedOn: input.on,
+      });
+      return { mandate, payment };
+    } catch (err) {
+      throw new AppError(err instanceof AppError ? err.status : 422, err.message);
+    }
+  }, {});
   route('POST', '/billing/allocate', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
     try {
