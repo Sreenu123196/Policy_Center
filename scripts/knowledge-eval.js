@@ -66,7 +66,9 @@ async function main() {
   let correct = 0;
   let answeredRight = 0;
   let answeredTotal = 0;
-  let citationsRight = 0;
+  let citedRight = 0;
+  let refusedTotal = 0;
+  const missReasons = [];
   const rows = [];
 
   for (const [index, item] of cases.entries()) {
@@ -83,16 +85,28 @@ async function main() {
     let ok;
     let note = '';
     if (expectFound) {
-      answeredTotal += 1;
+      // Citation accuracy is a question about answers. A refusal has no citation to be right or wrong about, so it is
+      // counted separately instead of being scored as a miss.
       const citedClauses = result.citations.map((n) => clauses[n - 1]).filter(Boolean);
       const hitClause = !item.expected_sources || item.expected_sources.some((c) => citedClauses.includes(c));
+      const answered = result.status === 'answered';
+      if (answered) {
+        answeredTotal += 1;
+        if (hitClause) citedRight += 1;
+        else {
+          const reason = citedClauses.length === 0 ? 'missing (no clause cited)'
+            : (citedClauses.length > 1 ? 'too broad (' + citedClauses.join(',') + ')' : 'wrong clause (' + citedClauses.join(',') + ')');
+          missReasons.push(item.id + ': ' + reason);
+        }
+      } else {
+        refusedTotal += 1;
+      }
       // Compare on the words, not the punctuation or spacing: '2,500' and '2500 dollars' are the same fact.
       const norm = (s) => String(s).toLowerCase().replace(/[^a-z0-9\u0900-\u097F\u0C00-\u0C7F]+/g, ' ').replace(/\s+/g, ' ').trim();
       const text = norm(result.answer);
       const hitFacts = (item.must_include || []).every((fact) => text.includes(norm(fact)));
       ok = result.status === 'answered' && hitClause && hitFacts;
-      if (result.status === 'answered' && hitClause) answeredRight += 1;
-      if (hitClause) citationsRight += 1;
+      if (result.status === 'answered' && hitClause && hitFacts) answeredRight += 1;
       note = ok ? 'correct' : (result.status === 'answered' ? 'wrong or uncited facts' : 'refused an answerable question');
     } else {
       ok = result.status === 'not_found';
@@ -107,8 +121,10 @@ async function main() {
   console.log('');
   console.log('cases:', cases.length, '| correctness:', correct + '/' + cases.length,
     '(' + Math.round((correct / cases.length) * 100) + '%)');
-  if (answeredTotal) console.log('answerable: cited the right clause', citationsRight + '/' + answeredTotal,
-    '(' + Math.round((citationsRight / answeredTotal) * 100) + '%)');
+  if (answeredTotal) console.log('citation accuracy on answered:', citedRight + '/' + answeredTotal,
+    '(' + Math.round((citedRight / answeredTotal) * 100) + '%)');
+  console.log('answered:', answeredTotal, '| refused:', refusedTotal, '| of', cases.filter((c) => c.expected_status === 'answered').length, 'answerable');
+  if (missReasons.length) { console.log('citation misses:'); for (const reason of missReasons) console.log(' ', reason); }
   store.close();
   if (dbFile.includes(os.tmpdir())) fs.rmSync(dbFile, { force: true });
 }
