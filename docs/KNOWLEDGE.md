@@ -520,3 +520,25 @@ What would close the gap, in order:
    invention, which is the one trade not to make.
 
 Nothing else in this document should be read as a claim about current quality.
+
+## Postgres as the default runtime: attempted, reverted (23 October)
+
+The plan was to import the real book and then let the runtime pick Postgres whenever a database directory exists. The first half
+was tested against a small dataset; the second half was not safe on the real one:
+
+| Step | Result |
+|---|---|
+| Small import, verified in the database | passes (2 tests) |
+| Import of the real `data/policycenter.json` (153 policies, 186 ledger rows, 132 accounts) | **did not finish** within ten minutes |
+| Collections added since the store's shape (contacts, mandates, signatures) | crashed the first run - `store.data[name]` was undefined; fixed by creating the array before pushing |
+
+The default was therefore **not switched**. `data/pgdata` was deleted and `src/pg/open.js` reverted, because a runtime that picks
+a database the moment the directory exists would have started against a half-imported book - policies without their ledger, or the
+reverse. That is worse than staying on the JSON file.
+
+Next attempt should measure instead of guessing: log progress per collection during the import (rows written, milliseconds) to find
+where it stalls, and consider batching the rows rather than one push per row, because the tracker's per-row path is what a small
+dataset hid.
+
+The importer and its tests remain, and they are useful regardless: they prove the write path and the verification, which is the
+part that caught the empty-database failure.

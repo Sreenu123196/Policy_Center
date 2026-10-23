@@ -8,9 +8,10 @@ const { importJson } = require('../src/pg/import');
 
 (async () => {
   const file = process.argv[2] || path.join(__dirname, '../data/policycenter.json');
+  // No DATABASE_URL means the default: a PGlite directory beside the JSON file, which is what makes it the runtime afterwards.
   if (!process.env.DATABASE_URL) {
-    console.error('Set DATABASE_URL first (a postgres:// URL, or pglite://<dir> for an in-process database).');
-    process.exit(1);
+    process.env.DATABASE_URL = 'pglite://' + path.join(__dirname, '../data/pgdata');
+    console.log('no DATABASE_URL: importing into', process.env.DATABASE_URL);
   }
   const json = JSON.parse(fs.readFileSync(file, 'utf8'));
   const store = await openStoreFromEnv({ dataFile: file });

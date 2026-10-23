@@ -23,6 +23,9 @@ async function importJson({ store, json, log = console }) {
     // records. Replacing the array in memory left the database empty while the in-memory counts said otherwise - which is exactly
     // the failure the verification step caught.
     for (const name of collections) {
+      // A collection may exist in the file but not in a fresh store's shape (contacts, mandates, signatures were added since).
+      // Creating the array first, then pushing, keeps the tracker's view of each row honest.
+      if (!Array.isArray(store.data[name])) store.data[name] = [];
       const target = store.data[name];
       target.length = 0;
       for (const row of json[name]) target.push(row);
