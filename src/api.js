@@ -485,7 +485,18 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/jobs/:id', ({ user, params }) => pc.jobDetail(params.id, user));
   route('PUT', '/jobs/:id/period', ({ user, params, body }) => pc.jobDetail(pc.updateDraft(params.id, body, user).id, user));
   route('POST', '/jobs/:id/quote', ({ user, params }) => pc.jobDetail(pc.quote(params.id, user).id, user));
-  route('POST', '/jobs/:id/bind', ({ user, params }) => pc.jobDetail(pc.bind(params.id, user).id, user));
+  // With ESIGN_REQUIRED=1 a bind is refused until the quoted schedule has been signed. The document the signature covers is
+  // the job number and its quoted premium: the two things a signature on a schedule attests, and stable across the bind.
+  route('POST', '/jobs/:id/bind', ({ user, params }) => {
+    if (process.env.ESIGN_REQUIRED === '1') {
+      const job = pc.job(params.id, user);
+      if (job.status === 'Quoted') {
+        const document = job.jobNumber + '|' + (job.quote && job.quote.premium !== undefined ? job.quote.premium : '');
+        signatures.requireSigned(document, { documentRef: job.jobNumber });
+      }
+    }
+    return pc.jobDetail(pc.bind(params.id, user).id, user);
+  }, {});
   route('POST', '/jobs/:id/withdraw', ({ user, params }) => pc.jobDetail(pc.withdraw(params.id, user).id, user));
   route('POST', '/jobs/:id/decline', ({ user, params, body }) => pc.jobDetail(pc.decline(params.id, body.reason, user).id, user));
   route('POST', '/jobs/:id/uw-issues/:key/approve', ({ user, params, body }) =>
