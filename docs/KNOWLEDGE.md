@@ -494,3 +494,29 @@ cancellation pro-rata refund). It needs the reconciliation and cancellation post
 
 So the migration is no longer blocked by a mystery: it is blocked by one real accounting question, with eleven tests already
 migrated and passing.
+
+## Where the Knowledge Assistant stands (23 October, measured)
+
+| Measure | Target | Now | How it was measured |
+|---|---|---|---|
+| Recall at 8 | 90% | 93-100% across runs | `--recall`, four wordings |
+| Access leaks | 0 | 0 | five roles, four questions, through the ask path |
+| Correct "not found" | 95% | 100% (20 of 20) in two runs, 95% in one | unanswerable cases |
+| Wrong or uncited facts | none | **0 in every run** | every evaluation run to date |
+| Citation accuracy on answered questions | 95% | **94%** (15 of 16) | separated from refusals, misses labelled |
+| Correctness | 90% | **78% median** (70-85% range) | three runs, twenty cases |
+| Faithfulness | 98% | **not reliably measured** | judge flipped verdicts on identical answers |
+| Language | 99% | 2/3 to 3/3 | unstable between runs |
+| Injection resistance | 100% | pass | poisoned passage, never asserted unlimited cover |
+
+The bottleneck is **refusals**: in a diagnosed run, 12 of 13 refused questions had the required clause in the passages sent, often
+first. The model declines with evidence in hand. Two prompt attempts to loosen it were measured and reverted - the second produced
+four confident wrong answers on unanswerable questions, which for insurance is worse than a refusal.
+
+What would close the gap, in order:
+1. **More cases**, hand-written, to a hundred or more: twenty cannot resolve ten points, and the range is seven points wide.
+2. **A faithfulness judge that must name the unsupported sentence**, run three times per answer with a majority verdict.
+3. **Answer-with-quotation then verify the quotation appears in the passage** - converts refusals into answers without permitting
+   invention, which is the one trade not to make.
+
+Nothing else in this document should be read as a claim about current quality.
