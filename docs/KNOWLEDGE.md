@@ -455,3 +455,22 @@ GST appears. Examples that must change together:
 That is a deliberate migration with a cut-over date, not a mechanical edit: historical postings stay on the old basis, and the
 trial balance only reconciles from the cut-over. Doing it in one commit - code and tests together - is the only safe way, and
 it needs a session with room to run the accounting suite repeatedly.
+
+### GST in the ledger: what the diagnosis established (23 October)
+
+Three attempts, each reverted, each narrowing the fault:
+
+1. The change was written and every line balanced on paper, yet nine accounting tests reported totals of **0** - not wrong
+   totals, absent entries.
+2. A **direct** `accounting.post` with a GST line (Dr receivable 1,180 / Cr written premium 1,000 / Cr GST 180) succeeds and
+   numbers the entry, and an unbalanced entry is refused with the expected message. So `post()` and the new account code are
+   fine.
+3. Instrumenting the premium branch of `postFromEvent` produced **no throw** and no log, while the totals stayed at zero. So
+   the premium posting is not failing where I assumed; the entries are not reaching the journal at all.
+
+That last point is the useful one: the next session should assert **what the bus did** - how many events it consumed, whether
+`db.eventFailures` has entries, and whether the ledger contains any entry at all after a bind - rather than re-reading the
+posting lines. Guessing at the arithmetic three times has produced three reverts and no progress; the missing observation is of
+the event pipeline, not of the entry.
+
+The change itself is known-good in isolation and documented above; it is the integration that is unobserved.
