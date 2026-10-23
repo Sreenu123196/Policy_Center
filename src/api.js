@@ -155,6 +155,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!mandate) throw new AppError(404, 'Mandate not found');
     return mandate;
   };
+  const { dueActions } = require('./workflowTimers');
+  // What is overdue right now. Read-only: the caller decides whether to remind or escalate, and the item's lastActionAt
+  // is what stops the same stage firing twice.
+  route('GET', '/workflow/due', ({ user, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Workflow timers are staff material');
+    const items = (store.data.workflowItems || []);
+    return { now: new Date().toISOString(), due: dueActions({ now: new Date(), items }) };
+  }, { readOnly: true });
   route('GET', '/billing/mandates', ({ user }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
     return { mandates: mandateStore() };
