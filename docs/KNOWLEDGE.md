@@ -436,3 +436,22 @@ faithfulness 40-80%). The instruments are not yet trustworthy enough to support 
 fix is the same in all three cases: more cases, repeated runs, and a judge asked three times with a majority verdict.
 
 Until then the honest position on faithfulness is "not measured", not 40% and not 80%.
+
+## Billing: the GST migration, and why it is not done yet (23 October)
+
+Premium is posted at bind through the event bus (`accounting.postFromEvent`, `PREMIUM_EVENTS`), not at payment - an earlier
+reading of the code in this session said otherwise and was wrong. The posting already carries commission expense and payable.
+
+The change itself is small and was written, balanced and then reverted: add `gstPayable` (2200), split the gross into net and
+GST, and compute commission on the net because tax is not commissionable.
+
+It was reverted because **nine accounting tests encode the old basis** and several assert trial-balance figures that move when
+GST appears. Examples that must change together:
+
+- `test/accounting.test.js:47` - written premium credited `total`; must become the net of GST.
+- `test/accounting.test.js:60` - commission `total * rate`; must become `net * rate`.
+- the receivable, trial balance and closing tests that compare totals to gross.
+
+That is a deliberate migration with a cut-over date, not a mechanical edit: historical postings stay on the old basis, and the
+trial balance only reconciles from the cut-over. Doing it in one commit - code and tests together - is the only safe way, and
+it needs a session with room to run the accounting suite repeatedly.
