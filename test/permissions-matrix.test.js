@@ -177,7 +177,8 @@ const MATRIX = {
 };
 
 // Sign-in routes need no session; /auth/password and /auth/me are checked in test/auth.test.js.
-const PUBLIC = ['GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password',
+const PUBLIC = [
+  'POST /webhooks/razorpay','GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password',
   'POST /webhooks/telegram', 'GET /webhooks/twilio/voice', 'POST /webhooks/twilio/decision'];
 // The speech route calls an outside service; here that service always refuses, so it answers 502 to everybody who is allowed.
 const OUTSIDE = ['POST /speech'];
