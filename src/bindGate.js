@@ -49,6 +49,11 @@ function createBindGate(pc, store) {
     if (!record) throw new AppError(404, 'Approval not found');
     if (!['approved', 'declined'].includes(status)) throw new AppError(422, 'status must be approved or declined');
     if (record.status !== 'pending') throw new AppError(409, 'This approval has already been decided');
+    // Separation of duties: the person who asked for the bind cannot be the person who approves it. A manager approving their
+    // own request is the exact conflict this gate exists to prevent.
+    if (record.requestedBy && user && record.requestedBy === user.id) {
+      throw new AppError(403, 'You cannot decide an approval you requested');
+    }
     record.status = status;
     record.decidedAt = new Date().toISOString();
     record.decidedBy = user && user.id;
