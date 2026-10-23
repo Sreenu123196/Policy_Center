@@ -20,7 +20,8 @@ const { ledgerEntries } = require('./ledger');
 // of the cancellation date.
 const REINSTATEMENT_WINDOW_DAYS = 30;
 
-const PAYMENT_METHODS = ['Cheque', 'Card', 'Bank transfer', 'Cash'];
+// eNACH and UPI are how a mandate and a collect arrive; without them every debit the mandate rules allowed was refused here.
+const PAYMENT_METHODS = ['Cheque', 'Card', 'Bank transfer', 'Cash', 'eNACH', 'UPI'];
 const REFUND_METHODS = ['Cheque', 'Bank transfer', 'Cash'];
 
 // Days after the due date. Change the steps here, not in the code that runs them.

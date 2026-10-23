@@ -33,6 +33,9 @@ function etagFor(pc, sub) {
 }
 
 function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, backupDir, audit: auditOption, agents: agentsOption, notifier: notifierOption, knowledge: knowledgeOption } = {}) {
+  // The second-factor gate: a token waits here until its challenge is satisfied, and the SSO module holds the sessions.
+  const pendingTokens = new Map();
+  const sso = require('./sso').createSso({ store });
   // Notifications are optional (a test or a bare local run may not configure them). These keep the three outside doors
   // closed with an honest answer instead of failing on an undefined service.
   const notifier = notifierOption || {
@@ -121,6 +124,149 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'Agents cannot bind');
     return bindGate.bind(user, params.id, body && body.approvalId);
   }, {});
+  const { CAPS } = require('./policyCapsData');
+  const { resolveLimit, capsFor } = require('./policyCaps');
+  const { inferForm, formsFor } = require('./formInference');
+  route('POST', '/products/:product/form', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Form inference is staff material');
+    const forms = formsFor(params.product);
+    // An unknown product is bad input, not a broken server: 422 with the reason, never a 500.
+    if (!forms.length) throw new AppError(422, 'No forms are defined for ' + params.product);
+    return { product: params.product, forms, ...inferForm({ product: params.product, facts: body || {} }) };
+  }, { readOnly: true });
+  const { resolveVersion, versionsFor } = require('./productVersions');
+  route('GET', '/products/:product/version', ({ user, params, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Product versions are staff material');
+    const asOf = query.get('asOf') || new Date().toISOString().slice(0, 10);
+    const versions = versionsFor(params.product);
+    // An unknown product is an empty collection, not an error: asking about something that does not exist is a fair
+    // question with an empty answer. A malformed date is still bad input and says so.
+    if (!versions.length) return { product: params.product, asOf, versions: [], resolved: null, reason: 'No versions are defined for ' + params.product };
+    try {
+      return { product: params.product, asOf, versions, resolved: resolveVersion({ product: params.product, asOf }) };
+    } catch (err) {
+      throw new AppError(422, err.message);
+    }
+  }, { readOnly: true });
+  const { allocatePayment } = require('./paymentAllocation');
+  // A receipt and the invoices it might settle. Nothing is written: the answer says where every rupee would go, and the
+  // caller decides whether to post it - allocation is a question before it is a transaction.
+  const mandates = require('./mandates').createMandates();
+  const mandateStore = () => { store.data.mandates = store.data.mandates || []; return store.data.mandates; };
+  const findMandate = (reference) => {
+    const mandate = mandateStore().find((m) => m.reference === reference);
+    if (!mandate) throw new AppError(404, 'Mandate not found');
+    return mandate;
+  };
+  const { dueActions } = require('./workflowTimers');
+  // What is overdue right now. Read-only: the caller decides whether to remind or escalate, and the item's lastActionAt
+  // is what stops the same stage firing twice.
+  const { createSignatures, hashDocument } = require('./esign');
+  const signatures = createSignatures(store);
+  // Signing is recorded against the bytes of the document. The body carries the document as text for the simulator; a real
+  // client would post a file and the hash would be taken over the uploaded bytes.
+  route('GET', '/sso/sessions', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Sessions are staff material');
+    // The challenge code is never returned here: it is only handed back at creation, and only because this is a simulation.
+    return { sessions: (store.data.ssoSessions || []).map((s) => ({ id: s.id, subject: s.subject, role: s.role, state: s.state, createdAt: s.createdAt, expiresAt: s.expiresAt })) };
+  }, { readOnly: true });
+  route('GET', '/esign/signatures', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Signatures are staff material');
+    return { signatures: store.data.signatures || [] };
+  }, { readOnly: true });
+  route('POST', '/esign/signatures', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    try {
+      return signatures.sign({ signer: user, document: String(input.document || ''), documentRef: String(input.documentRef || '') });
+    } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  route('POST', '/esign/verify', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    try {
+      const hash = hashDocument(String(input.document || ''));
+      const result = signatures.check(String(input.document || ''), { documentRef: input.documentRef || null });
+      return { documentHash: hash, signed: result.signed, signatures: result.signatures, stale: result.stale };
+    } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, { readOnly: true });
+  route('GET', '/workflow/due', ({ user, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Workflow timers are staff material');
+    const items = (store.data.workflowItems || []);
+    return { now: new Date().toISOString(), due: dueActions({ now: new Date(), items }) };
+  }, { readOnly: true });
+  route('GET', '/billing/mandates', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    return { mandates: mandateStore() };
+  }, { readOnly: true });
+  route('POST', '/billing/mandates', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try {
+      const mandate = mandates.create(body || {});
+      mandateStore().push(mandate);
+      return mandate;
+    } catch (err) { throw new AppError(422, err.message); }
+  }, {});
+  route('POST', '/billing/mandates/:reference/authorise', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try { return mandates.authorise(findMandate(params.reference), body || {}); }
+    catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  route('POST', '/billing/mandates/:reference/notice', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    try { return mandates.notice(findMandate(params.reference), body || {}); }
+    catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
+  }, {});
+  // The debit is the only part that moves money: the mandate rules decide, then billing records the payment.
+  route('POST', '/billing/mandates/:reference/debit', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    const input = body || {};
+    try {
+      const mandate = mandates.debit(findMandate(params.reference), { on: input.on, amount: input.amount, period: input.period });
+      const payment = billing.receivePayment(user, {
+        policyId: input.policyId, amount: input.amount, method: input.method || 'eNACH',
+        reference: mandate.reference + '/' + input.period, receivedOn: input.on,
+      });
+      return { mandate, payment };
+    } catch (err) {
+      throw new AppError(err instanceof AppError ? err.status : 422, err.message);
+    }
+  }, {});
+  const allocations = require('./allocations').createAllocations(store);
+  // Recording an allocation is a deliberate second step: the plan is computed by /billing/allocate, then written here with
+  // who decided it. The invoices are not touched - settling them belongs to the payment path.
+  route('POST', '/billing/allocations', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    const input = body || {};
+    try {
+      const plan = allocatePayment({ amount: input.amount, invoices: input.invoices || [], reference: input.reference || null });
+      return { plan, record: allocations.record(user, plan, input) };
+    } catch (err) {
+      throw new AppError(err instanceof AppError ? err.status : 422, err.message);
+    }
+  }, {});
+  route('GET', '/billing/allocations', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    return { allocations: allocations.list(), suspenseTotal: allocations.suspenseTotal() };
+  }, { readOnly: true });
+  route('POST', '/billing/allocate', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    try {
+      return allocatePayment({ amount: (body && body.amount), invoices: (body && body.invoices) || [], reference: (body && body.reference) || null });
+    } catch (err) {
+      throw new AppError(422, err.message);
+    }
+  }, { readOnly: true });
+  route('GET', '/products/:product/caps', ({ user, params, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Product caps are staff material');
+    const caps = capsFor(params.product, CAPS);
+    const coverage = query.get('coverage');
+    const requested = query.get('requested');
+    const resolution = coverage && requested !== null && requested !== ''
+      ? resolveLimit({ product: params.product, coverage, requested: Number(requested), caps })
+      : null;
+    return { product: params.product, caps, resolution };
+  }, { readOnly: true });
   const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
   route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
     // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
@@ -261,6 +407,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     res.writeHead(script ? 200 : 404, { 'Content-Type': script ? 'text/xml; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(script ? script.twiml : 'Unknown call');
   }, { stream: true, isPublic: true });
+  // Razorpay posts here: bytes, then signature, then parse. The logic is a module so it can be tested without a server.
+  route('POST', '/webhooks/razorpay', ({ headers, body }) => receiveRazorpayWebhook({
+    headers, body, secret: process.env.RAZORPAY_WEBHOOK_SECRET, store,
+  }), { isPublic: true, raw: true, readOnly: true });
   route('POST', '/webhooks/twilio/decision', ({ body, query, headers, url }) => {
     const params = Object.fromEntries(new URLSearchParams(body.toString('utf8')));
     return notifier.handleVoiceKeypress({
@@ -276,12 +426,36 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('POST', '/auth/setup', (ctx) => {
     const view = pc.setupFirstManager({ username: ctx.body.username, password: ctx.body.password });
     const { token } = auth.login(view.username, ctx.body.password);
+  if (process.env.SSO_ENFORCE_MFA === '1') {
+    const started = sso.startSession({ subject: view.username, role: view.role, mfaRequired: true });
+    pendingTokens.set(started.session.id, token);
+    return { mfaRequired: true, sessionId: started.session.id, simulatedCode: started.simulatedCode };
+  }
     ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
     return { user: view, mustChangePassword: false };
   }, { isPublic: true });
+  // Sign-in with a second factor, when SSO_ENFORCE_MFA=1. The password is checked first; the session cookie is not issued
+  // until the challenge is satisfied. Off by default, so an install without the flag behaves exactly as before.
+  route('POST', '/auth/sso/mfa', (ctx) => {
+    const input = ctx.body || {};
+    const session = sso.satisfyChallenge(String(input.sessionId || ''), String(input.code || ''));
+    const token = pendingTokens.get(session.id);
+    if (!token) throw new AppError(401, 'This sign-in has expired; sign in again');
+    pendingTokens.delete(session.id);
+    ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
+    return { user: session.subject };
+  }, { isPublic: true });
+
   // Sign-in
   route('POST', '/auth/login', (ctx) => {
     const { token, ...rest } = auth.login(ctx.body.username, ctx.body.password);
+    // With SSO_ENFORCE_MFA=1 the cookie is withheld: the token waits in pendingTokens until the challenge is satisfied, and the
+    // code is returned only because this is a simulation.
+    if (process.env.SSO_ENFORCE_MFA === '1') {
+      const started = sso.startSession({ subject: rest.user && rest.user.username, role: rest.user && rest.user.role, mfaRequired: true });
+      pendingTokens.set(started.session.id, token);
+      return { mfaRequired: true, sessionId: started.session.id, simulatedCode: started.simulatedCode };
+    }
     ctx.setCookie = `pc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800`;
     return rest;
   }, { isPublic: true });
@@ -321,7 +495,18 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/jobs/:id', ({ user, params }) => pc.jobDetail(params.id, user));
   route('PUT', '/jobs/:id/period', ({ user, params, body }) => pc.jobDetail(pc.updateDraft(params.id, body, user).id, user));
   route('POST', '/jobs/:id/quote', ({ user, params }) => pc.jobDetail(pc.quote(params.id, user).id, user));
-  route('POST', '/jobs/:id/bind', ({ user, params }) => pc.jobDetail(pc.bind(params.id, user).id, user));
+  // With ESIGN_REQUIRED=1 a bind is refused until the quoted schedule has been signed. The document the signature covers is
+  // the job number and its quoted premium: the two things a signature on a schedule attests, and stable across the bind.
+  route('POST', '/jobs/:id/bind', ({ user, params }) => {
+    if (process.env.ESIGN_REQUIRED === '1') {
+      const job = pc.job(params.id, user);
+      if (job.status === 'Quoted') {
+        const document = job.jobNumber + '|' + (job.quote && job.quote.premium !== undefined ? job.quote.premium : '');
+        signatures.requireSigned(document, { documentRef: job.jobNumber });
+      }
+    }
+    return pc.jobDetail(pc.bind(params.id, user).id, user);
+  }, {});
   route('POST', '/jobs/:id/withdraw', ({ user, params }) => pc.jobDetail(pc.withdraw(params.id, user).id, user));
   route('POST', '/jobs/:id/decline', ({ user, params, body }) => pc.jobDetail(pc.decline(params.id, body.reason, user).id, user));
   route('POST', '/jobs/:id/uw-issues/:key/approve', ({ user, params, body }) =>
@@ -331,6 +516,28 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   route('GET', '/claims', ({ user, query }) => pc.listClaims(user, { status: query.get('status') || undefined }));
   route('GET', '/claims/:id', ({ user, params }) => pc.claimDetail(params.id, user));
   route('GET', '/policies/:id', ({ user, params }) => pc.policyDetail(params.id, user));
+  // A9: ask about one policy, answered from the wordings with citations, plus that policy's own facts.
+  // Access is the application's: pc.policy throws for a policy the person may not see, so an agent cannot ask about another
+  // agent's customer by guessing a policy number.
+  route('GET', '/policies/:id/ask', async ({ user, params, query }) => {
+    const policy = pc.policy(params.id, user);
+    const question = String(query.get('q') || '').trim();
+    // No question is a fair request with an empty answer, not an error: the smoke test asks every read route once, and a person
+    // who opens the page before typing should see the prompt rather than a failure.
+    if (!question) return { policy: { policyNumber: policy.policyNumber }, answer: 'Ask a question with ?q=', citations: [], notFound: true };
+    const { policyFacts } = require('./knowledge/policy-facts');
+    const facts = policyFacts({ pc, user, policyNumber: policy.policyNumber });
+    if (!knowledge) {
+      return { policy: { policyNumber: policy.policyNumber, facts }, answer: 'The knowledge assistant is not configured on this server.', citations: [], notFound: true };
+    }
+    const result = await knowledge.ask(user, question, { asOf: policy.effectiveDate || null });
+    return {
+      policy: { policyNumber: policy.policyNumber, status: facts.status, product: facts.product, asOf: facts.asOf, facts },
+      answer: result.answer,
+      citations: (result.citations || []).map((c) => ({ clause: c.clause, headingPath: c.headingPath, page: c.page })),
+      notFound: result.status !== 'answered',
+    };
+  }, { readOnly: true });
   route('POST', '/policies/:id/claims', ({ user, params, body }) => pc.claimDetail(pc.openClaim(params.id, body, user).id, user));
   route('POST', '/policies/:id/change', ({ user, params, body }) => pc.jobDetail(pc.startPolicyChange(params.id, body, user).id, user));
   route('POST', '/policies/:id/cancel', ({ user, params, body }) => pc.jobDetail(pc.startCancellation(params.id, body, user).id, user));

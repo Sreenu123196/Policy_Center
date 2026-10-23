@@ -436,3 +436,143 @@ faithfulness 40-80%). The instruments are not yet trustworthy enough to support 
 fix is the same in all three cases: more cases, repeated runs, and a judge asked three times with a majority verdict.
 
 Until then the honest position on faithfulness is "not measured", not 40% and not 80%.
+
+## Billing: the GST migration, and why it is not done yet (23 October)
+
+Premium is posted at bind through the event bus (`accounting.postFromEvent`, `PREMIUM_EVENTS`), not at payment - an earlier
+reading of the code in this session said otherwise and was wrong. The posting already carries commission expense and payable.
+
+The change itself is small and was written, balanced and then reverted: add `gstPayable` (2200), split the gross into net and
+GST, and compute commission on the net because tax is not commissionable.
+
+It was reverted because **nine accounting tests encode the old basis** and several assert trial-balance figures that move when
+GST appears. Examples that must change together:
+
+- `test/accounting.test.js:47` - written premium credited `total`; must become the net of GST.
+- `test/accounting.test.js:60` - commission `total * rate`; must become `net * rate`.
+- the receivable, trial balance and closing tests that compare totals to gross.
+
+That is a deliberate migration with a cut-over date, not a mechanical edit: historical postings stay on the old basis, and the
+trial balance only reconciles from the cut-over. Doing it in one commit - code and tests together - is the only safe way, and
+it needs a session with room to run the accounting suite repeatedly.
+
+### GST in the ledger: what the diagnosis established (23 October)
+
+Three attempts, each reverted, each narrowing the fault:
+
+1. The change was written and every line balanced on paper, yet nine accounting tests reported totals of **0** - not wrong
+   totals, absent entries.
+2. A **direct** `accounting.post` with a GST line (Dr receivable 1,180 / Cr written premium 1,000 / Cr GST 180) succeeds and
+   numbers the entry, and an unbalanced entry is refused with the expected message. So `post()` and the new account code are
+   fine.
+3. Instrumenting the premium branch of `postFromEvent` produced **no throw** and no log, while the totals stayed at zero. So
+   the premium posting is not failing where I assumed; the entries are not reaching the journal at all.
+
+That last point is the useful one: the next session should assert **what the bus did** - how many events it consumed, whether
+`db.eventFailures` has entries, and whether the ledger contains any entry at all after a bind - rather than re-reading the
+posting lines. Guessing at the arithmetic three times has produced three reverts and no progress; the missing observation is of
+the event pipeline, not of the entry.
+
+The change itself is known-good in isolation and documented above; it is the integration that is unobserved.
+
+### GST migration: root cause found, 11 of 12 tests migrated, one real difference (23 October)
+
+The three earlier failures had a single cause and it was mine: the require never landed. `const { gstOnPremium } = require('./billingRules')`
+was inserted by matching `const round2 =`, which does not exist in `src/accounting.js` - so the call sites referenced a name
+that was never imported, every premium posting threw, the event bus recorded the failure, and the tests saw totals of zero
+rather than an error. The bus's failure record (`db.eventFailures[0].lastError = 'gstOnPremium is not defined'`) named it in
+one line; the wrong harness (no bus) had hidden it for two attempts.
+
+With the require in place: **11 of 12 accounting tests pass** after moving written premium and commission to the net basis -
+written premium credits the net of GST, GST is its own liability, commission is earned on the net, and the commission statement
+follows. All three are tested.
+
+The twelfth is a genuine difference, not a stale expectation: `the receivable always agrees with the customers' ledgers` now
+reports **531.82** after a cancellation. That is a reconciliation question - `accounting.reconciliation` comparing GL receivable
+to customer balances - and the net-basis change has exposed a posting that still computes from gross (most likely the
+cancellation pro-rata refund). It needs the reconciliation and cancellation postings read together, not a test adjusted.
+
+So the migration is no longer blocked by a mystery: it is blocked by one real accounting question, with eleven tests already
+migrated and passing.
+
+## Where the Knowledge Assistant stands (23 October, measured)
+
+| Measure | Target | Now | How it was measured |
+|---|---|---|---|
+| Recall at 8 | 90% | 93-100% across runs | `--recall`, four wordings |
+| Access leaks | 0 | 0 | five roles, four questions, through the ask path |
+| Correct "not found" | 95% | 100% (20 of 20) in two runs, 95% in one | unanswerable cases |
+| Wrong or uncited facts | none | **0 in every run** | every evaluation run to date |
+| Citation accuracy on answered questions | 95% | **94%** (15 of 16) | separated from refusals, misses labelled |
+| Correctness | 90% | **78% median** (70-85% range) | three runs, twenty cases |
+| Faithfulness | 98% | **not reliably measured** | judge flipped verdicts on identical answers |
+| Language | 99% | 2/3 to 3/3 | unstable between runs |
+| Injection resistance | 100% | pass | poisoned passage, never asserted unlimited cover |
+
+The bottleneck is **refusals**: in a diagnosed run, 12 of 13 refused questions had the required clause in the passages sent, often
+first. The model declines with evidence in hand. Two prompt attempts to loosen it were measured and reverted - the second produced
+four confident wrong answers on unanswerable questions, which for insurance is worse than a refusal.
+
+What would close the gap, in order:
+1. **More cases**, hand-written, to a hundred or more: twenty cannot resolve ten points, and the range is seven points wide.
+2. **A faithfulness judge that must name the unsupported sentence**, run three times per answer with a majority verdict.
+3. **Answer-with-quotation then verify the quotation appears in the passage** - converts refusals into answers without permitting
+   invention, which is the one trade not to make.
+
+Nothing else in this document should be read as a claim about current quality.
+
+## Postgres as the default runtime: attempted, reverted (23 October)
+
+The plan was to import the real book and then let the runtime pick Postgres whenever a database directory exists. The first half
+was tested against a small dataset; the second half was not safe on the real one:
+
+| Step | Result |
+|---|---|
+| Small import, verified in the database | passes (2 tests) |
+| Import of the real `data/policycenter.json` (153 policies, 186 ledger rows, 132 accounts) | **did not finish** within ten minutes |
+| Collections added since the store's shape (contacts, mandates, signatures) | crashed the first run - `store.data[name]` was undefined; fixed by creating the array before pushing |
+
+The default was therefore **not switched**. `data/pgdata` was deleted and `src/pg/open.js` reverted, because a runtime that picks
+a database the moment the directory exists would have started against a half-imported book - policies without their ledger, or the
+reverse. That is worse than staying on the JSON file.
+
+Next attempt should measure instead of guessing: log progress per collection during the import (rows written, milliseconds) to find
+where it stalls, and consider batching the rows rather than one push per row, because the tracker's per-row path is what a small
+dataset hid.
+
+The importer and its tests remain, and they are useful regardless: they prove the write path and the verification, which is the
+part that caught the empty-database failure.
+
+## Policy caps versus product validation: the cap is unreachable (23 October)
+
+Attempting to price a capped limit exposed that the product model already caps: a homeowners personal-property limit above the cap is
+refused by quote validation ("1 validation error"), so no valid input can reach the cap table. Two rules enforce the same ceiling, and
+the newer one - the caps table - is dead code for that coverage.
+
+The rating change that resolved caps was therefore reverted rather than left in place looking correct. The honest position:
+
+- **Caps are enforced by the product model's validation today.** The caps table and `resolveLimit` are used by the admin route that
+  explains a limit, not by rating.
+- **Making rating use them requires deciding which is authoritative.** Either validation allows larger limits and the cap table becomes
+  the guard, or the cap table documents a ceiling validation enforces. Doing both means two places to change and one of them silently
+  stale - the same failure shape as the GST require, the missing route and the empty database.
+
+Recorded so the next attempt starts with the decision, not with a change to rating.
+
+### The import works; reopening the database does not (23 October)
+
+With per-collection progress logging the import of the real book finished in **seconds**, not minutes:
+
+    pushed 20/23 collections, 56 ms
+    imported 23 collections, 2470 rows - verified
+
+So the earlier "hang" was never the import. It was the step after it: **opening the same PGlite directory in a fresh process blocks**.
+The importing process closes its store and exits cleanly, yet the next process waits - most likely a directory lock PGlite does not
+release on close, or a shutdown it needs that `close()` does not perform.
+
+That is why the default runtime was **not** switched: an app that cannot reopen its own database is worse than one on a JSON file.
+`.env` is untouched, `src/pg/open.js` is unchanged, and the suite is 604 passing.
+
+The imported directory (`data/pgdata`, 42 MB, verified rows) is left in place as evidence. Next step: prove a reopen in a fresh
+process against a *copy* of the directory, and if the lock is the cause, find the PGlite shutdown that releases it - or run the
+database in a separate process from the outset, which is what production does anyway.

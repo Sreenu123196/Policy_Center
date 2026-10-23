@@ -62,3 +62,13 @@ test('the dummy identifier 4522 4751 2035 is stored masked and the record can be
   assert.equal(readBack.kyc.status, 'pending');
   assert.throws(() => contacts.find('CT-9999999'), /Contact not found/);
 });
+
+test('the person who created a contact cannot verify it', () => {
+  const store = freshStore();
+  const contacts = createContacts(store);
+  const created = contacts.create({ id: 'u1' }, { firstName: 'A', lastName: 'B' });
+  assert.throws(() => contacts.verify(created.id, { id: 'u1' }), /cannot verify your own record/);
+  const verified = contacts.verify(created.id, { id: 'u2' });
+  assert.equal(verified.kyc.status, 'verified');
+  assert.equal(verified.kyc.checkedBy, 'u2');
+});

@@ -3,6 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { setup, account, autoSubmission } = require('./helpers');
 const { Accounting, ACCOUNTS, DEFAULT_PRODUCER_COMMISSION } = require('../src/accounting');
+const { gstOnPremium } = require('../src/billingRules');
 const { accountingConsumer } = require('../src/consumers');
 const { EventBus } = require('../src/eventBus');
 const { Billing } = require('../src/billing');
@@ -44,7 +45,10 @@ test('issuing a policy posts the premium to the receivable and the written premi
   const fees = r2(pc.db.invoices.filter((i) => i.policyId === policy.id).reduce((s, i) => s + i.fee, 0));
   assert.ok(fees > 0, 'the monthly plan has fees');
   assert.equal(sum(entries, ACCOUNTS.receivable.code, 'debit'), r2(total + fees));
-  assert.equal(sum(entries, ACCOUNTS.writtenPremium.code, 'credit'), total);
+  const split = gstOnPremium({ amount: total });
+  assert.equal(split.net + split.gst, r2(total), 'net and GST add back to the gross premium');
+  assert.equal(sum(entries, ACCOUNTS.writtenPremium.code, 'credit'), split.net, 'written premium is the net of GST');
+  assert.equal(sum(entries, ACCOUNTS.gstPayable.code, 'credit'), split.gst, 'GST is its own liability');
   assert.equal(sum(entries, ACCOUNTS.feeIncome.code, 'credit'), fees);
   assert.ok(entries.every((e) => r2(e.lines.reduce((s, l) => s + (l.debit || 0), 0)) === r2(e.lines.reduce((s, l) => s + (l.credit || 0), 0))), 'every entry balances');
   assert.equal(accounting.trialBalance(users.uwm).balanced, true);
@@ -57,7 +61,7 @@ test('commission accrues for the producer at their rate, and the rate used is ke
   post();
   const total = pc.policy(policy.id).transactions[0].amount;
   const accrual = accounting.journal(users.uwm).flatMap((e) => e.lines.map((l) => ({ ...l, entry: e }))).find((l) => l.account === ACCOUNTS.commissionExpense.code);
-  assert.equal(accrual.debit, r2(total * DEFAULT_PRODUCER_COMMISSION));
+  assert.equal(accrual.debit, r2(gstOnPremium({ amount: total }).net * DEFAULT_PRODUCER_COMMISSION), 'commission is earned on the net premium');
   assert.deepEqual([accrual.entry.producerCode, accrual.entry.commissionRate], ['PC-100', DEFAULT_PRODUCER_COMMISSION]);
 
   // A new rate applies to new business; the entries already posted keep the rate they were posted with.
@@ -200,7 +204,7 @@ test('commission statement: what was earned, what was paid, and what is still pa
   const total = pc.policy(policy.id).transactions[0].amount;
   const statement = accounting.statement(users.agent, 'PC-100', {});
   assert.equal(statement.producerCode, 'PC-100');
-  assert.equal(statement.earned, r2(total * DEFAULT_PRODUCER_COMMISSION));
+  assert.equal(statement.earned, r2(gstOnPremium({ amount: total }).net * DEFAULT_PRODUCER_COMMISSION), 'commission statement follows the net basis');
   assert.deepEqual([statement.paid, statement.payable], [0, statement.earned]);
   assert.equal(statement.lines[0].policyNumber, policy.policyNumber);
   assert.equal(statement.lines[0].premium, total);

@@ -89,7 +89,24 @@ const MATRIX = {
   'POST /agents/run': ['agent', 'uw', 'exec'],
   'GET /agents/suggestions': ['agent', 'exec'],
   'GET /suggestions/mine': [], // every signed-in person; it only ever returns their own
+  'GET /policies/:id/ask': [],
   'GET /contacts': [],
+  'GET /products/:product/version': ['agent'],
+  'GET /sso/sessions': ['agent'],
+  'GET /esign/signatures': ['agent'],
+  'POST /esign/signatures': [],
+  'POST /esign/verify': [],
+  'GET /workflow/due': ['agent'],
+  'POST /billing/allocate': ['agent'],
+  'GET /billing/allocations': ['agent'],
+  'POST /billing/allocations': ['agent'],
+  'GET /billing/mandates': ['agent'],
+  'POST /billing/mandates': ['agent'],
+  'POST /billing/mandates/:reference/authorise': ['agent'],
+  'POST /billing/mandates/:reference/notice': ['agent'],
+  'POST /billing/mandates/:reference/debit': ['agent'],
+  'GET /products/:product/caps': ['agent'],
+  'POST /products/:product/form': ['agent'],
   'GET /incidents': ['agent'],
   'GET /bind-approvals': ['agent'],
   'POST /jobs/:id/bind-approval': ['agent'],
@@ -174,7 +191,9 @@ const MATRIX = {
 };
 
 // Sign-in routes need no session; /auth/password and /auth/me are checked in test/auth.test.js.
-const PUBLIC = ['GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password',
+const PUBLIC = [
+  'POST /auth/sso/mfa',
+  'POST /webhooks/razorpay','GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password',
   'POST /webhooks/telegram', 'GET /webhooks/twilio/voice', 'POST /webhooks/twilio/decision'];
 // The speech route calls an outside service; here that service always refuses, so it answers 502 to everybody who is allowed.
 const OUTSIDE = ['POST /speech'];
