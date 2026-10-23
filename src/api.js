@@ -192,6 +192,23 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       throw new AppError(err instanceof AppError ? err.status : 422, err.message);
     }
   }, {});
+  const allocations = require('./allocations').createAllocations(store);
+  // Recording an allocation is a deliberate second step: the plan is computed by /billing/allocate, then written here with
+  // who decided it. The invoices are not touched - settling them belongs to the payment path.
+  route('POST', '/billing/allocations', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    const input = body || {};
+    try {
+      const plan = allocatePayment({ amount: input.amount, invoices: input.invoices || [], reference: input.reference || null });
+      return { plan, record: allocations.record(user, plan, input) };
+    } catch (err) {
+      throw new AppError(err instanceof AppError ? err.status : 422, err.message);
+    }
+  }, {});
+  route('GET', '/billing/allocations', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
+    return { allocations: allocations.list(), suspenseTotal: allocations.suspenseTotal() };
+  }, { readOnly: true });
   route('POST', '/billing/allocate', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
     try {

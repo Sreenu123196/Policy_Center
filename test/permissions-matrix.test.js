@@ -92,6 +92,8 @@ const MATRIX = {
   'GET /contacts': [],
   'GET /products/:product/version': ['agent'],
   'POST /billing/allocate': ['agent'],
+  'GET /billing/allocations': ['agent'],
+  'POST /billing/allocations': ['agent'],
   'GET /billing/mandates': ['agent'],
   'POST /billing/mandates': ['agent'],
   'POST /billing/mandates/:reference/authorise': ['agent'],
