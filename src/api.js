@@ -155,6 +155,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!mandate) throw new AppError(404, 'Mandate not found');
     return mandate;
   };
+  route('GET', '/billing/mandates', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
+    return { mandates: mandateStore() };
+  }, { readOnly: true });
   route('POST', '/billing/mandates', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Mandates are finance material');
     try {

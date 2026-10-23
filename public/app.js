@@ -172,6 +172,7 @@ const ROUTES = [
   [/^#\/contacts$/, pageContacts],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/bind-approvals$/, pageBindApprovals],
+  [/^#\/mandates$/, pageMandates],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
@@ -1378,6 +1379,33 @@ async function pageClaimsOps() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ mandates
+
+// e-NACH mandates: the standing permission a debit depends on. A debit that is not allowed says why, and nothing moves.
+async function pageMandates() {
+  const mandates = await api('GET', '/billing/mandates').then((r) => r.mandates || []).catch(() => []);
+  const rows = mandates.map((m) => [
+    esc(m.reference), esc('₹' + Number(m.cap || 0).toLocaleString('en-IN')), esc(m.frequency), esc(m.status),
+    m.status === 'created' ? '<button class="btn" data-action="mandate-authorise" data-ref="' + esc(m.reference) + '">Authorise</button>'
+      : (m.status === 'active' ? '<button class="btn" data-action="mandate-notice" data-ref="' + esc(m.reference) + '">Give notice</button> '
+        + '<button class="btn" data-action="mandate-debit" data-ref="' + esc(m.reference) + '">Debit</button>' : ''),
+  ]);
+  view(`
+    <div class="eyebrow">Billing</div><h1>Mandates</h1>
+    <div class="card"><h2>New mandate</h2>
+      <div class="toolbar">
+        <input id="md-ref" placeholder="Reference">
+        <input id="md-cap" placeholder="Cap" type="number">
+        <select id="md-freq"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+        <input id="md-start" placeholder="Start date" type="date">
+        <button class="btn primary" data-action="mandate-create">Create mandate</button>
+      </div>
+    </div>
+    <div class="card"><h2>All mandates</h2>
+      ${table(['Reference', 'Cap', 'Frequency', 'Status', ''], rows, 'No mandates yet')}
+    </div>`);
+}
+
 // ------------------------------------------------------------------ bind approvals
 
 // What the assistant has asked for and a person has to answer. First decision wins; the gate re-reads the record when the
@@ -1915,6 +1943,38 @@ const ACTIONS = {
     toast(sent && sent.litigation ? 'Litigation recorded' : 'Litigation refused', sent && sent.litigation ? 'success' : 'error');
     S.claimsOps = { incidents: null, claim, detail: null };
     return pageClaimsOps();
+  },
+  'mandate-create': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const sent = await api('POST', '/billing/mandates', {
+      reference: value('#md-ref'), cap: Number(value('#md-cap')), frequency: value('#md-freq'), startsOn: value('#md-start'),
+    }).catch(() => null);
+    toast(sent && sent.reference ? 'Mandate ' + sent.reference + ' created' : 'Mandate refused', sent && sent.reference ? 'success' : 'error');
+    return pageMandates();
+  },
+  'mandate-authorise': async (d) => {
+    await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/authorise', {}).catch(() => null);
+    return pageMandates();
+  },
+  'mandate-notice': async (d) => {
+    const on = window.prompt('Debit date (YYYY-MM-DD)');
+    const amount = window.prompt('Amount');
+    if (!on || !amount) return undefined;
+    const sent = await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/notice', { debitOn: on, amount: Number(amount) }).catch(() => null);
+    toast(sent && sent.reference ? 'Notice recorded' : 'Notice refused', sent && sent.reference ? 'success' : 'error');
+    return pageMandates();
+  },
+  'mandate-debit': async (d) => {
+    const policyId = window.prompt('Policy id to credit');
+    const on = window.prompt('Debit date (YYYY-MM-DD)');
+    const amount = window.prompt('Amount');
+    const period = window.prompt('Period, e.g. 2026-11');
+    if (!policyId || !on || !amount || !period) return undefined;
+    const sent = await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/debit', {
+      policyId, on, amount: Number(amount), period,
+    }).catch(() => null);
+    toast(sent && sent.payment ? 'Debited and payment recorded' : 'Debit refused', sent && sent.payment ? 'success' : 'error');
+    return pageMandates();
   },
   'bind-decision': async (d) => {
     const sent = await api('POST', '/bind-approvals/' + encodeURIComponent(d.id) + '/decision', { status: d.status }).catch(() => null);
@@ -3153,6 +3213,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="mandates"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="bind-approvals"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="claims-ops"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="contact"]').forEach((el) => { el.hidden = false; });
