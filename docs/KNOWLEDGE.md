@@ -474,3 +474,23 @@ posting lines. Guessing at the arithmetic three times has produced three reverts
 the event pipeline, not of the entry.
 
 The change itself is known-good in isolation and documented above; it is the integration that is unobserved.
+
+### GST migration: root cause found, 11 of 12 tests migrated, one real difference (23 October)
+
+The three earlier failures had a single cause and it was mine: the require never landed. `const { gstOnPremium } = require('./billingRules')`
+was inserted by matching `const round2 =`, which does not exist in `src/accounting.js` - so the call sites referenced a name
+that was never imported, every premium posting threw, the event bus recorded the failure, and the tests saw totals of zero
+rather than an error. The bus's failure record (`db.eventFailures[0].lastError = 'gstOnPremium is not defined'`) named it in
+one line; the wrong harness (no bus) had hidden it for two attempts.
+
+With the require in place: **11 of 12 accounting tests pass** after moving written premium and commission to the net basis -
+written premium credits the net of GST, GST is its own liability, commission is earned on the net, and the commission statement
+follows. All three are tested.
+
+The twelfth is a genuine difference, not a stale expectation: `the receivable always agrees with the customers' ledgers` now
+reports **531.82** after a cancellation. That is a reconciliation question - `accounting.reconciliation` comparing GL receivable
+to customer balances - and the net-basis change has exposed a posting that still computes from gross (most likely the
+cancellation pro-rata refund). It needs the reconciliation and cancellation postings read together, not a test adjusted.
+
+So the migration is no longer blocked by a mystery: it is blocked by one real accounting question, with eleven tests already
+migrated and passing.
