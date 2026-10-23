@@ -104,6 +104,19 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only claims staff may record litigation');
     return litigation.record(user, params.claim, body);
   }, {});
+  const bindGate = require('./bindGate').createBindGate(pc, store);
+  route('POST', '/jobs/:id/bind-approval', ({ user, params }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Only staff may request a bind approval');
+    return bindGate.requestApproval(user, params.id);
+  }, {});
+  route('POST', '/bind-approvals/:id/decision', ({ user, params, body }) => {
+    if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only staff may decide a bind approval');
+    return bindGate.decide(user, params.id, String((body && body.status) || ''));
+  }, {});
+  route('POST', '/jobs/:id/bind-approved', ({ user, params, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Agents cannot bind');
+    return bindGate.bind(user, params.id, body && body.approvalId);
+  }, {});
   const claimRecoveries = require('./claimRecoveries').createRecoveries(pc);
   route('GET', '/claims/:claim/recoveries', ({ user, params }) => {
     // Refuse the role before the lookup: otherwise 404-versus-403 tells an agent whether a claim exists.
