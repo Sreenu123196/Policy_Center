@@ -295,20 +295,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     res.writeHead(script ? 200 : 404, { 'Content-Type': script ? 'text/xml; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
     res.end(script ? script.twiml : 'Unknown call');
   }, { stream: true, isPublic: true });
-  // Razorpay posts here. The body is bytes until the signature matches, so the route is raw and public, and nothing is
-  // parsed before verification - a forged body must not reach JSON.parse, let alone the ledger.
-  route('POST', '/webhooks/razorpay', ({ headers, body }) => {
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    if (!secret) throw new AppError(503, 'RAZORPAY_WEBHOOK_SECRET is not configured');
-    const raw = Buffer.isBuffer(body) ? body.toString('utf8') : String(body || '');
-    const signature = String(headers['x-razorpay-signature'] || '');
-    const { verifyWebhookSignature } = require('./razorpay');
-    if (!verifyWebhookSignature({ rawBody: raw, signature, secret })) throw new AppError(400, 'Invalid signature');
-    const event = JSON.parse(raw);
-    store.data.webhookEvents = store.data.webhookEvents || [];
-    store.data.webhookEvents.push({ source: 'razorpay', event: event.event || null, at: new Date().toISOString() });
-    return { received: true, event: event.event || null };
-  }, { isPublic: true, raw: true, readOnly: true });
+  // Razorpay posts here: bytes, then signature, then parse. The logic is a module so it can be tested without a server.
+  route('POST', '/webhooks/razorpay', ({ headers, body }) => receiveRazorpayWebhook({
+    headers, body, secret: process.env.RAZORPAY_WEBHOOK_SECRET, store,
+  }), { isPublic: true, raw: true, readOnly: true });
   route('POST', '/webhooks/twilio/decision', ({ body, query, headers, url }) => {
     const params = Object.fromEntries(new URLSearchParams(body.toString('utf8')));
     return notifier.handleVoiceKeypress({
