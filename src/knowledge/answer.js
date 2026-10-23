@@ -126,7 +126,16 @@ async function answerQuestion({ client, question, passages, language = 'en' }) {
       });
     }
 
-    const response = await client.messages.create(request);
+    let response;
+    try {
+      response = await client.messages.create(request);
+    } catch (err) {
+      // Newer models reject temperature outright ("deprecated for this model"). Determinism is still wanted where the
+      // model allows it, so the parameter is dropped and the call retried once rather than failing the whole answer.
+      if (!/temperature/i.test(String(err && err.message))) throw err;
+      const { temperature, ...withoutTemperature } = request;
+      response = await client.messages.create(withoutTemperature);
+    }
     const text = textOf(response);
 
     if (!text) { lastIssues = ['empty answer']; continue; }
