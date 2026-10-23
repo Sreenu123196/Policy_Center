@@ -21,10 +21,15 @@ const round2 = (value) => Math.round((Number(value) + Number.EPSILON) * 100) / 1
  */
 function gstOnPremium({ amount, rate = GST_RATE }) {
   const gross = Number(amount);
-  if (!Number.isFinite(gross) || gross < 0) throw new Error('amount must be a non-negative number');
+  if (!Number.isFinite(gross)) throw new Error('amount must be a number');
   if (typeof rate !== 'number' || rate < 0 || rate >= 1) throw new Error('rate must be a fraction between 0 and 1');
-  const net = round2(gross / (1 + rate));
-  const gst = round2(gross - net);
+  // A cancellation posts a negative premium (the return premium). The split is symmetric: the net and the GST are both
+  // negative, and they still add back to the gross. Refusing negatives here made every cancellation fail to post, which
+  // showed up as a reconciliation gap rather than as an error - the ledger simply had no entry to offset the refund.
+  const sign = gross < 0 ? -1 : 1;
+  const absolute = Math.abs(gross);
+  const net = round2(absolute / (1 + rate)) * sign;
+  const gst = round2(absolute - Math.abs(net)) * sign;
   return { gross, net, gst, rate, ratePercent: round2(rate * 100) };
 }
 

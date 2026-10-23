@@ -22,8 +22,14 @@ test('zero premium is allowed and produces zero GST', () => {
   assert.deepEqual([result.net, result.gst], [0, 0]);
 });
 
-test('a negative premium or a nonsensical rate is refused', () => {
-  assert.throws(() => gstOnPremium({ amount: -1 }), /non-negative/);
+test('a negative premium splits symmetrically, because a cancellation is a return premium', () => {
+  const result = gstOnPremium({ amount: -11800 });
+  assert.equal(result.net, -10000);
+  assert.equal(result.gst, -1800);
+  assert.equal(round2(result.net + result.gst), -11800, 'the parts still add back to the gross');
+});
+
+test('a nonsensical rate is refused', () => {
   assert.throws(() => gstOnPremium({ amount: 100, rate: 1.5 }), /fraction between 0 and 1/);
 });
 
