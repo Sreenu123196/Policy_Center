@@ -82,7 +82,12 @@ function createBindGate(pc, store) {
     return { bound: true, policyNumber: bound.policyNumber || bound.policyNo, approvalId: record.id };
   }
 
-  return { requestApproval, decide, bind, AUTHORITY, WINDOW_MS };
+  /** What is waiting for a person, newest first, with the job's number for the screen. */
+  function list() {
+    return approvals().slice().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  }
+
+  return { requestApproval, decide, bind, list, AUTHORITY, WINDOW_MS };
 }
 
 module.exports = { createBindGate, AUTHORITY, WINDOW_MS };

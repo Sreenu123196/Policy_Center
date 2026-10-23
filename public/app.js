@@ -171,6 +171,7 @@ const ROUTES = [
   [/^#\/accounts$/, pageAccounts],
   [/^#\/contacts$/, pageContacts],
   [/^#\/claims-ops$/, pageClaimsOps],
+  [/^#\/bind-approvals$/, pageBindApprovals],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
@@ -1377,6 +1378,28 @@ async function pageClaimsOps() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ bind approvals
+
+// What the assistant has asked for and a person has to answer. First decision wins; the gate re-reads the record when the
+// bind is attempted, so approving here is a permission, not a promise that the bind will succeed.
+async function pageBindApprovals() {
+  const approvals = await api('GET', '/bind-approvals').then((r) => r.approvals || []).catch(() => []);
+  const pending = approvals.filter((a) => a.status === 'pending');
+  const rows = approvals.map((a) => [
+    esc(a.id), esc(a.jobId), esc('₹' + Number(a.premium || 0).toLocaleString('en-IN')), esc(a.status),
+    a.status === 'pending'
+      ? '<button class="btn" data-action="bind-decision" data-id="' + esc(a.id) + '" data-status="approved">Approve</button> '
+        + '<button class="btn" data-action="bind-decision" data-id="' + esc(a.id) + '" data-status="declined">Decline</button>'
+      : '',
+  ]);
+  view(`
+    <div class="eyebrow">Work</div><h1>Bind approvals</h1>
+    <div class="card"><h2>Requests</h2>
+      ${table(['Approval', 'Job', 'Premium', 'Status', ''], rows, 'Nothing waiting - the assistant has not asked for a bind approval')}
+      <p class="muted">${pending.length} waiting. Approving permits one bind, within thirty minutes, for that job only.</p>
+    </div>`);
+}
+
 // ------------------------------------------------------------------ knowledge assistant
 
 // Ask the wordings. The answer is rendered with numbered citations, and each citation expands to the passage it came
@@ -1892,6 +1915,11 @@ const ACTIONS = {
     toast(sent && sent.litigation ? 'Litigation recorded' : 'Litigation refused', sent && sent.litigation ? 'success' : 'error');
     S.claimsOps = { incidents: null, claim, detail: null };
     return pageClaimsOps();
+  },
+  'bind-decision': async (d) => {
+    const sent = await api('POST', '/bind-approvals/' + encodeURIComponent(d.id) + '/decision', { status: d.status }).catch(() => null);
+    toast(sent && sent.status ? 'Approval ' + sent.status : 'Could not record the decision', sent && sent.status ? 'success' : 'error');
+    return pageBindApprovals();
   },
   'incident-status': async (d) => {
     await api('POST', '/incidents/' + encodeURIComponent(d.id) + '/status', { status: d.status });
@@ -3125,6 +3153,7 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="bind-approvals"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="claims-ops"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="contact"]').forEach((el) => { el.hidden = false; });
   document.querySelectorAll('[data-nav="queues"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });

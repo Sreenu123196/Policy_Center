@@ -109,6 +109,10 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'Only staff may request a bind approval');
     return bindGate.requestApproval(user, params.id);
   }, {});
+  route('GET', '/bind-approvals', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Only staff may see bind approvals');
+    return { approvals: bindGate.list() };
+  }, { readOnly: true });
   route('POST', '/bind-approvals/:id/decision', ({ user, params, body }) => {
     if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only staff may decide a bind approval');
     return bindGate.decide(user, params.id, String((body && body.status) || ''));
