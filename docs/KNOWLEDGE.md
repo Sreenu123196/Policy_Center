@@ -669,3 +669,22 @@ not established** - and the rule stands: three runs, median and range, or no num
 What the run also showed is more useful than the totals: **q06 and q07 were still refused**. The fallback fires only when one sentence shares two question keywords,
 so a refusal whose clause is present but whose sentence wording differs from the question still escapes it. That is the next specific thing to widen - and it is a
 wording problem, not a retrieval one, which is consistent with every diagnosis since q09.
+
+## The quotation fallback, measured three times: not the lever (26 October)
+
+| | before (no fallback) | after (fallback on) |
+|---|---|---|
+| correctness | 80, 65, 75 -> **median 75%** | 65, 70, 55 -> **median 65%** |
+| citation | 70, 36, 55 -> **median 55%** | 73, 100, 73 -> **median 73%** |
+
+Correctness went **down**, not up. Citation went up, and part of that is an artefact worth naming: a quoted answer always carries the citation of the passage
+it was copied from, so the citation metric is flattered by construction. It measures "did it cite a clause", not "did it answer".
+
+The honest conclusion is that **the fallback is not the lever**. It answers by copying one sentence, and answers that need a fact assembled across clauses - or a
+"no" reasoned from an exclusion - cannot be produced that way. The refusal problem is about synthesis, not about the absence of a sentence.
+
+So the fallback stays **off by default**, is enabled only in the evaluation harness, and is not to be presented as an improvement. It remains useful as a
+diagnostic: when it fires, the clause was there and the model would not use it.
+
+What would actually move correctness, in order: a prompt that treats an exclusion as an answer, a higher passage budget for questions whose clause headings
+disagree with the wording, and a second model asked to verify the first's refusal before it is accepted.
