@@ -195,6 +195,22 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B2: the procedures an agent must work within, readable by anyone who has to follow them.
   // B21: two independent checks before an agent acts. The caller gets the checks back, so a refusal can be explained rather than
   // merely reported.
+  // B30: a plan a person can read before anything runs. Execution asks the plan again rather than trusting a flag.
+  route('POST', '/plans', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const sentinelForPlan = require('./sentinel').createSentinel({ aops, registry: agentRegistry });
+    return require('./plans').createPlans({ store, sentinel: sentinelForPlan }).plan(user, body || {});
+  }, {});
+  route('GET', '/plans', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Plans are staff material');
+    return { plans: store.data.plans || [] };
+  }, { readOnly: true });
+  route('POST', '/plans/execute', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const id = (body && body.id) || '';
+    const sentinelForPlan = require('./sentinel').createSentinel({ aops, registry: agentRegistry });
+    return require('./plans').createPlans({ store, sentinel: sentinelForPlan }).markExecuted(user, id);
+  }, {});
   route('POST', '/sentinel/verify', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     const input = body || {};
