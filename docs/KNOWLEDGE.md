@@ -570,9 +570,30 @@ So the earlier "hang" was never the import. It was the step after it: **opening 
 The importing process closes its store and exits cleanly, yet the next process waits - most likely a directory lock PGlite does not
 release on close, or a shutdown it needs that `close()` does not perform.
 
-That is why the default runtime was **not** switched: an app that cannot reopen its own database is worse than one on a JSON file.
+**RESOLVED on 26 October** - see the entry below; the reopen failure was two bugs, and it is fixed.
+
+At the time, that is why the default runtime was **not** switched: an app that cannot reopen its own database is worse than one on a JSON file.
 `.env` is untouched, `src/pg/open.js` is unchanged, and the suite is 604 passing.
 
 The imported directory (`data/pgdata`, 42 MB, verified rows) is left in place as evidence. Next step: prove a reopen in a fresh
 process against a *copy* of the directory, and if the lock is the cause, find the PGlite shutdown that releases it - or run the
 database in a separate process from the outset, which is what production does anyway.
+
+## The Postgres reopen failure, resolved (26 October)
+
+The earlier entry said reopening a PGlite directory in a fresh process blocks. It did not block: it failed, and the hang was the process failing to exit
+afterwards. Two bugs, the second hiding the first.
+
+1. `PostgresStore.close()` drained the write-ahead log and cleared its timer but **never closed the database**. PGlite keeps a worker alive, so the
+   process never exited by itself.
+2. `scripts/pg-import.js` called `process.exit` straight after closing, which **killed PGlite mid-close** and left a directory that answered
+   "PGlite failed to initialize properly" on the next open.
+
+Releasing the database is now opt-in - `close({ closeDatabase: true })` - because the restart tests close a store and deliberately reuse the same
+database. Making it unconditional broke seven of them with "PGlite is closed", which is how the distinction was found rather than assumed.
+
+Measured: import of the real book 2517 rows with no mismatches, process exits by itself with code 0, and a fresh process reopens with 153 policies, 186
+ledger rows and 4 claims.
+
+**To cut over**, set `DATABASE_URL=pglite://data/pgdata` in the deployment environment - never in `.env`, which seven tests read, and never through a
+directory-detection default, which reached the test workers and failed eight of them.
