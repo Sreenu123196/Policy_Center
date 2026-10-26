@@ -43,6 +43,13 @@ test('a database with data is left alone, whatever the flag says', async () => {
   assert.equal(store.data.accounts.length, 0);
 });
 
+test('force replaces demo data, and only when asked for by name', async () => {
+  const store = fakeStore({ empty: false });
+  const result = await seedIfEmpty({ store, json, enabled: true, force: true, log: quiet });
+  assert.equal(result.seeded, true);
+  assert.equal(store.data.policies.length, 1);
+});
+
 test('an empty bundled book seeds nothing, and a store without isEmpty is refused', async () => {
   const emptyBook = await seedIfEmpty({ store: fakeStore({ empty: true }), json: {}, enabled: true, log: quiet });
   assert.equal(emptyBook.seeded, false);

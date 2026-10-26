@@ -10,10 +10,12 @@ const { importJson } = require('./import');
  * @param {{store: object, json: object, enabled?: boolean, log?: object}} input
  * @returns {Promise<{seeded: boolean, reason: string, rows?: number}>}
  */
-async function seedIfEmpty({ store, json, enabled = false, log = console } = {}) {
+async function seedIfEmpty({ store, json, enabled = false, force = false, log = console } = {}) {
   if (!enabled) return { seeded: false, reason: 'SEED_FROM_JSON is not set' };
   if (typeof store.isEmpty !== 'function') return { seeded: false, reason: 'this store cannot report emptiness' };
-  if (!store.isEmpty()) return { seeded: false, reason: 'the database already holds data' };
+  // force is for the one case that needs it: a database already holding the demo seed, which the bundled book should replace. It is a separate word
+  // rather than a default so that nobody replaces live data by setting a boolean by accident.
+  if (!force && !store.isEmpty()) return { seeded: false, reason: 'the database already holds data' };
   const rows = Object.values(json || {}).filter(Array.isArray).reduce((sum, list) => sum + list.length, 0);
   if (rows === 0) return { seeded: false, reason: 'the bundled book is empty' };
   const result = await importJson({ store, json, log });

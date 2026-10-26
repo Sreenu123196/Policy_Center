@@ -40,6 +40,16 @@ async function main() {
     ? `Data: PostgreSQL${process.env.DATABASE_URL === 'memory://' ? ' (in-process PGlite)' : ''}, ${store.data.policies.length} policies loaded`
     : `Data: ${DATA_FILE}`);
 
+  // A host with no shell can still be given the bundled book: SEED_FROM_JSON=1 seeds an empty database, SEED_FROM_JSON=replace also replaces the demo
+  // seed. It runs before the demo seed below, so the two never fight over the same empty store (docs/DEPLOY.md).
+  if (database && process.env.SEED_FROM_JSON) {
+    const fsBook = require('node:fs');
+    if (fsBook.existsSync(DATA_FILE)) {
+      const { seedIfEmpty } = require('./src/pg/seed');
+      await seedIfEmpty({ store: database, json: JSON.parse(fsBook.readFileSync(DATA_FILE, 'utf8')), enabled: true, force: process.env.SEED_FROM_JSON === 'replace' });
+    }
+  }
+
   const pc = new PolicyCenter(store);
   const reseed = () => seed(pc);
   if (store.isEmpty()) {
