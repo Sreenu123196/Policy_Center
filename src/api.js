@@ -191,6 +191,15 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
   }, { readOnly: true });
   const gatewayUsage = () => (store.data.aiUsage || { tenants: {} });
+  const aops = require('./aops').createAops();
+  // B2: the procedures an agent must work within, readable by anyone who has to follow them.
+  route('GET', '/aops', () => ({ procedures: aops.list() }), { readOnly: true });
+  // Asking whether an action is permitted. Useful to the assistant before it acts, and to a person checking the answer.
+  route('POST', '/aops/check', ({ body }) => {
+    const input = body || {};
+    if (!input.action) throw new AppError(422, 'action is required');
+    return aops.check({ action: input.action, role: input.role, amount: input.amount, actor: input.actor, requestedBy: input.requestedBy });
+  }, {});
   route('GET', '/ai/usage', ({ user }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'AI spend is management material');
     const book = gatewayUsage();
