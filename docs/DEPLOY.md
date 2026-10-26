@@ -1,5 +1,20 @@
 # Deploying
 
+## Live now (26 October 2026)
+
+| Piece | Address |
+|---|---|
+| API | https://policycenter-api.onrender.com |
+| App | https://tangerine-daffodil-1ca625.netlify.app |
+| Database | Render PostgreSQL `policycenter-db` (oregon, free plan) |
+
+Verified by request, not by assumption: `/health` 200 on Render; `/api/health` 200 through the Netlify proxy; `/api/auth/status` reports
+`setupNeeded: false`, so the database carries the staff; and a wrong password through the proxy returns 401 "Wrong username or password", which proves the
+POST reached the API, passed the origin check, and queried the database.
+
+Not verified: signing in with real credentials (that is for the owner), and the knowledge index answering - `VOYAGE_API_KEY` was added to the service after
+the last check, and the assistant reports its state in the service log at start-up.
+
 Two pieces: the API (Render, or any Node host) and the browser app (Netlify). Both are separate settings; the app cannot guess the API's address.
 
 ## API
