@@ -194,6 +194,32 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const aops = require('./aops').createAops();
   // B2: the procedures an agent must work within, readable by anyone who has to follow them.
   route('GET', '/aops', () => ({ procedures: aops.list() }), { readOnly: true });
+  const agentRegistry = require('./agentRegistry').createAgentRegistry({ store, aops });
+  // B17: the registry of agents, separate from the existing /agents suggestion module - this is the system of record.
+  route('GET', '/agent-registry', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'The agent registry is staff material');
+    return { agents: agentRegistry.list(), state: agentRegistry.state() };
+  }, { readOnly: true });
+  route('POST', '/agent-registry', ({ user, body }) => {
+    if (!user || !['UW Manager', 'Insurance Executive'].includes(user.role)) throw new AppError(403, 'Only a manager may register an agent');
+    return agentRegistry.register(user, body || {});
+  }, {});
+  route('POST', '/agent-registry/stop-all', ({ user, body }) => {
+    if (!user || !['UW Manager', 'Insurance Executive'].includes(user.role)) throw new AppError(403, 'Only a manager may stop every agent');
+    return agentRegistry.stopAll(user, (body && body.reason) || 'manual');
+  }, {});
+  route('POST', '/agent-registry/resume-all', ({ user }) => {
+    if (!user || !['UW Manager', 'Insurance Executive'].includes(user.role)) throw new AppError(403, 'Only a manager may resume every agent');
+    return agentRegistry.resumeAll(user);
+  }, {});
+  route('POST', '/agent-registry/:id/stop', ({ user, params, body }) => {
+    if (!user || !['UW Manager', 'Insurance Executive'].includes(user.role)) throw new AppError(403, 'Only a manager may stop an agent');
+    return agentRegistry.stop(user, params.id, (body && body.reason) || null);
+  }, {});
+  route('POST', '/agent-registry/:id/resume', ({ user, params }) => {
+    if (!user || !['UW Manager', 'Insurance Executive'].includes(user.role)) throw new AppError(403, 'Only a manager may resume an agent');
+    return agentRegistry.resume(user, params.id);
+  }, {});
   // Asking whether an action is permitted. Useful to the assistant before it acts, and to a person checking the answer.
   route('POST', '/aops/check', ({ body }) => {
     const input = body || {};
