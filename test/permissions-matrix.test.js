@@ -102,6 +102,7 @@ const MATRIX = {
   'POST /agent-registry/resume-all': ['agent', 'uw'],
   'POST /agent-registry/:id/stop': ['agent', 'uw'],
   'POST /agent-registry/:id/resume': ['agent', 'uw'],
+  'POST /scribe/extract': [],
   'POST /endorsements/diff': [],
   'POST /mcp': [],
   'GET /graph/impact': [],

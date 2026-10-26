@@ -201,6 +201,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B12: the same tools over MCP, for another assistant to use. Permissions are checked inside each tool, so the protocol cannot
   // widen what the application allows.
   // B5: what an endorsement changes, and whether an exclusion contradicts it.
+  // B9: a call transcript into a structured reserve. The response carries the evidence and the gaps, so nothing is entered unseen.
+  route('POST', '/scribe/extract', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const scribe = require('./callScribe');
+    const transcript = String((body && body.transcript) || '');
+    const result = scribe.extract(transcript);
+    return { ...result, draft: scribe.toIncidentDraft(result), reserve: scribe.proposeReserve(result) };
+  }, { readOnly: true });
   route('POST', '/endorsements/diff', ({ body }) => {
     const input = body || {};
     const diff = require('./endorsementDiff');
