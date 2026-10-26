@@ -616,3 +616,24 @@ direction and it is now on the record with a case id rather than a percentage.
 The case was written as unanswerable and the assistant answered it. The tempting reading was a model failure; the true reading was a missing exclusion in the
 label. A single run, read by id, found it in ten minutes - a fine illustration of why the numbers in this document are worth less than the cases behind
 them, and why every failure is printed with its question rather than only with a percentage.
+
+## Two runs, same code, different answers (26 October)
+
+| Run | Correctness | Citation (answerable) | q15 |
+|---|---|---|---|
+| first, before relabelling | 16/20 (80%) | 7/10 (70%) | answered (label then said not_found) |
+| second, after relabelling | **13/20 (65%)** | **4/11 (36%)** | **refused, with HO-2.2 among the passages sent** |
+
+Nothing changed in the code between them except the label of one case. The model is called without a temperature because `claude-opus-5-5` rejects the
+parameter, so sampling is not pinned - and the spread is not a few points, it is fifteen on correctness and thirty-four on citation.
+
+That makes every single-run figure in this document unsafe, including the ones written earlier today. The honest statement about the assistant is not "78%"
+or "80%" or "65%": it is **"between 65 and 80% on twenty cases, with citation between 36 and 70%, and the run-to-run spread larger than the differences we
+have been arguing about."**
+
+Two consequences for anyone continuing:
+
+1. **Three runs, median and range, or no number.** A single run cannot distinguish an improvement from noise at this variance, which is exactly the trap
+   the earlier attempts fell into.
+2. **Refusal-with-evidence is still the dominant failure.** q15 had its clause in context and was refused; q09 did the same in the first run. That is a
+   prompt or threshold problem, not a retrieval one, and it is consistent across runs even when the numbers are not.
