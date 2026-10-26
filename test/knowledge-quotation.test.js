@@ -38,3 +38,15 @@ test('no passages means no fallback, because there is nothing to quote', async (
   assert.equal(result.status, 'not_found');
   assert.equal(quotationFallback({ question: 'What special limits apply?', passages: [] }), null);
 });
+
+test('one distinctive word is enough, because wording rarely matches the question exactly', () => {
+  const passages = [{ clause: 'HO-1.2', text: 'Jewellery is covered up to two thousand five hundred dollars.' }];
+  const quoted = quotationFallback({ question: 'How much is covered for rings and bracelets?', passages });
+  assert.ok(quoted, 'covered is shared and distinctive');
+  assert.match(quoted.answer, /Jewellery is covered/);
+});
+
+test('a question whose only overlap is a common word is still refused', () => {
+  const passages = [{ clause: 'PA-1.1', text: 'The policy period is twelve months from inception.' }];
+  assert.equal(quotationFallback({ question: 'What is the policy on refunds?', passages }), null);
+});

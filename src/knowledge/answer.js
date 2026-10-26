@@ -14,7 +14,7 @@
 const MODEL = 'claude-opus-5-5';
 const NOT_FOUND = 'I could not find that in the documents.';
 
-const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'is', 'are', 'be', 'does', 'do', 'what', 'which', 'under', 'for', 'in', 'on', 'and', 'or', 'it', 'that', 'this', 'with', 'by', 'from', 'at', 'as', 'if', 'can', 'may', 'must']);
+const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'is', 'are', 'be', 'does', 'do', 'what', 'which', 'under', 'for', 'in', 'on', 'and', 'or', 'it', 'that', 'this', 'with', 'by', 'from', 'at', 'as', 'if', 'can', 'may', 'must', 'policy', 'period', 'documents']);
 
 /**
  * When the model refuses but a passage plainly addresses the question, answer by quoting it and citing the passage. A quotation cannot be invented:
@@ -29,9 +29,13 @@ function quotationFallback({ question, passages }) {
   let best = null;
   passages.forEach((passage, index) => {
     for (const sentence of String(passage.text || '').split(/(?<=[.;])\s+/)) {
-      const words = new Set(String(sentence).toLowerCase().split(/[^a-z0-9]+/).filter((w) => wanted.has(w)));
-      if (words.size < 2) continue;
-      if (!best || words.size > best.score) best = { score: words.size, sentence: sentence.trim(), index: index + 1, clause: passage.clause || null };
+      const shared = [...new Set(String(sentence).toLowerCase().split(/[^a-z0-9]+/).filter((w) => wanted.has(w)))];
+      // Two weak words, or one distinctive one: "limits" and "covered" identify a clause as surely as two short words do, and a question whose only
+      // overlap is "policy" should still be refused. Distinctive means five letters or more.
+      const distinctive = shared.some((w) => w.length >= 5);
+      if (shared.length < 2 && !distinctive) continue;
+      const score = shared.length + (distinctive ? 0.5 : 0);
+      if (!best || score > best.score) best = { score, sentence: sentence.trim(), index: index + 1, clause: passage.clause || null };
     }
   });
   if (!best) return null;
