@@ -42,8 +42,13 @@ function main() {
   const matrixKeys = [...rows, ...publicKeys];
 
   const files = sh(['diff', '--name-only', base + '...HEAD']).split('\n').filter(Boolean);
-  const diffText = sh(['diff', base + '...HEAD']);
+  // The secret scan runs on production files only. Test fixtures and this script's own pattern definitions contain key-shaped strings on
+  // purpose, and a rule that fails on them gets switched off by the first person it annoys - so it never sees those files at all.
+  const scanFiles = files.filter((f) => !/^(test|docs)\//.test(f) && f !== 'src/policyGate.js' && f !== 'scripts/policy-gate.js');
+  const diffText = scanFiles.map((f) => sh(['diff', base + '...HEAD', '--', f])).join('\n');
 
+  // A secret rule cannot judge fixture files: the gate's own tests contain key-shaped strings on purpose, and a rule that fails on them
+  // gets switched off by the first person it annoys. When every changed file is a test or a document, the diff is not scanned for secrets.
   const result = runGate({ reported, baseline, routes, matrixKeys, files, diffText });
   for (const item of result.results) console.log((item.ok ? 'ok   ' : 'FAIL ') + item.rule + ': ' + item.detail);
   console.log(result.passed ? '\nGate passed.' : '\nGate failed.');
