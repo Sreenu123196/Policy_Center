@@ -1,4 +1,4 @@
 {
-  "minTests": 683,
+  "minTests": 689,
   "note": "Raise this when the suite grows; never lower it to make a gate pass."
 }
