@@ -25,6 +25,10 @@ Never commit `.env`; the app reads it locally and the platform supplies the same
 
 ## App
 
+Netlify needs **`API_ORIGIN`** as an environment variable (for example `https://policycenter-api.onrender.com`): the build script writes
+`public/_redirects` from it, proxying `/api/*` to that host. Without it the build stops with that instruction rather than deploying a site whose
+every request 404s. The file is generated and gitignored; do not commit it.
+
 Netlify serves `public/` and proxies `/api/*` to the API host. Set the API origin in `netlify.toml` (or the dashboard) before the first deploy.
 
 ## After deploying, check these, in this order
