@@ -197,6 +197,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // merely reported.
   // B30: a plan a person can read before anything runs. Execution asks the plan again rather than trusting a flag.
   // B25: cited regulatory search. The reply is excerpts, not a summary, and an empty result is a legitimate answer.
+  // B26: what breaks if this changes. Empty node answers the summary so the route is readable without a query.
+  route('GET', '/graph/impact', ({ query }) => {
+    const graphApi = require('./dependencyGraph');
+    const graph = graphApi.buildGraph({ policies: store.data.policies || [], versions: store.data.productVersions || [] });
+    const node = String(query.get('node') || '').trim();
+    if (!node) return { summary: graphApi.summarise(graph), note: 'Ask with ?node=version:<id> or ?node=cap:<id>' };
+    return graphApi.impactOf(graph, node);
+  }, { readOnly: true });
   route('GET', '/regulatory/search', ({ query }) => {
     const search = require('./regulatory').createRegulatorySearch();
     const q = String(query.get('q') || '').trim();
