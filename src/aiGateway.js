@@ -16,8 +16,11 @@ const DEFAULT_COSTS = {
   default: { in: 180, out: 900 },
 };
 
-function createGateway({ providers, fallback, costs = DEFAULT_COSTS, store = null, now = () => new Date().toISOString() } = {}) {
-  if (!Array.isArray(providers) || providers.length === 0) throw new Error('at least one provider is required');
+// B20: sovereign mode. When it is on, no provider is contacted at all - not failed over, not tried and abandoned. The switch is checked before
+// the loop rather than inside it, because a mode that still calls out and then disbelieves the answer is not sovereignty.
+function createGateway({ providers, fallback, costs = DEFAULT_COSTS, store = null, sovereign = process.env.SOVEREIGN_MODE === '1', now = () => new Date().toISOString() } = {}) {
+  // Sovereign mode needs no provider: a machine with nothing outbound configured is exactly the air-gapped case.
+  if (!Array.isArray(providers) || (providers.length === 0 && !sovereign)) throw new Error('at least one provider is required');
   const usage = () => {
     if (!store) return { tenants: {} };
     store.data.aiUsage = store.data.aiUsage || { tenants: {} };
@@ -45,6 +48,14 @@ function createGateway({ providers, fallback, costs = DEFAULT_COSTS, store = nul
   async function complete({ tenant = 'default', prompt, model } = {}) {
     if (!prompt) throw new Error('a prompt is required');
     const attempts = [];
+    if (sovereign) {
+      // Nothing leaves the machine: the offline path answers and says why.
+      const offlineText = typeof fallback === 'function'
+        ? fallback({ prompt, tenant, attempts: [{ provider: 'sovereign', error: 'Outbound providers are disabled in sovereign mode' }] })
+        : 'Sovereign mode: no outbound model is available, so this is the offline answer.';
+      record(tenant, 'local', Math.ceil(prompt.length / 4), Math.ceil(String(offlineText).length / 4));
+      return { text: String(offlineText), provider: 'local', offline: true, sovereign: true, attempts: [{ provider: 'sovereign', error: 'Outbound providers are disabled in sovereign mode' }] };
+    }
     for (const provider of providers) {
       try {
         const result = await provider.complete({ prompt, model });

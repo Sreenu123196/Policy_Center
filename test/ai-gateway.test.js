@@ -77,3 +77,35 @@ test('a prompt is required, and a gateway needs at least one provider', async ()
   const gateway = createGateway({ providers: [ok('p')], store: freshStore() });
   await assert.rejects(() => gateway.complete({}), /a prompt is required/);
 });
+
+// --- sovereign mode (B20) ---------------------------------------------------------------------------------------
+
+test('in sovereign mode no provider is contacted at all', async () => {
+  let called = 0;
+  const spy = { name: 'cloud', complete: async () => { called += 1; return { text: 'should not happen' }; } };
+  const gateway = createGateway({ providers: [spy], store: { data: {} }, sovereign: true });
+  const result = await gateway.complete({ tenant: 't1', prompt: 'hello' });
+  assert.equal(called, 0, 'the provider was never called');
+  assert.equal(result.sovereign, true);
+  assert.equal(result.offline, true);
+  assert.match(result.text, /Sovereign mode/);
+  assert.equal(result.attempts[0].provider, 'sovereign');
+});
+
+test('with sovereign mode off the same gateway uses its providers', async () => {
+  let called = 0;
+  const spy = { name: 'cloud', complete: async () => { called += 1; return { text: 'from the cloud' }; } };
+  const gateway = createGateway({ providers: [spy], store: { data: {} }, sovereign: false });
+  const result = await gateway.complete({ prompt: 'hello' });
+  assert.equal(called, 1);
+  assert.equal(result.sovereign, undefined);
+});
+
+test('the sovereign path is free and recorded as local', async () => {
+  const store = { data: {} };
+  const gateway = createGateway({ providers: [], fallback: () => 'local answer', store, sovereign: true });
+  await gateway.complete({ tenant: 'airgap', prompt: 'hi' });
+  const usage = gateway.usageFor('airgap');
+  assert.equal(usage.cost, 0);
+  assert.equal(usage.byProvider.local, 1);
+});
