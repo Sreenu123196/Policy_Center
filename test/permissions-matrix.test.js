@@ -96,6 +96,7 @@ const MATRIX = {
   'GET /esign/signatures': ['agent'],
   'POST /esign/signatures': [],
   'POST /esign/verify': [],
+  'GET /ai/usage': ['agent'],
   'GET /workflow/due': ['agent'],
   'POST /billing/allocate': ['agent'],
   'GET /billing/allocations': ['agent'],

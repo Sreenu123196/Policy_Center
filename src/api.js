@@ -190,6 +190,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       return { documentHash: hash, signed: result.signed, signatures: result.signatures, stale: result.stale };
     } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
   }, { readOnly: true });
+  const gatewayUsage = () => (store.data.aiUsage || { tenants: {} });
+  route('GET', '/ai/usage', ({ user }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'AI spend is management material');
+    const book = gatewayUsage();
+    const tenants = book.tenants || {};
+    const totalCost = Object.values(tenants).reduce((sum, t) => sum + (Number(t.cost) || 0), 0);
+    return { tenants, totalCost: Math.round(totalCost * 1e6) / 1e6 };
+  }, { readOnly: true });
   route('GET', '/workflow/due', ({ user, query }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Workflow timers are staff material');
     const items = (store.data.workflowItems || []);
