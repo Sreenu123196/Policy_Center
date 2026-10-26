@@ -597,3 +597,15 @@ ledger rows and 4 claims.
 
 **To cut over**, set `DATABASE_URL=pglite://data/pgdata` in the deployment environment - never in `.env`, which seven tests read, and never through a
 directory-detection default, which reached the test workers and failed eight of them.
+
+## A run that contradicts an earlier claim (26 October)
+
+Twenty cases, one run: correctness 16 of 20, citation 7 of 10. Two findings deserve recording rather than averaging away.
+
+- **q15 was answered and should not have been.** "Does the policy cover a home office used for business?" has no answer in the corpus, and the assistant
+  gave one. Earlier entries in this document said no run had ever produced a wrong or uncited fact; that statement is withdrawn.
+- **q09 was refused with its clause present.** "What is covered under special limits?" expected HO-1.2, which was among the passages sent, and the answer
+  was "not found".
+
+So the refusal problem runs both ways: the assistant declines questions it could answer, and answers one it should refuse. The second is the dangerous
+direction and it is now on the record with a case id rather than a percentage.
