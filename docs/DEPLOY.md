@@ -52,3 +52,20 @@ Netlify serves `public/` and proxies `/api/*` to the API host. Set the API origi
 2. Sign in works, which proves the session cookie crosses the proxy with `SameSite=Strict`.
 3. A policy list loads, which proves the database is reached rather than an empty file being created.
 4. `npm run gate:policy` passes locally at the current baseline before the deploy is announced.
+
+## The live database holds the demo seed, not the imported book (26 October)
+
+The service log says `Data: PostgreSQL, 6 policies loaded`. The database is real and reachable by the app, but it contains the seeded demo rather than the
+153-policy book in `data/policycenter.json`, because the import has not run on the host.
+
+It could not run from here: Render's API for this database returns no external connection string, so a laptop cannot reach it, and the free plan gives no
+shell to run `node scripts/pg-import.js` inside the service.
+
+Two ways to finish it, both honest:
+
+1. **Enable external connections** on the Render database (dashboard), copy the external URL, then run from a checkout:
+   `DATABASE_URL=<external-url> node scripts/pg-import.js data/policycenter.json`, and restart the service afterwards so it reloads the data into memory.
+2. **Seed on boot** with `src/pg/seed.js`, which is written and tested: `SEED_FROM_JSON=1` seeds only when the database is empty. It is not wired into
+   `server.js` yet, because the server builds its API synchronously and seeding has to happen before that - a small refactor, not a one-line change.
+
+Until one of them is done, the deployed app is a working demo with six policies rather than the real book.
