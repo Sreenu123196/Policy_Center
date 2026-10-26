@@ -204,6 +204,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B9: a call transcript into a structured reserve. The response carries the evidence and the gaps, so nothing is entered unseen.
   // B13: the packet a settlement committee reads - ordered chronology, paise-exact totals, and the reserve variance.
   // B18: a GSTIN proven by its check digit, and a hospital or garage proven current on the day that matters.
+  // B8: commercial enrichment with its provenance - every field names its source, conflicts are findings, gaps are named.
+  route('POST', '/kyb/enrich', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    return require('./kyb').enrich(body || {});
+  }, { readOnly: true });
   route('POST', '/registry/verify', ({ body }) => {
     const input = body || {};
     const verifier = require('./registryVerifier');
