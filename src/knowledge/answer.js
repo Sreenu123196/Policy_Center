@@ -13,6 +13,36 @@
 
 const MODEL = 'claude-opus-5-5';
 const NOT_FOUND = 'I could not find that in the documents.';
+
+const STOP = new Set(['the', 'a', 'an', 'of', 'to', 'is', 'are', 'be', 'does', 'do', 'what', 'which', 'under', 'for', 'in', 'on', 'and', 'or', 'it', 'that', 'this', 'with', 'by', 'from', 'at', 'as', 'if', 'can', 'may', 'must']);
+
+/**
+ * When the model refuses but a passage plainly addresses the question, answer by quoting it and citing the passage. A quotation cannot be invented:
+ * every word is copied from a passage that was already retrieved, so the failure mode stays "no answer" rather than "a confident wrong one".
+ *
+ * The threshold is two distinct question keywords in one sentence - low enough to catch "special limits", high enough that an incidental word does not
+ * turn into an answer.
+ */
+function quotationFallback({ question, passages }) {
+  const wanted = new Set(String(question || '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2 && !STOP.has(w)));
+  if (wanted.size < 2) return null;
+  let best = null;
+  passages.forEach((passage, index) => {
+    for (const sentence of String(passage.text || '').split(/(?<=[.;])\s+/)) {
+      const words = new Set(String(sentence).toLowerCase().split(/[^a-z0-9]+/).filter((w) => wanted.has(w)));
+      if (words.size < 2) continue;
+      if (!best || words.size > best.score) best = { score: words.size, sentence: sentence.trim(), index: index + 1, clause: passage.clause || null };
+    }
+  });
+  if (!best) return null;
+  const where = best.clause ? ' (' + best.clause + ')' : '';
+  return {
+    status: 'answered',
+    answer: 'The documents say: "' + best.sentence + '" [' + best.index + ']' + where + '.',
+    citations: [best.index],
+    issues: ['answered by quotation: the model refused, the passage answers'],
+  };
+}
 const CLAIMS_SENTENCE = 'The claims team makes the final decision on any claim.';
 const MAX_RETRIES = 1;
 
@@ -104,7 +134,7 @@ function validateAnswer(text, passageCount) {
  * @param {string} [options.language]
  * @returns {Promise<{status: 'answered'|'not_found'|'hand_to_person', answer: string, citations: number[], attempts: number, issues?: string[]}>}
  */
-async function answerQuestion({ client, question, passages, language = 'en' }) {
+async function answerQuestion({ client, question, passages, language = 'en', quoteOnRefusal = false }) {
   if (!Array.isArray(passages) || passages.length === 0) {
     return { status: 'not_found', answer: NOT_FOUND, citations: [], attempts: 0, issues: ['no passages provided'] };
   }
@@ -125,6 +155,9 @@ async function answerQuestion({ client, question, passages, language = 'en' }) {
 
     if (!text) { lastIssues = ['empty answer']; continue; }
     if (/^i could not find that in the documents\.?$/i.test(text)) {
+      // The model declined. Before accepting that, ask whether a passage already answers the question - and quote it if so.
+      const quoted = quoteOnRefusal ? quotationFallback({ question, passages }) : null;
+      if (quoted) return { ...quoted, attempts: attempt };
       return { status: 'not_found', answer: NOT_FOUND, citations: [], attempts: attempt, issues: ['the model found nothing'] };
     }
 
@@ -145,10 +178,13 @@ async function answerQuestion({ client, question, passages, language = 'en' }) {
     };
   }
 
+  // Every attempt failed validation. A quotation from a retrieved passage is still better than nothing, and it cannot be fabricated.
+  const quoted = quoteOnRefusal ? quotationFallback({ question, passages }) : null;
+  if (quoted) return { ...quoted, attempts: MAX_RETRIES + 1 };
   return { status: 'not_found', answer: NOT_FOUND, citations: [], attempts: MAX_RETRIES + 1, issues: lastIssues };
 }
 
 module.exports = {
   answerQuestion, buildRequest, validateAnswer, textOf, citationsOf,
-  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL,
+  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL, quotationFallback,
 };
