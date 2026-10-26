@@ -214,6 +214,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'FNOL scripts are staff material');
     return require('./fnol').buildScript(query.get('language') || 'en');
   }, { readOnly: true });
+  // B15: the audit record for a call - consent, masking, retention, and the 1600-series rule for outbound service calls.
+  route('POST', '/voice/audit', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Call audit is compliance material');
+    return require('./voiceAudit').auditCall(body || {});
+  }, {});
   route('POST', '/fnol/intake', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'FNOL intake is staff work');
     const input = body || {};
