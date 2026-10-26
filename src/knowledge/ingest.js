@@ -8,6 +8,9 @@
 // Why publish atomically: a half-indexed version would answer questions from a document that is not current. If any
 // embedding fails, the transaction rolls back and the previous version stays current.
 
+const { looksLikeInjection } = require('../sentinel');
+const { AppError } = require('../appError');
+
 const TOKENS_PER_WORD = 1.35;
 const MAX_TOKENS = 800;
 const MAX_CHUNK_CHARS = 3000; // used only to estimate page numbers for a plain-text source
@@ -108,6 +111,12 @@ function splitByStructure(text) {
  * @returns {Promise<object>} the KnowledgeIndexed result (event wiring comes later)
  */
 async function ingestVersion({ store, embedder, embedModel, document, version, text, metadata }) {
+  // B3: a document that tries to instruct the assistant is refused here, before a chunk exists. Refusing at answer time would be too
+  // late - the poisoned text would already be retrievable, and a later prompt change could start obeying it.
+  const injection = looksLikeInjection(text);
+  if (injection) {
+    throw new AppError(422, 'This document contains instruction-like text ("' + injection + '") and was refused at ingestion.');
+  }
   const meta = {
     audience: metadata.audience,
     product: metadata.product || null,
