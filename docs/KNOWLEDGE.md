@@ -699,3 +699,23 @@ What it does show is that the rule did not break anything: nineteen of twenty ca
 
 The next step is not another prompt idea. It is to **turn the fallback off in the harness** (`quoteOnRefusal: false`) so that citation measures the model's own
 citations, then run three times. Until then every knowledge figure in this document should be read with that caveat attached.
+
+## The exclusion rule measured three times: no improvement (26 October)
+
+Harness with quotation **off**, so citation measures the model's own work. Three runs: correctness 70, 70, 80; citation 45, 45, 64.
+
+| | before the rule | after the rule |
+|---|---|---|
+| correctness | 80, 65, 75 -> **median 75%** (65-80) | 70, 70, 80 -> **median 70%** (70-80) |
+| citation | 70, 36, 55 -> **median 55%** (36-70) | 45, 45, 64 -> **median 45%** (45-64) |
+
+No improvement, and citation is lower. The ranges overlap, so this is not proof that the rule made things worse either - but there is no evidence that it helped,
+and the honest report is that **three attempts at the refusal problem - a quotation fallback, a looser matcher, and an explicit exclusion rule - have produced no
+measurable gain.**
+
+The rule stays because it states a correct principle - an exclusion is an answer - and costs nothing. What should stop is the pattern of changing one prompt
+line and hoping: the variance between runs is larger than any of these effects, and two of today's three changes were made without a baseline that could detect
+them.
+
+If this work resumes, the first thing to do is not another prompt. It is to make the measurement cheap and repeatable - a script that runs three passes and prints
+median and range in one command - so that the next change can be judged in ten minutes instead of argued about for an hour.
