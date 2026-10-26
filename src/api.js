@@ -193,6 +193,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const gatewayUsage = () => (store.data.aiUsage || { tenants: {} });
   const aops = require('./aops').createAops();
   // B2: the procedures an agent must work within, readable by anyone who has to follow them.
+  // B21: two independent checks before an agent acts. The caller gets the checks back, so a refusal can be explained rather than
+  // merely reported.
+  route('POST', '/sentinel/verify', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    if (!input.action) throw new AppError(422, 'action is required');
+    // Built per call: the registry is declared further down, and a module-level reference here threw before any route could answer.
+    const sentinel = require('./sentinel').createSentinel({ aops, registry: agentRegistry });
+    return sentinel.verify(input);
+  }, {});
   route('GET', '/aops', () => ({ procedures: aops.list() }), { readOnly: true });
   const agentRegistry = require('./agentRegistry').createAgentRegistry({ store, aops });
   // B17: the registry of agents, separate from the existing /agents suggestion module - this is the system of record.
