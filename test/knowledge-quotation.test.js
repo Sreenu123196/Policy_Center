@@ -50,3 +50,9 @@ test('a question whose only overlap is a common word is still refused', () => {
   const passages = [{ clause: 'PA-1.1', text: 'The policy period is twelve months from inception.' }];
   assert.equal(quotationFallback({ question: 'What is the policy on refunds?', passages }), null);
 });
+
+test('the prompt tells the model that an exclusion is an answer', () => {
+  const { SYSTEM_PROMPT } = require('../src/knowledge/answer');
+  assert.match(SYSTEM_PROMPT, /An exclusion counts as an answer/);
+  assert.match(SYSTEM_PROMPT, /Do not reply that you could not find it when the wording excludes it/);
+});
