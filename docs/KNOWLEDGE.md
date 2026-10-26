@@ -688,3 +688,14 @@ diagnostic: when it fires, the clause was there and the model would not use it.
 
 What would actually move correctness, in order: a prompt that treats an exclusion as an answer, a higher passage budget for questions whose clause headings
 disagree with the wording, and a second model asked to verify the first's refusal before it is accepted.
+
+## The exclusion rule: one run, correctness unchanged (26 October)
+
+With the prompt now saying that an exclusion counts as an answer: **13/20 (65%) correctness, citation 10/11 (91%)**. That is the same correctness as the
+fallback's median and a higher citation, but the harness still has the quotation fallback on and quoting inflates citation by construction - so neither number
+is evidence that the rule helped.
+
+What it does show is that the rule did not break anything: nineteen of twenty cases still behave, and one more answerable question was cited correctly.
+
+The next step is not another prompt idea. It is to **turn the fallback off in the harness** (`quoteOnRefusal: false`) so that citation measures the model's own
+citations, then run three times. Until then every knowledge figure in this document should be read with that caveat attached.
