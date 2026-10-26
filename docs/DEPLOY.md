@@ -17,6 +17,7 @@ Environment:
   **Import the existing book first**: `node scripts/pg-import.js data/policycenter.json`. The importer exits by itself when it is done.
 - `ANTHROPIC_API_KEY`, `VOYAGE_API_KEY` - the assistant and the knowledge index.
 - `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET` - billing and the verified webhook.
+- `BOLNA_API_KEY`, `BOLNA_AGENT_ID` - outbound voice calls for claims. Without them the voice routes answer 503 and name the missing variable.
 - Optional flags: `SSO_ENFORCE_MFA=1`, `ESIGN_REQUIRED=1`, `SOVEREIGN_MODE=1`.
 
 Never commit `.env`; the app reads it locally and the platform supplies the same names.
