@@ -196,6 +196,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B21: two independent checks before an agent acts. The caller gets the checks back, so a refusal can be explained rather than
   // merely reported.
   // B30: a plan a person can read before anything runs. Execution asks the plan again rather than trusting a flag.
+  // B25: cited regulatory search. The reply is excerpts, not a summary, and an empty result is a legitimate answer.
+  route('GET', '/regulatory/search', ({ query }) => {
+    const search = require('./regulatory').createRegulatorySearch();
+    const q = String(query.get('q') || '').trim();
+    if (!q) return { found: false, query: '', results: [], note: 'Ask a question with ?q=' };
+    const limit = Number(query.get('limit') || 3);
+    return search.search({ query: q, limit: Number.isFinite(limit) ? limit : 3 });
+  }, { readOnly: true });
   route('POST', '/plans', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     const sentinelForPlan = require('./sentinel').createSentinel({ aops, registry: agentRegistry });
