@@ -205,6 +205,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B13: the packet a settlement committee reads - ordered chronology, paise-exact totals, and the reserve variance.
   // B18: a GSTIN proven by its check digit, and a hospital or garage proven current on the day that matters.
   // B8: commercial enrichment with its provenance - every field names its source, conflicts are findings, gaps are named.
+  // B19: adversarial scenarios against the controls, with a score that can fall as well as rise.
+  route('POST', '/fraud/simulate', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Fraud simulation is staff material');
+    return require('./fraudSimulator').runSimulation(body || {});
+  }, { readOnly: true });
   route('POST', '/kyb/enrich', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     return require('./kyb').enrich(body || {});
