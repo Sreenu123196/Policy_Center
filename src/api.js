@@ -198,6 +198,18 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B30: a plan a person can read before anything runs. Execution asks the plan again rather than trusting a flag.
   // B25: cited regulatory search. The reply is excerpts, not a summary, and an empty result is a legitimate answer.
   // B26: what breaks if this changes. Empty node answers the summary so the route is readable without a query.
+  // B12: the same tools over MCP, for another assistant to use. Permissions are checked inside each tool, so the protocol cannot
+  // widen what the application allows.
+  route('POST', '/mcp', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const { createMcp } = require('./mcp');
+    const tools = {
+      aop_check: { description: 'Ask whether an action is permitted by the operating procedures', inputSchema: { type: 'object', properties: { action: { type: 'string' }, role: { type: 'string' }, amount: { type: 'number' } }, required: ['action'] }, run: (u, args) => aops.check(args) },
+      regulatory_search: { description: 'Search the regulatory corpus and get cited excerpts', inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] }, run: (u, args) => require('./regulatory').createRegulatorySearch().search({ query: args.query, limit: args.limit }) },
+      plan_action: { description: 'Prepare a reviewed plan and its checks for an action', inputSchema: { type: 'object', properties: { action: { type: 'string' }, role: { type: 'string' }, amount: { type: 'number' } }, required: ['action'] }, run: (u, args) => { const sentinel = require('./sentinel').createSentinel({ aops, registry: agentRegistry }); return require('./plans').createPlans({ store, sentinel }).plan(u, args); } },
+    };
+    return createMcp({ tools }).handle(user, body || {});
+  }, {});
   route('GET', '/graph/impact', ({ query }) => {
     const graphApi = require('./dependencyGraph');
     const graph = graphApi.buildGraph({ policies: store.data.policies || [], versions: store.data.productVersions || [] });
