@@ -215,6 +215,11 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     return require('./fnol').buildScript(query.get('language') || 'en');
   }, { readOnly: true });
   // B15: the audit record for a call - consent, masking, retention, and the 1600-series rule for outbound service calls.
+  // B23: a field recording is refused unless both parties consented before it was uploaded.
+  route('POST', '/surveys/consent', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Survey consent is claims material');
+    return require('./surveyorConsent').requireDualConsent(body || {});
+  }, {});
   route('POST', '/voice/audit', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Call audit is compliance material');
     return require('./voiceAudit').auditCall(body || {});
