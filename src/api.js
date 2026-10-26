@@ -200,6 +200,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B26: what breaks if this changes. Empty node answers the summary so the route is readable without a query.
   // B12: the same tools over MCP, for another assistant to use. Permissions are checked inside each tool, so the protocol cannot
   // widen what the application allows.
+  // B5: what an endorsement changes, and whether an exclusion contradicts it.
+  route('POST', '/endorsements/diff', ({ body }) => {
+    const input = body || {};
+    const diff = require('./endorsementDiff');
+    const before = input.before || {};
+    const after = input.after || {};
+    return { diff: diff.diffCoverages(before, after), exclusions: diff.checkExclusions({ coverages: after, exclusions: input.exclusions || [] }) };
+  }, { readOnly: true });
   route('POST', '/mcp', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     const { createMcp } = require('./mcp');
