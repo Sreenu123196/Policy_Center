@@ -655,3 +655,17 @@ refused with their clauses sent in the third run. The assistant declines questio
 That is the thing to fix, and it is a prompt or threshold question rather than a retrieval one.
 
 The measurement lesson is now written twice in this document because it was learned twice: **three runs, median and range, or no number.**
+
+## The quotation fallback: one run, directional only (26 October)
+
+| | before (median of three) | after (one run) |
+|---|---|---|
+| correctness | 75% (65-80) | **65%** |
+| citation on answerable | 55% (36-70) | **73%** |
+
+Read honestly: correctness fell inside the existing range, citation rose above it. One run cannot separate that from noise, so this is recorded as **directional,
+not established** - and the rule stands: three runs, median and range, or no number.
+
+What the run also showed is more useful than the totals: **q06 and q07 were still refused**. The fallback fires only when one sentence shares two question keywords,
+so a refusal whose clause is present but whose sentence wording differs from the question still escapes it. That is the next specific thing to widen - and it is a
+wording problem, not a retrieval one, which is consistent with every diagnosis since q09.
