@@ -189,10 +189,15 @@
       "question": "Does the policy cover a home office used for business?",
       "audience": "underwriting",
       "language": "en",
-      "expected_sources": [],
-      "must_include": [],
+      "expected_sources": [
+        "HO-2.2"
+      ],
+      "must_include": [
+        "business"
+      ],
       "must_not_include": [],
-      "expected_status": "not_found"
+      "expected_status": "answered",
+      "expected_answer_note": "The home wording excludes business liability at HO-2.2, so \"not covered for business use\" is an answer, not a refusal."
     },
     {
       "id": "q16",

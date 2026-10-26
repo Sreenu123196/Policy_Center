@@ -32,8 +32,10 @@ The platform (policies, billing, claims, contacts, permissions, audit) plus the 
 - Not deployed. docs/DEPLOY.md is a checklist, and none of it has been run against Render or Netlify.
 - Not certified. Sovereign mode, SSO and e-sign are mechanisms behind flags; certification is an audit and a contract.
 - Measured on 26 October, on twenty of the evaluation cases: correctness 80 percent (16 of 20), citation 7 of 10. Two failures matter more than the
-  score: q15, "does the policy cover a home office used for business", is unanswerable and **was answered**, and q09 was refused although its clause
-  (HO-1.2) was in the passages sent. Previous runs reported no wrong answers at all; this one did, so that claim is withdrawn.
+  score: q09 was refused although its clause (HO-1.2) was in the passages sent. The other failure, q15 ("does the policy cover a home office used for
+  business"), turned out to be **a wrong label rather than a wrong answer**: the home wording excludes business liability at HO-2.2, so "not covered" is
+  the correct answer and the case now expects it. The case set was wrong, which is the better finding than a model error - and it is why a single run is
+  not a measurement.
 - Not verified against live vendors. Bolna's request paths are marked for confirmation; the regulatory corpus is illustrative and must be replaced with licensed text.
 - Vision is absent. B14 inspects whether a photograph can be trusted; it does not describe the damage.
 
