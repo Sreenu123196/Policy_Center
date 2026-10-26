@@ -207,6 +207,22 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B8: commercial enrichment with its provenance - every field names its source, conflicts are findings, gaps are named.
   // B19: adversarial scenarios against the controls, with a score that can fall as well as rise.
   // B14 (deterministic core): can the photographs be trusted? Duplicates, impossible timestamps, edit traces, missing angles.
+  // Speech through Bolna. The guard is synchronous and an unconfigured server answers plainly, because an async throw becomes a rejected
+  // promise rather than a refusal - the permission matrix caught that the first time.
+  route('POST', '/voice/calls', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Placing claim calls is staff work');
+    const bolna = require('./bolna').createBolna();
+    if (!bolna.configured) return { configured: false, reason: 'BOLNA_API_KEY or BOLNA_AGENT_ID is missing on this server.' };
+    const input = body || {};
+    return bolna.startCall({ to: input.to, variables: input.variables || {} });
+  }, {});
+  // Bolna's completion webhook: recorded verbatim, and an unrecognised status is kept as it arrived.
+  route('POST', '/webhooks/bolna', ({ body }) => {
+    const parsed = require('./bolna').createBolna().parseWebhook(body || {});
+    store.data.voiceCalls = store.data.voiceCalls || [];
+    store.data.voiceCalls.push({ ...parsed, receivedAt: new Date().toISOString() });
+    return { ok: true, callId: parsed.callId, status: parsed.status };
+  }, { isPublic: true });
   route('POST', '/photos/inspect', ({ user, body }) => {
     if (!user) throw new AppError(401, 'Sign in first');
     return require('./photoInspection').inspectPhotos(body || {});
