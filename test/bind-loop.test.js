@@ -32,7 +32,7 @@ function world() {
   const store = {
     data: {
       jobs: [{ id: 'job1', status: 'Quoted', premium: 12000, uwIssues: [] }],
-      staff: [{ id: 'uwm', username: 'uwm', role: 'UW Manager' }],
+      staff: [{ id: 'uwm', username: 'uwm', role: 'UW Manager' }, { id: 'uwm2', username: 'uwm2', role: 'UW Manager' }],
       seq: {},
     },
     next(n) { store.data.seq[n] = (store.data.seq[n] || 0) + 1; return store.data.seq[n]; },
@@ -60,7 +60,8 @@ test('the assistant asks, a person approves, the assistant binds and reports the
   assert.equal(bound(), 0, 'asking never binds');
   const approval = gate.list().find((a) => a.status === 'pending');
   assert.ok(approval, 'a request exists for the person to answer');
-  gate.decide(USER, approval.id, 'approved');
+  // A second manager decides - the same rule the gate now enforces for everyone.
+  gate.decide({ id: 'uwm2', role: 'UW Manager' }, approval.id, 'approved');
 
   const second = await chatbot.chat({ message: 'approved, go ahead' }, USER);
   // Each chat call is its own turn, so toolsUsed lists what this turn used.

@@ -172,6 +172,9 @@ const ROUTES = [
   [/^#\/contacts$/, pageContacts],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/bind-approvals$/, pageBindApprovals],
+  [/^#\/mandates$/, pageMandates],
+  [/^#\/platform-admin$/, pagePlatformAdmin],
+  [/^#\/allocations$/, pageAllocations],
   [/^#\/claims-ops$/, pageClaimsOps],
   [/^#\/contacts$/, pageContacts],
   [/^#\/accounts\/new$/, () => pageAccountForm(null)],
@@ -1378,6 +1381,97 @@ async function pageClaimsOps() {
     </div>`);
 }
 
+// ------------------------------------------------------------------ allocations
+
+// What was done with each receipt: which invoices it settled and what is still unallocated. Read-only, because recording an
+// allocation is a decision made on the mandate and billing screens; this is where it is checked.
+async function pageAllocations() {
+  const data = await api('GET', '/billing/allocations').then((r) => r).catch(() => ({ allocations: [], suspenseTotal: 0 }));
+  const rows = (data.allocations || []).map((a) => [
+    esc(a.id),
+    esc('₹' + Number(a.amount || 0).toLocaleString('en-IN')),
+    esc((a.allocations || []).map((x) => x.invoiceNumber + ' ₹' + Number(x.amount).toLocaleString('en-IN')).join(', ') || '—'),
+    esc('₹' + Number(a.suspense || 0).toLocaleString('en-IN')),
+    esc(a.allocatedBy || '—'),
+    esc(String(a.allocatedAt).slice(0, 19).replace('T', ' ')),
+  ]);
+  view(`
+    <div class="eyebrow">Billing</div><h1>Allocations</h1>
+    <div class="card"><h2>Recorded allocations</h2>
+      ${table(['Allocation', 'Received', 'Settled', 'Suspense', 'By', 'When'], rows, 'No allocations recorded')}
+      <p class="muted">Suspense total: ₹${Number(data.suspenseTotal || 0).toLocaleString('en-IN')} - every rupee is either on an invoice or here, visibly.</p>
+    </div>`);
+}
+
+// ------------------------------------------------------------------ platform admin
+
+// The operational view of the platform pieces: who is signed in and at what state, what has been signed, and what work is overdue.
+// Read-only, staff only, and deliberately plain - these are checks an administrator runs, not a dashboard to admire.
+async function pagePlatformAdmin() {
+  const [sessions, signatures, due] = await Promise.all([
+    api('GET', '/sso/sessions').then((r) => r.sessions || []).catch(() => []),
+    api('GET', '/esign/signatures').then((r) => r.signatures || []).catch(() => []),
+    api('GET', '/workflow/due').then((r) => r.due || []).catch(() => []),
+  ]);
+  view(`
+    <div class="eyebrow">Platform</div><h1>Platform admin</h1>
+    <div class="card"><h2>Sign-in sessions</h2>
+      ${table(['Session', 'Person', 'Role', 'State', 'Created'], sessions.map((s) => [
+        esc(s.id), esc(s.subject), esc(s.role || '—'), esc(s.state), esc(String(s.createdAt).slice(0, 19).replace('T', ' ')),
+      ]), 'No sessions')}
+      <p class="muted">A session is refused by every protected call until its challenge is satisfied.</p>
+    </div>
+    <div class="card"><h2>Signatures</h2>
+      ${table(['Signature', 'Document', 'Signer', 'Signed'], signatures.map((s) => [
+        esc(s.id), esc(s.documentRef), esc(s.signerId), esc(String(s.signedAt).slice(0, 19).replace('T', ' ')),
+      ]), 'Nothing signed yet')}
+      <p class="muted">A signature covers the document's bytes: an altered document reports as unsigned.</p>
+    </div>
+    <div class="card"><h2>Overdue work</h2>
+      ${table(['Item', 'Action', 'Age (hours)', 'Reason'], due.map((d) => [
+        esc(d.id), esc(d.action), esc(String(d.ageHours)), esc(d.reason),
+      ]), 'Nothing overdue')}
+    </div>`);
+}
+
+// ------------------------------------------------------------------ mandates
+
+// e-NACH mandates: the standing permission a debit depends on. A debit that is not allowed says why, and nothing moves.
+async function pageMandates() {
+  const mandates = await api('GET', '/billing/mandates').then((r) => r.mandates || []).catch(() => []);
+  // The debit needs a policy id; the screen offers the policies a person can actually see, by number.
+  const policies = await api('GET', '/policies').then((r) => (Array.isArray(r) ? r : (r.policies || []))).catch(() => []);
+  const rows = mandates.map((m) => [
+    esc(m.reference), esc('₹' + Number(m.cap || 0).toLocaleString('en-IN')), esc(m.frequency), esc(m.status),
+    esc(String((m.notices || []).length)),
+    esc((m.debits || []).length
+      ? (m.debits || []).map((d) => '₹' + Number(d.amount).toLocaleString('en-IN') + ' (' + d.period + ')').join(', ')
+      : '—'),
+    m.status === 'created' ? '<button class="btn" data-action="mandate-authorise" data-ref="' + esc(m.reference) + '">Authorise</button>'
+      : (m.status === 'active' ? '<button class="btn" data-action="mandate-notice" data-ref="' + esc(m.reference) + '">Give notice</button> '
+        + '<button class="btn" data-action="mandate-debit" data-ref="' + esc(m.reference) + '">Debit</button>' : ''),
+  ]);
+  view(`
+    <div class="eyebrow">Billing</div><h1>Mandates</h1>
+    <div class="card"><h2>New mandate</h2>
+      <div class="toolbar">
+        <input id="md-ref" placeholder="Reference">
+        <input id="md-cap" placeholder="Cap" type="number">
+        <select id="md-freq"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+        <input id="md-start" placeholder="Start date" type="date">
+        <button class="btn primary" data-action="mandate-create">Create mandate</button>
+      </div>
+    </div>
+    <div class="card"><h2>All mandates</h2>
+      <div class="toolbar" style="margin-bottom:8px">
+        <label for="md-policy">Policy</label>
+        <select id="md-policy">${policies.map((p) => '<option value="' + esc(p.id) + '">' + esc(p.policyNumber) + '</option>').join('')}</select>
+        <span class="muted">A debit is recorded against the selected policy.</span>
+      </div>
+      ${table(['Reference', 'Cap', 'Frequency', 'Status', 'Notices', 'Debits', ''], rows, 'No mandates yet')}
+    </div>`);
+}
+
 // ------------------------------------------------------------------ bind approvals
 
 // What the assistant has asked for and a person has to answer. First decision wins; the gate re-reads the record when the
@@ -1915,6 +2009,39 @@ const ACTIONS = {
     toast(sent && sent.litigation ? 'Litigation recorded' : 'Litigation refused', sent && sent.litigation ? 'success' : 'error');
     S.claimsOps = { incidents: null, claim, detail: null };
     return pageClaimsOps();
+  },
+  'mandate-create': async () => {
+    const value = (id) => { const el = document.querySelector(id); return el ? el.value : ''; };
+    const sent = await api('POST', '/billing/mandates', {
+      reference: value('#md-ref'), cap: Number(value('#md-cap')), frequency: value('#md-freq'), startsOn: value('#md-start'),
+    }).catch(() => null);
+    toast(sent && sent.reference ? 'Mandate ' + sent.reference + ' created' : 'Mandate refused', sent && sent.reference ? 'success' : 'error');
+    return pageMandates();
+  },
+  'mandate-authorise': async (d) => {
+    await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/authorise', {}).catch(() => null);
+    return pageMandates();
+  },
+  'mandate-notice': async (d) => {
+    const on = window.prompt('Debit date (YYYY-MM-DD)');
+    const amount = window.prompt('Amount');
+    if (!on || !amount) return undefined;
+    const sent = await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/notice', { debitOn: on, amount: Number(amount) }).catch(() => null);
+    toast(sent && sent.reference ? 'Notice recorded' : 'Notice refused', sent && sent.reference ? 'success' : 'error');
+    return pageMandates();
+  },
+  'mandate-debit': async (d) => {
+    const picker = document.querySelector('#md-policy');
+    const policyId = picker ? picker.value : '';
+    const on = window.prompt('Debit date (YYYY-MM-DD)');
+    const amount = window.prompt('Amount');
+    const period = window.prompt('Period, e.g. 2026-11');
+    if (!policyId || !on || !amount || !period) return undefined;
+    const sent = await api('POST', '/billing/mandates/' + encodeURIComponent(d.ref) + '/debit', {
+      policyId, on, amount: Number(amount), period,
+    }).catch(() => null);
+    toast(sent && sent.payment ? 'Debited and payment recorded' : 'Debit refused', sent && sent.payment ? 'success' : 'error');
+    return pageMandates();
   },
   'bind-decision': async (d) => {
     const sent = await api('POST', '/bind-approvals/' + encodeURIComponent(d.id) + '/decision', { status: d.status }).catch(() => null);
@@ -3153,6 +3280,9 @@ async function boot() {
   document.querySelectorAll('[data-nav="staff"], [data-nav="finance"], [data-nav="insights"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="accounting"]').forEach((el) => { el.hidden = S.me.role !== 'UW Manager'; });
   document.querySelectorAll('[data-nav="commission"]').forEach((el) => { el.hidden = S.me.role !== 'Agent'; });
+  document.querySelectorAll('[data-nav="allocations"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter', 'Insurance Executive'].includes(S.me.role); });
+  document.querySelectorAll('[data-nav="platform-admin"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
+  document.querySelectorAll('[data-nav="mandates"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="bind-approvals"]').forEach((el) => { el.hidden = !['UW Manager', 'Underwriter'].includes(S.me.role); });
   document.querySelectorAll('[data-nav="claims-ops"]').forEach((el) => { el.hidden = S.me.role === 'Agent'; });
   document.querySelectorAll('[data-nav="contact"]').forEach((el) => { el.hidden = false; });

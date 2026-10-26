@@ -240,3 +240,51 @@ test('the change watcher is only in place during a unit of work, so reads pay no
   assert.equal(rows[0].doc.lastName, 'Riviera', 'a change made inside is still saved');
   await store.close();
 });
+
+// --- the runtime choice, against a real PostgreSQL in process (PGlite) ---------------------------------------------
+
+const { openStoreFromEnv } = require('../src/pg/open');
+
+const quietLog = { error: () => {} };
+
+async function withDatabaseUrl(url, fn) {
+  const previous = process.env.DATABASE_URL;
+  if (url === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = url;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pc-pg-runtime-'));
+  try { return await fn(path.join(dir, 'policycenter.json')); }
+  finally {
+    if (previous === undefined) delete process.env.DATABASE_URL; else process.env.DATABASE_URL = previous;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+test('with no DATABASE_URL the runtime keeps the JSON store', async () => {
+  await withDatabaseUrl(undefined, async (dataFile) => {
+    assert.equal(await openStoreFromEnv({ dataFile, log: quietLog }), null);
+  });
+});
+
+test('with DATABASE_URL=memory:// a store opens with the collections a fresh JSON store has', async () => {
+  await withDatabaseUrl('memory://', async (dataFile) => {
+    const store = await openStoreFromEnv({ dataFile, log: quietLog });
+    assert.ok(store, 'a store was opened');
+    assert.ok(Array.isArray(store.data.accounts));
+    assert.ok(Array.isArray(store.data.policies));
+    await store.close();
+  });
+});
+
+test('the Postgres store exposes the write-ahead surface the runtime uses, and reopens', async () => {
+  await withDatabaseUrl('memory://', async (dataFile) => {
+    const first = await openStoreFromEnv({ dataFile, log: quietLog });
+    // No save(): the Postgres store persists through a write-ahead log drained by the runtime, so the test asserts the
+    // surface the runtime calls rather than an API borrowed from the JSON store.
+    assert.equal(typeof first.drain, 'function');
+    assert.equal(typeof first.close, 'function');
+    await first.drain();
+    await first.close();
+    const second = await openStoreFromEnv({ dataFile, log: quietLog });
+    assert.ok(Array.isArray(second.data.accounts), 'the reopened store has its collections');
+    await second.close();
+  });
+});

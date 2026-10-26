@@ -1,4 +1,5 @@
 'use strict';
+const { gstOnPremium } = require('./billingRules');
 // The accounting sub-ledger: business events become balanced journal entries, once each, and producers get commission
 // statements. Money is in dollars like the rest of the app.
 //
@@ -27,6 +28,7 @@ const D = require('./dates');
 const ACCOUNTS = {
   cash: { code: '1000', name: 'Cash', type: 'asset' },
   receivable: { code: '1200', name: 'Premium receivable', type: 'asset' },
+  gstPayable: { code: '2200', name: 'GST payable', type: 'liability' },
   commissionPayable: { code: '2300', name: 'Producer commission payable', type: 'liability' },
   writtenPremium: { code: '4000', name: 'Written premium', type: 'income' },
   feeIncome: { code: '4100', name: 'Instalment fee income', type: 'income' },
@@ -118,11 +120,14 @@ class Accounting {
       const fees = round2(p.installmentFees !== undefined ? p.installmentFees : this.db.invoices.filter((i) => i.jobNumber === p.jobNumber && this.db.policies.some((x) => x.id === i.policyId && x.policyNumber === p.policyNumber)).reduce((sum, i) => sum + (i.fee || 0), 0));
       const producerCode = this.producerOf(p.policyNumber);
       const rate = this.rateFor(producerCode);
-      const commission = round2(amount * rate);
+      const commission = round2(gstOnPremium({ amount }).net * rate);
       return this.post({
         ...base, type: 'premium', reference: p.policyNumber, description: `${event.type}: ${p.jobNumber || ''} ${p.jobType || ''}`.trim(), producerCode,
         commissionRate: rate, premium: amount, commission,
-        lines: [dr(ACCOUNTS.receivable, amount + fees), cr(ACCOUNTS.writtenPremium, amount), ...(fees ? [cr(ACCOUNTS.feeIncome, fees)] : []), dr(ACCOUNTS.commissionExpense, commission), cr(ACCOUNTS.commissionPayable, commission)].filter((l) => (l.debit || l.credit)),
+        lines: (() => {
+        const split = gstOnPremium({ amount });
+        return [dr(ACCOUNTS.receivable, amount + fees), cr(ACCOUNTS.writtenPremium, split.net), cr(ACCOUNTS.gstPayable, split.gst), ...(fees ? [cr(ACCOUNTS.feeIncome, fees)] : []), dr(ACCOUNTS.commissionExpense, round2(split.net * rate)), cr(ACCOUNTS.commissionPayable, round2(split.net * rate))].filter((l) => (l.debit || l.credit));
+      })(),
       });
     }
     if (event.type === 'PaymentReceived') {

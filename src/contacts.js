@@ -49,6 +49,11 @@ function createContacts(store) {
 
   function verify(id, user) {
     const contact = find(id);
+    // Separation of duties: the person who entered an identity check must not be the person who approves it. Without this,
+    // verification is a formality one teammate performs for themselves.
+    if (contact.createdBy && user && contact.createdBy === user.id) {
+      throw new AppError(403, 'You cannot verify your own record');
+    }
     contact.kyc.status = 'verified';
     contact.kyc.checkedAt = new Date().toISOString();
     contact.kyc.checkedBy = user && user.id;

@@ -13,6 +13,7 @@ const { settleCancellation } = require('./ledger');
 const { salesScope, canSeeBilling, canSeeSales, canLogFollowUps, canSeeClaimsReport, canSeeBillingReport } = require('./permissions');
 const { hashPassword, verifyPassword, temporaryPassword } = require('./passwords');
 const { AppError } = require('./appError');
+const { resolveVersion } = require('./productVersions');
 const { clone, str, int, num, r100 } = require('./text');
 const claims = require('./pc/claims');
 const tickets = require('./pc/tickets');
@@ -864,6 +865,15 @@ class PolicyCenter {
       case 'Reinstatement': policy = this.bindReinstatement(job, user); break;
       case 'PremiumAudit': policy = this.bindAudit(job, user); break;
       default: throw new AppError(409, `Cannot bind ${job.type}`);
+    }
+    // A new policy records the product version it was sold on, so a later version does not silently rewrite its terms.
+    // Changes and renewals keep the version already on the policy; the original sale is the record that matters.
+    if (!policy.productVersion) {
+      try {
+        policy.productVersion = resolveVersion({ product: policy.product, asOf: this.today() }).version;
+      } catch (err) {
+        // A product with no version table is left unstamped rather than failing a bind that otherwise succeeded.
+      }
     }
     job.status = 'Bound';
     job.boundAt = this.now();
