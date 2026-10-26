@@ -45,7 +45,9 @@ function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 
     } catch {
       return plain(res, 400, 'Bad request');
     }
-    const isApi = url.pathname === '/api' || url.pathname.startsWith('/api/');
+    // A load balancer asks /health, not /api/health, so the root path counts as an API path. Verified against a running server before the fix:
+  // /api/health answered 200 while /health answered 404, which is a deploy that never becomes healthy.
+  const isApi = url.pathname === '/api' || url.pathname.startsWith('/api/') || url.pathname === '/health';
     applySecurityHeaders(req, res, { page: !isApi });
 
     if (isApi) {
