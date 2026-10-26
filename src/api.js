@@ -209,6 +209,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B14 (deterministic core): can the photographs be trusted? Duplicates, impossible timestamps, edit traces, missing angles.
   // Speech through Bolna. The guard is synchronous and an unconfigured server answers plainly, because an async throw becomes a rejected
   // promise rather than a refusal - the permission matrix caught that the first time.
+  // B6: the script a caller hears, in their language, and the intake that turns the transcript into an incident draft.
+  route('GET', '/fnol/script', ({ user, query }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'FNOL scripts are staff material');
+    return require('./fnol').buildScript(query.get('language') || 'en');
+  }, { readOnly: true });
+  route('POST', '/fnol/intake', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'FNOL intake is staff work');
+    const input = body || {};
+    return require('./fnol').intake({ transcript: input.transcript || '', language: input.language || 'en' });
+  }, {});
   route('POST', '/voice/calls', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Placing claim calls is staff work');
     const bolna = require('./bolna').createBolna();

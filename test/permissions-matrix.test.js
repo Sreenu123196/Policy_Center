@@ -102,6 +102,8 @@ const MATRIX = {
   'POST /agent-registry/resume-all': ['agent', 'uw'],
   'POST /agent-registry/:id/stop': ['agent', 'uw'],
   'POST /agent-registry/:id/resume': ['agent', 'uw'],
+  'GET /fnol/script': ['agent'],
+  'POST /fnol/intake': ['agent'],
   'POST /voice/calls': ['agent'],
   'POST /photos/inspect': [],
   'POST /fraud/simulate': ['agent'],
