@@ -43,10 +43,18 @@ async function main() {
   // A host with no shell can still be given the bundled book: SEED_FROM_JSON=1 seeds an empty database, SEED_FROM_JSON=replace also replaces the demo
   // seed. It runs before the demo seed below, so the two never fight over the same empty store (docs/DEPLOY.md).
   if (database && process.env.SEED_FROM_JSON) {
+    // data/ is gitignored, so the live host has no book there: the committed copy under seed/ is what a deployment can actually read. A missing book is
+    // reported, because the first version of this block skipped silently and the deploy looked seeded when it was not.
     const fsBook = require('node:fs');
-    if (fsBook.existsSync(DATA_FILE)) {
+    const pathBook = require('node:path');
+    const candidates = [DATA_FILE, pathBook.join(__dirname, 'seed', 'policycenter.json')];
+    const bookPath = candidates.find((p) => fsBook.existsSync(p));
+    if (!bookPath) {
+      console.error('SEED_FROM_JSON is set but no bundled book was found in', candidates.join(' or '));
+    } else {
       const { seedIfEmpty } = require('./src/pg/seed');
-      await seedIfEmpty({ store: database, json: JSON.parse(fsBook.readFileSync(DATA_FILE, 'utf8')), enabled: true, force: process.env.SEED_FROM_JSON === 'replace' });
+      const result = await seedIfEmpty({ store: database, json: JSON.parse(fsBook.readFileSync(bookPath, 'utf8')), enabled: true, force: process.env.SEED_FROM_JSON === 'replace' });
+      console.log('Seed from ' + bookPath + ':', result.seeded ? result.rows + ' rows written' : 'skipped - ' + result.reason);
     }
   }
 
