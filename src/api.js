@@ -203,6 +203,12 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // B5: what an endorsement changes, and whether an exclusion contradicts it.
   // B9: a call transcript into a structured reserve. The response carries the evidence and the gaps, so nothing is entered unseen.
   // B13: the packet a settlement committee reads - ordered chronology, paise-exact totals, and the reserve variance.
+  // B18: a GSTIN proven by its check digit, and a hospital or garage proven current on the day that matters.
+  route('POST', '/registry/verify', ({ body }) => {
+    const input = body || {};
+    const verifier = require('./registryVerifier');
+    return input.gstin ? verifier.validateGstin(input.gstin) : verifier.verifyRegistration(input);
+  }, { readOnly: true });
   route('POST', '/settlement/packet', ({ body }) => {
     const input = body || {};
     if (!input.claimNumber) throw new AppError(422, 'claimNumber is required');
