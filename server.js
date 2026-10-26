@@ -74,7 +74,8 @@ try {
   const Anthropic = AnthropicSDK.default || AnthropicSDK;
   const workspace = process.env.ANTHROPIC_WORKSPACE_ID;
   const client = new Anthropic(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {});
-  const knowledgeStore = openKnowledgeStore(process.env.KNOWLEDGE_DB || 'D:\\PolicyCenter-Knowledge\\knowledge.db');
+  // A relative default, because a host is not this laptop: the previous default was a D:\ path, which would have failed silently on Linux.
+const knowledgeStore = openKnowledgeStore(process.env.KNOWLEDGE_DB || path.join(__dirname, 'data', 'knowledge.db'));
   knowledge = createKnowledgeService({
     store: knowledgeStore, embedModel: EMBED_MODEL,
     embedder: (texts) => embed(texts, 'query'),
