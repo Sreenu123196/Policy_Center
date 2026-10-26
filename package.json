@@ -14,6 +14,7 @@
     "generate": "node scripts/generate-test-data.js",
     "reset-manager": "node scripts/reset-manager.js",
     "migrate-to-pg": "node scripts/migrate-to-pg.js",
+    "knowledge:stability": "node scripts/knowledge-stability.js",
     "knowledge:eval": "node scripts/knowledge-eval.js",
     "knowledge:quality": "node scripts/knowledge-quality.js",
     "knowledge:gate": "node scripts/knowledge-gate.js",

@@ -719,3 +719,14 @@ them.
 
 If this work resumes, the first thing to do is not another prompt. It is to make the measurement cheap and repeatable - a script that runs three passes and prints
 median and range in one command - so that the next change can be judged in ten minutes instead of argued about for an hour.
+
+## Measuring, cheaply (26 October)
+
+    npm run knowledge:stability                 # three passes, twenty cases, median and range
+    npm run knowledge:stability -- --runs 5 --limit 50
+
+The script runs the evaluation repeatedly, stops on the first failure, and prints what may be quoted: the median and the range, never a single figure. It exists
+because this session spent an hour arguing about differences smaller than the run-to-run spread, and one command would have prevented it.
+
+Validated on a small run: two passes over three cases returned 33% and 67%, and the summary printed median 50%, range 33-67% - the spread is visible instead of
+hidden.
