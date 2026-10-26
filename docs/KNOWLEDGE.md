@@ -637,3 +637,21 @@ Two consequences for anyone continuing:
    the earlier attempts fell into.
 2. **Refusal-with-evidence is still the dominant failure.** q15 had its clause in context and was refused; q09 did the same in the first run. That is a
    prompt or threshold problem, not a retrieval one, and it is consistent across runs even when the numbers are not.
+
+## Three runs, a median, and one failure that never moved (26 October)
+
+| Run | Correctness | Citation (answerable) |
+|---|---|---|
+| 1 (pre-relabel) | 16/20 (80%) | 7/10 (70%) |
+| 2 (post-relabel) | 13/20 (65%) | 4/11 (36%) |
+| 3 (post-relabel) | 15/20 (75%) | 6/11 (55%) |
+| **median** | **75%** | **55%** |
+
+So the number to quote, if one must be quoted, is **75% correctness with citations at 55% over twenty cases**, and the range is stated beside it: correctness
+65-80%, citation 36-70%. Anything narrower is a claim the data does not support.
+
+What did not vary is more useful than what did: **q15 was refused in both post-relabel runs with HO-2.2 among the passages sent**, and q04, q05 and q10 were
+refused with their clauses sent in the third run. The assistant declines questions whose answer is in front of it, consistently, whatever the aggregate says.
+That is the thing to fix, and it is a prompt or threshold question rather than a retrieval one.
+
+The measurement lesson is now written twice in this document because it was learned twice: **three runs, median and range, or no number.**

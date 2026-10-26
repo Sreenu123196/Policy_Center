@@ -31,7 +31,9 @@ The platform (policies, billing, claims, contacts, permissions, audit) plus the 
 
 - Not deployed. docs/DEPLOY.md is a checklist, and none of it has been run against Render or Netlify.
 - Not certified. Sovereign mode, SSO and e-sign are mechanisms behind flags; certification is an audit and a contract.
-- Knowledge correctness is **not stably measured**: two runs of the same twenty cases, with no code change between them, gave 80 percent and 65 percent, and citation 70 percent and 36 percent. The model cannot be called with temperature zero, so sampling is unpinned; until three runs are taken and a median quoted, any single number is noise.
+- Knowledge correctness over twenty cases, three runs: **median 75%, range 65-80%; citations median 55%, range 36-70%**. Sampling cannot be pinned because
+  the model rejects temperature zero, so the range is part of the figure. The consistent failure is refusal-with-evidence: q15 was refused in both post-relabel
+  runs with its clause among the passages sent.
 - Not verified against live vendors. Bolna's request paths are marked for confirmation; the regulatory corpus is illustrative and must be replaced with licensed text.
 - Vision is absent. B14 inspects whether a photograph can be trusted; it does not describe the damage.
 
