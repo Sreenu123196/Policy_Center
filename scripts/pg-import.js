@@ -16,6 +16,7 @@ const { importJson } = require('../src/pg/import');
   const json = JSON.parse(fs.readFileSync(file, 'utf8'));
   const store = await openStoreFromEnv({ dataFile: file });
   const result = await importJson({ store, json });
-  await store.close();
-  if (result.mismatches.length) process.exit(1);
+  await store.close({ closeDatabase: true });
+  // No process.exit on success: the store's close now releases the database, and forcing an exit is what corrupted the directory once.
+  if (result.mismatches.length) process.exitCode = 1;
 })().catch((err) => { console.error('import failed:', err.message); process.exit(1); });

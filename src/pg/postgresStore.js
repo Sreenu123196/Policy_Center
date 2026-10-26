@@ -116,11 +116,15 @@ class PostgresStore {
     }
   }
 
-  async close() {
+  async close({ closeDatabase = false } = {}) {
     await this.drain();
     if (this.retryTimer) clearTimeout(this.retryTimer);
     this.retryTimer = null;
     if (this.wal) this.wal.close();
+    // Closing the database itself is what lets a process exit: PGlite keeps a worker alive, and a caller that forced an exit killed the database
+    // mid-close, leaving a directory that would not open again. It is opt-in because the restart tests close a store and then deliberately reuse the
+    // same database - a plain close() must not take it away from them.
+    if (closeDatabase && this.runner && typeof this.runner.close === 'function') await this.runner.close();
   }
 
   // ---------------------------------------------------------------- the API src/store.js also offers
