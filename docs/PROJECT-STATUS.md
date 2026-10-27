@@ -8,8 +8,8 @@ The platform (policies, billing, claims, contacts, permissions, audit) plus the 
 
 | Measure | Value |
 |---|---|
-| Tests | 749 passing (npm test) |
-| Merge gate | npm run gate:policy passes at a baseline of 749 |
+| Tests | **801 passing** (npm test) |
+| Merge gate | `npm run gate:policy` passes at a baseline of 801 |
 | API | 200+ routes, every one with a permission row or a declared public exception |
 | Runtime | JSON file by default; PostgreSQL by setting DATABASE_URL |
 | Boot | npm start, then GET /health answers 200 |
@@ -48,3 +48,18 @@ The platform (policies, billing, claims, contacts, permissions, audit) plus the 
 1. Deploy: environment variables, the import step, then the four checks in docs/DEPLOY.md.
 2. One vendor decision at a time: a vision provider turns B14 from a triage gate into an inspection; signing and video close B27 and B28.
 3. Measure the assistant again: a larger case set, three runs, median and range, before anyone quotes a number.
+
+## Where the remaining work actually is (27 October)
+
+**31 of 34 items complete.** The three that are not:
+
+1. **B14's vision half** - a provider decision. The inspection pipeline (duplicates, impossible timestamps, edit traces, missing angles) is built and tested.
+2. **B20's certification** - an audit, not a flag. Sovereign mode refuses outbound calls and is tested; calling it certified would be a claim we cannot make.
+3. **B24's mandate rule** - needs the RBI/NPCI cap and 24-hour notice confirmed by whoever owns compliance.
+
+Plus **A11** (a WhatsApp channel) and four pieces of work that are ours:
+
+- **Routes for B27 and B28.** The modules are tested; nothing calls them over HTTP yet.
+- **Billing-tab display of settled Razorpay payments**, and a button for the backfill.
+- **A durable database.** The live one is Render's free, time-limited instance.
+- **Knowledge accuracy.** 75% correctness, median of three runs; four prompt changes produced no measurable gain, so the next lever is retrieval grading rather than another prompt.
