@@ -31,7 +31,7 @@ function createBolna({ apiKey = process.env.BOLNA_API_KEY, agentId = process.env
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
-    let json = null;
+    let json;
     try { json = text ? JSON.parse(text) : null; } catch { json = null; }
     if (!response.ok) throw new AppError(502, 'Bolna refused the request (' + response.status + '): ' + (json && json.message ? json.message : text.slice(0, 120)));
     return json;

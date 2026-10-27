@@ -8,7 +8,6 @@ const DEFAULT_TOP_N = 8;
 // Measured 2026-10-21 with voyage-4 over 22 chunks: applying the overlap reranker lowered recall@3 from 0.90 to 0.80
 // and recall@8 from 1.00 to 0.90. Fusion alone is better than a bad reranker, so callers must opt in explicitly;
 // a model-based reranker is the design's intent and has to be measured before it is switched on.
-const DISABLED_BY_DEFAULT = true;
 
 /**
  * @param {object} options

@@ -15,7 +15,7 @@ require('../src/loadEnv').loadEnv();
 const { openKnowledgeStore } = require('../src/knowledge/store');
 const { ingestVersion } = require('../src/knowledge/ingest');
 const { hybridSearch } = require('../src/knowledge/retrieve');
-const { answerQuestion, NOT_FOUND } = require('../src/knowledge/answer');
+const { answerQuestion } = require('../src/knowledge/answer');
 const { embed, MODEL } = require('../src/knowledge/voyage');
 const { audiencesFor } = require('../src/knowledge/access');
 const { detectProducts } = require('../src/knowledge/product');
@@ -64,8 +64,7 @@ async function main() {
   const filters = { audiences: audiencesFor({ role: 'Underwriter' }) };
 
   let correct = 0;
-  let answeredRight = 0;
-  let answeredTotal = 0;
+    let answeredTotal = 0;
   let citationsRight = 0;
   const rows = [];
 
@@ -81,7 +80,7 @@ async function main() {
 
     const expectFound = item.expected_status === 'answered';
     let ok;
-    let note = '';
+    let note;
     if (expectFound) {
       answeredTotal += 1;
       const citedClauses = result.citations.map((n) => clauses[n - 1]).filter(Boolean);
@@ -89,8 +88,7 @@ async function main() {
       const text = String(result.answer).toLowerCase();
       const hitFacts = (item.must_include || []).every((fact) => text.includes(String(fact).toLowerCase()));
       ok = result.status === 'answered' && hitClause && hitFacts;
-      if (result.status === 'answered' && hitClause) answeredRight += 1;
-      if (hitClause) citationsRight += 1;
+        if (hitClause) citationsRight += 1;
       note = ok ? 'correct' : (result.status === 'answered' ? 'wrong or uncited facts' : 'refused an answerable question');
     } else {
       ok = result.status === 'not_found';

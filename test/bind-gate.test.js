@@ -62,7 +62,7 @@ test('4. an approval for another job refuses', () => {
 });
 
 test('5. a premium above the approver’s authority refuses', () => {
-  const { store, gate } = world({ premium: 900000 });
+  const { store: _store, gate } = world({ premium: 900000 });
   const approval = gate.requestApproval(manager, 'job1');
   // approved by an agent, whose authority is 50,000
   gate.decide({ id: 'agent1', role: 'Agent' }, approval.id, 'approved');

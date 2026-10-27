@@ -21,7 +21,7 @@ const GLOSSARY = {
   'rupayalu': 'rupees', 'రూపాయలు': 'rupees', 'rupaye': 'rupees', 'रुपये': 'rupees',
 };
 
-const NON_LATIN = /[\u0900-\u097F\u0C00-\u0C7F]/;
+const NON_LATIN = /[\u0900-\u097F]|[\u0C00-\u0C7F]/;
 const LATIN = /[A-Za-z]/;
 
 function normaliseCodeMixed(text = '') {

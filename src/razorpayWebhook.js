@@ -17,7 +17,7 @@ function receiveRazorpayWebhook({ headers, body, secret, store }) {
   const signature = String((headers && (headers['x-razorpay-signature'] || headers['X-Razorpay-Signature'])) || '');
   if (!verifyWebhookSignature({ rawBody: raw, signature, secret })) throw new AppError(400, 'Invalid signature');
 
-  let event = null;
+  let event;
   try {
     event = JSON.parse(raw);
   } catch {

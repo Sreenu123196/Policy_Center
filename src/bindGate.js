@@ -74,7 +74,7 @@ function createBindGate(pc, store) {
     if (Date.now() - new Date(record.decidedAt || record.createdAt).getTime() > WINDOW_MS) {
       throw new AppError(403, 'The approval has expired; ask again');
     }
-    const authority = AUTHORITY[record.decidedBy ? (store.data.staff || []).find((s) => s.username === record.decidedBy || s.id === record.decidedBy)?.role : user.role];
+    const _authority = AUTHORITY[record.decidedBy ? (store.data.staff || []).find((s) => s.username === record.decidedBy || s.id === record.decidedBy)?.role : user.role];
     const approverRole = record.approverRole || (store.data.staff || []).find((s) => s.id === record.decidedBy || s.username === record.decidedBy)?.role;
     const limit = AUTHORITY[approverRole];
     if (limit === undefined || record.premium > limit) throw new AppError(403, 'The approver’s authority does not cover this premium');

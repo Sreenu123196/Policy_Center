@@ -127,7 +127,7 @@ async function main() {
       messages: [{ role: 'user', content: 'QUOTED PASSAGES:\n' + quoted + '\n\nANSWER:\n' + result.answer }],
     });
     const text = verdict.content.filter((b) => b.type === 'text').map((b) => b.text).join('');
-    let ok = false;
+    let ok;
     try { ok = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1)).faithful === true; } catch { ok = false; }
     if (ok) faithful += 1;
     console.log('FAITHFUL  ', item.id, ok ? 'PASS' : 'FAIL');

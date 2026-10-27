@@ -37,7 +37,7 @@ function createRazorpay({ keyId, keySecret, transport }) {
       host: API, path, method, headers: { authorization: auth, 'content-type': 'application/json' },
       body: payload === undefined ? undefined : JSON.stringify(payload),
     });
-    let parsed = null;
+    let parsed;
     try { parsed = response.body ? JSON.parse(response.body) : null; } catch { parsed = null; }
     if (response.status < 200 || response.status >= 300) {
       throw new Error('razorpay ' + response.status + ': ' + ((parsed && parsed.error && parsed.error.description) || String(response.body).slice(0, 200)));

@@ -28,7 +28,7 @@ function createTelegramTransport({ token = process.env.TELEGRAM_BOT_TOKEN, chatI
       body: JSON.stringify({ chat_id: chatId, text: formatMessage({ payload, signature: signature || '' }), disable_web_page_preview: true }),
     });
     const text = await response.text();
-    let body = null;
+    let body;
     try { body = text ? JSON.parse(text) : null; } catch { body = null; }
     if (!response.ok || (body && body.ok === false)) {
       throw new AppError(502, 'Telegram refused the message (' + response.status + '): ' + ((body && body.description) || text.slice(0, 100)));

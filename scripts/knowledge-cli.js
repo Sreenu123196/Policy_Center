@@ -81,7 +81,6 @@ const fakeClaude = {
 };
 
 function score(question, result, passages) {
-  const clauses = passages.map((p) => p.clause).filter(Boolean);
   const answered = result.status === 'answered';
   if (question.expected_status === 'not_found') {
     return { correct: !answered, why: answered ? 'answered a question the wording cannot answer' : 'correctly not found' };

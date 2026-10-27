@@ -491,7 +491,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // awaits them. The query log lives in the separate knowledge database.
   const knowledge = knowledgeOption || null;
   // Customer and agent use arrives in R4; until then the corpus is staff-only.
-  const staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
+  const _staffOnly = (user) => { if (user && user.role === 'Agent') throw new AppError(403, 'The knowledge assistant is not open to agents yet'); };
   const noKnowledge = () => ({ status: 'not_found', answer: 'The knowledge assistant is not configured on this server.', citations: [], passages: [] });
   route('POST', '/knowledge/feedback', async ({ user, body }) => {
     if (!knowledge) return { ok: false, message: 'The knowledge assistant is not configured on this server' };
@@ -514,7 +514,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!knowledge) return { checked: 0, drifted: [], rows: [] };
     // Where the sources come from is the deployment's business: a JSON list in KNOWLEDGE_SOURCES, each
     // { documentId, path }. Empty means nothing is registered, which is reported rather than guessed at.
-    let sources = [];
+    let sources;
     try { sources = JSON.parse(process.env.KNOWLEDGE_SOURCES || '[]'); } catch { sources = []; }
     return knowledge.runDrift(sources);
   }, { readOnly: true });
