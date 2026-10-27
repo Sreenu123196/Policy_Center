@@ -2387,8 +2387,11 @@ const ACTIONS = {
     pageAdmin();
   },
   // Pay now: the server creates the order, Checkout collects the money, and the webhook is what settles the invoice. The browser never marks it paid.
-  'pay-invoice': async (el) => {
-    const invoiceNumber = el.getAttribute('data-invoice');
+  'pay-invoice': async () => {
+    // Actions receive no arguments in this app - they read the page state - so the invoice comes from the policy on screen, newest open first.
+    const open = ((S.policy && S.policy.invoices) || []).filter((i) => Number(i.balance) > 0);
+    const invoiceNumber = (open[0] && open[0].invoiceNumber) || null;
+    if (!invoiceNumber) { toast('This policy has no open invoice to pay.'); return; }
     try {
       const order = await api('POST', '/billing/invoices/' + encodeURIComponent(invoiceNumber) + '/pay', {});
       await loadRazorpay();
