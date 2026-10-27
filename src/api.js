@@ -662,7 +662,7 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // not a test - the route is public and raw, and no test drove it through the server.
   const { receiveRazorpayWebhook } = require('./razorpayWebhook');
   route('POST', '/webhooks/razorpay', ({ headers, body }) => receiveRazorpayWebhook({
-    headers, body, secret: process.env.RAZORPAY_WEBHOOK_SECRET, store,
+    headers, body, secret: process.env.RAZORPAY_WEBHOOK_SECRET, store, pc, billing,
   }), { isPublic: true, raw: true, readOnly: true });
   route('POST', '/webhooks/twilio/decision', ({ body, query, headers, url }) => {
     const params = Object.fromEntries(new URLSearchParams(body.toString('utf8')));

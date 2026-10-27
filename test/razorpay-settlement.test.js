@@ -41,3 +41,24 @@ test('a payment without an invoice number is recorded and not guessed at', () =>
   assert.equal(result.settlement, undefined, 'no settlement key at all');
   assert.equal((s.data.settledPayments || []).length, 0);
 });
+test('a first settlement applies the money to the invoice, and a replay does not', () => {
+  const s = store();
+  const applied = [];
+  const billing = {
+    invoiceByNumber: () => ({ policyId: 'pol1', outstanding: 500 }),
+    receivePayment: (user, input) => { applied.push({ user, input }); return { paymentNumber: 'PM-1' }; },
+  };
+  const pc = {};
+  const raw = bodyFor('pay_apply_1', 'INV-1');
+  const headers = { 'x-razorpay-signature': crypto.createHmac('sha256', SECRET).update(raw).digest('hex') };
+  const deliver = () => receiveRazorpayWebhook({ headers, body: raw, secret: SECRET, store: s, pc, billing });
+
+  deliver();
+  assert.equal(applied.length, 1, 'the payment is applied once');
+  assert.equal(applied[0].input.amount, 1180, 'paise converted to rupees');
+  assert.equal(applied[0].input.method, 'Razorpay');
+  assert.equal(applied[0].user.id, 'razorpay-webhook', 'a named system actor, not an anonymous one');
+
+  deliver();
+  assert.equal(applied.length, 1, 'a replayed webhook applies nothing');
+});
