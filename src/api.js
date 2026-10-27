@@ -610,6 +610,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     res.end(script ? script.twiml : 'Unknown call');
   }, { stream: true, isPublic: true });
   // Razorpay posts here: bytes, then signature, then parse. The logic is a module so it can be tested without a server.
+  // Required at the call site: the name was referenced without an import, so the endpoint would have thrown on every webhook. ESLint's no-undef found it,
+  // not a test - the route is public and raw, and no test drove it through the server.
+  const { receiveRazorpayWebhook } = require('./razorpayWebhook');
   route('POST', '/webhooks/razorpay', ({ headers, body }) => receiveRazorpayWebhook({
     headers, body, secret: process.env.RAZORPAY_WEBHOOK_SECRET, store,
   }), { isPublic: true, raw: true, readOnly: true });
