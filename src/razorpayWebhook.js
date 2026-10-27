@@ -6,6 +6,7 @@
 
 const { AppError } = require('./appError');
 const { verifyWebhookSignature } = require('./razorpay');
+const { settlePaidInvoice } = require('./paymentSettlement');
 
 /**
  * @param {{headers: object, body: Buffer|string, secret: string|undefined, store: object}} input
@@ -26,7 +27,16 @@ function receiveRazorpayWebhook({ headers, body, secret, store }) {
   }
   store.data.webhookEvents = store.data.webhookEvents || [];
   store.data.webhookEvents.push({ source: 'razorpay', event: event.event || null, at: new Date().toISOString() });
-  return { received: true, event: event.event || null };
+
+  // A captured payment settles its invoice, once. The invoice number travels in the order's notes, so a webhook without one is recorded and not guessed at.
+  let settlement = null;
+  const payment = event && event.payload && event.payload.payment && event.payload.payment.entity;
+  if (event.event === 'payment.captured' && payment && payment.id) {
+    const invoiceNumber = (payment.notes && payment.notes.invoiceNumber) || null;
+    if (invoiceNumber) settlement = settlePaidInvoice({ store, paymentId: payment.id, invoiceNumber, amountPaise: payment.amount, receivedOn: payment.created_at ? new Date(payment.created_at * 1000).toISOString().slice(0, 10) : undefined });
+  }
+  // The settlement key appears only when there is one, so the reply keeps its documented shape for every other event.
+  return settlement ? { received: true, event: event.event || null, settlement } : { received: true, event: event.event || null };
 }
 
 module.exports = { receiveRazorpayWebhook };
