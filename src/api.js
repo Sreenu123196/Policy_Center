@@ -110,7 +110,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   const bindGate = require('./bindGate').createBindGate(pc, store);
   route('POST', '/jobs/:id/bind-approval', ({ user, params }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Only staff may request a bind approval');
-    return bindGate.requestApproval(user, params.id);
+    const approval = bindGate.requestApproval(user, params.id);
+    notifyApproval(approval, params.id, 'A bind approval is waiting for a decision');
+    return approval;
   }, {});
   route('GET', '/bind-approvals', ({ user }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Only staff may see bind approvals');
@@ -118,7 +120,9 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, { readOnly: true });
   route('POST', '/bind-approvals/:id/decision', ({ user, params, body }) => {
     if (!user || !['UW Manager', 'Underwriter'].includes(user.role)) throw new AppError(403, 'Only staff may decide a bind approval');
-    return bindGate.decide(user, params.id, String((body && body.status) || ''));
+    const decision = bindGate.decide(user, params.id, String((body && body.status) || ''));
+    notifyApproval({ id: decision.id }, decision.jobNumber || '', 'Bind approval ' + decision.status + ' by ' + (user.username || user.id));
+    return decision;
   }, {});
   route('POST', '/jobs/:id/bind-approved', ({ user, params, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Agents cannot bind');
@@ -190,6 +194,19 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       return { documentHash: hash, signed: result.signed, signatures: result.signatures, stale: result.stale };
     } catch (err) { throw new AppError(err instanceof AppError ? err.status : 422, err.message); }
   }, { readOnly: true });
+  // B7 delivery: an approval is announced on Telegram when the host has a bot token and a chat id. Fire-and-forget on purpose - a messaging
+  // outage must never block an approval, and a missing configuration is a silent no-op rather than a failed request.
+  const notifyApproval = (approval, jobNumber, summary) => {
+    if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) return;
+    const secret = process.env.TELEGRAM_WEBHOOK_SECRET || process.env.APPROVAL_SIGNING_SECRET;
+    if (!secret) return;
+    const { createApprovalNotifier } = require('./approvalNotifier');
+    const { createTelegramTransport } = require('./telegramTransport');
+    const notifier = createApprovalNotifier({ store, transport: createTelegramTransport().send, secret });
+    notifier.enqueue({ approvalId: approval.id, jobNumber, summary });
+    Promise.resolve(notifier.deliver()).catch(() => { /* the outbox keeps the attempt and its reason */ });
+  };
+
   const gatewayUsage = () => (store.data.aiUsage || { tenants: {} });
   const aops = require('./aops').createAops();
   // B2: the procedures an agent must work within, readable by anyone who has to follow them.
