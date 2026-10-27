@@ -34,6 +34,8 @@ if (target.protocol !== 'https:' && !['localhost', '127.0.0.1'].includes(target.
 // serves every page.
 const lines = [
   '# Written by scripts/netlify-build.js at build time. Do not edit or commit.',
+  // Checkout is served by the API from its own origin, so the page needs no third-party script origin in its policy.
+  '/checkout.js  ' + target.origin + '/checkout.js  200',
   `/api/*  ${target.origin}/api/:splat  200`,
   '/*      /index.html                 200',
 ];

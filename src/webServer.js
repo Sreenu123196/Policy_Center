@@ -17,6 +17,18 @@ function json(res, status, payload, headers = {}) {
   res.end(JSON.stringify(payload));
 }
 
+async function serveCheckout(res) {
+  try {
+    const upstream = await fetch('https://checkout.razorpay.com/v1/checkout.js');
+    if (!upstream.ok) { res.writeHead(502, { 'Content-Type': 'text/plain' }); return res.end('Checkout is unavailable'); }
+    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'public, max-age=3600' });
+    return res.end(await upstream.text());
+  } catch {
+    res.writeHead(502, { 'Content-Type': 'text/plain' });
+    return res.end('Checkout is unavailable');
+  }
+}
+
 function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 60 }, trustProxy = false, allowedOrigins = [] }) {
   const root = path.resolve(publicDir);
   const limiter = new RateLimiter({ max: loginLimit.max, windowMs: loginLimit.windowSeconds * 1000 });
@@ -47,6 +59,8 @@ function createHandler({ api, publicDir, loginLimit = { max: 30, windowSeconds: 
     }
     // A load balancer asks /health, not /api/health, so the root path counts as an API path. Verified against a running server before the fix:
   // /api/health answered 200 while /health answered 404, which is a deploy that never becomes healthy.
+  // Razorpay's Checkout served from our origin: the page policy then needs no third-party script origin, and the browser still pays Razorpay directly.
+  if (url.pathname === '/checkout.js') return serveCheckout(res);
   const isApi = url.pathname === '/api' || url.pathname.startsWith('/api/') || url.pathname === '/health';
     applySecurityHeaders(req, res, { page: !isApi });
 
