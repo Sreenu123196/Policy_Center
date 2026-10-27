@@ -465,6 +465,16 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     return { allocations: allocations.list(), suspenseTotal: allocations.suspenseTotal() };
   }, { readOnly: true });
   // Every invoice with what is still owed, for the screen that takes a payment. Billing authority decides who sees it.
+  // Settlements the webhook recorded, shown beside billing's own payments so a paid invoice never looks unpaid.
+  route('GET', '/billing/settled', ({ user }) => {
+    billing.requireBilling(user, 'see settled payments');
+    return { settled: store.data.settledPayments || [] };
+  }, { readOnly: true });
+  // Applying settlements that arrived before the webhook moved money. Idempotent: the provider payment id is the key.
+  route('POST', '/billing/settled/backfill', ({ user }) => {
+    if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Applying settlements is finance work');
+    return require('./settlementBackfill').backfillSettlements({ store, billing, pc });
+  }, {});
   route('GET', '/billing/invoices', ({ user, query }) => {
     billing.requireBilling(user, 'see invoices');
     const only = String(query.get('status') || '').trim();
