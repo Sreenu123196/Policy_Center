@@ -730,3 +730,24 @@ because this session spent an hour arguing about differences smaller than the ru
 
 Validated on a small run: two passes over three cases returned 33% and 67%, and the summary printed median 50%, range 33-67% - the spread is visible instead of
 hidden.
+
+## Verifying refusals: the fourth attempt, and the same answer (27 October)
+
+Harness with quotation off and refusal verification on. Three runs: correctness 80, 60, 75; citation 64, 27, 55.
+
+| | baseline (no rule) | exclusion rule | refusal verification |
+|---|---|---|---|
+| correctness median | 75% (65-80) | 70% (70-80) | **75% (60-80)** |
+| citation median | 55% (36-70) | 45% (45-64) | **55% (27-64)** |
+
+Back to the baseline, inside the same range. **Four attempts - a quotation fallback, a looser matcher, an exclusion rule, and a second model verifying the refusal - have
+produced no measurable improvement on twenty cases.** Each cost real tokens: verification adds a second model call per refusal, so it is now the most expensive of the
+four and the least justified.
+
+The honest conclusion is not that the assistant is unfixable; it is that twenty cases with an unpinned sample cannot resolve changes this small, and that a different
+approach is needed rather than a fifth prompt idea. The two credible directions, neither of which is another prompt: **retrieve more passages for questions whose clause
+headings disagree with their wording**, or **grade the retrieval against the expected clause before the model is asked anything** - if the clause is not in the context,
+the refusal may be correct and the retrieval is the thing at fault.
+
+Refusal verification stays implemented and off by default; the harness keeps it on for measurement, and it should be switched off if the cost is not paid for by a
+number that can be defended.
