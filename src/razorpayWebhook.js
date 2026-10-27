@@ -25,30 +25,26 @@ function receiveRazorpayWebhook({ headers, body, secret, store, pc, billing }) {
     // A verified body that is not JSON is still a bug on the sender's side: say so rather than recording nothing.
     throw new AppError(400, 'Webhook body is not JSON');
   }
-  store.data.webhookEvents = store.data.webhookEvents || [];
-  store.data.webhookEvents.push({ source: 'razorpay', event: event.event || null, at: new Date().toISOString() });
+  const record = () => {
+    store.data.webhookEvents = store.data.webhookEvents || [];
+    store.data.webhookEvents.push({ source: 'razorpay', event: event.event || null, at: new Date().toISOString() });
 
-  // A captured payment settles its invoice, once. The invoice number travels in the order's notes, so a webhook without one is recorded and not guessed at.
-  let settlement = null;
-  const payment = event && event.payload && event.payload.payment && event.payload.payment.entity;
-  if (event.event === 'payment.captured' && payment && payment.id) {
-    const invoiceNumber = (payment.notes && payment.notes.invoiceNumber) || null;
-    if (invoiceNumber) settlement = settlePaidInvoice({ store, paymentId: payment.id, invoiceNumber, amountPaise: payment.amount, receivedOn: payment.created_at ? new Date(payment.created_at * 1000).toISOString().slice(0, 10) : undefined });
-      // Money moves only on the first settlement; the duplicate flag gates the application, not just the record.
+    let settlement = null;
+    const payment = event && event.payload && event.payload.payment && event.payload.payment.entity;
+    if (event.event === 'payment.captured' && payment && payment.id) {
+      const invoiceNumber = (payment.notes && payment.notes.invoiceNumber) || null;
+      if (invoiceNumber) settlement = settlePaidInvoice({ store, paymentId: payment.id, invoiceNumber, amountPaise: payment.amount });
       if (settlement && settlement.duplicate === false && pc && billing) {
         const SYSTEM = { id: 'razorpay-webhook', role: 'UW Manager' };
         const invoice = billing.invoiceByNumber(invoiceNumber, SYSTEM);
         if (invoice && invoice.outstanding > 0) {
-          billing.receivePayment(SYSTEM, {
-            policyId: invoice.policyId,
-            amount: payment.amount / 100,
-            method: 'Razorpay',
-            reference: payment.id,
-            receivedOn: new Date().toISOString().slice(0, 10),
-          });
+          billing.receivePayment(SYSTEM, { policyId: invoice.policyId, amount: payment.amount / 100, method: 'Razorpay', reference: payment.id });
         }
       }
-  }
+    }
+    return settlement;
+  };
+  const settlement = typeof store.transaction === 'function' ? store.transaction(record) : record();
   // The settlement key appears only when there is one, so the reply keeps its documented shape for every other event.
   return settlement ? { received: true, event: event.event || null, settlement } : { received: true, event: event.event || null };
 }
