@@ -476,14 +476,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     return require('./settlementBackfill').backfillSettlements({ store, billing, pc });
   }, {});
   // Bringing in a payment whose webhook never arrived. Same path as the webhook, so it cannot credit twice.
-  route('POST', '/billing/settlements/reconcile/:paymentId', ({ user, params }) => {
+  route('POST', '/billing/settlements/reconcile/:paymentId', ({ user, params, query }) => {
     if (!user || user.role !== 'UW Manager') throw new AppError(403, 'Reconciling payments is finance work');
     // Answered, not thrown: the permission matrix treats any 5xx for an allowed role as a failure, and an unconfigured server is a state, not an error.
     if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) return { configured: false, reason: 'RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing on this server.' };
     const { createRazorpay } = require('./razorpay');
     const { createFetchTransport } = require('./razorpayTransport');
     const razorpay = createRazorpay({ keyId: process.env.RAZORPAY_KEY_ID, keySecret: process.env.RAZORPAY_KEY_SECRET, transport: createFetchTransport() });
-    return require('./settlementReconcile').reconcilePayment({ razorpay, store, billing, paymentId: params.paymentId });
+    return require('./settlementReconcile').reconcilePayment({ razorpay, store, billing, paymentId: params.paymentId, invoiceNumber: (query.get('invoice') || null), user });
   }, {});
   route('GET', '/billing/invoices', ({ user, query }) => {
     billing.requireBilling(user, 'see invoices');
