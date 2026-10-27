@@ -34,6 +34,14 @@ services:
       - key: ALLOWED_ORIGINS
         value: https://tangerine-daffodil-1ca625.netlify.app
       # Render terminates https in front of the service.
+      # Billing. sync: false means the Blueprint keeps these variables but takes their values from the dashboard - without declaring them at
+      # all, every deploy re-synced the environment and removed the keys, which is exactly what happened: the payment screen then answered "not configured".
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
       - key: TRUST_PROXY
         value: "1"
       # A daily backup is written to the ephemeral disk here; on a managed database use pg_dump instead.
