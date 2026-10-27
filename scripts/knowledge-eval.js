@@ -75,7 +75,7 @@ async function main() {
     const passages = hybridSearch({
       store, embedModel: MODEL, queryVector: vectors[index], queryText: item.question, limit: passagesPerQuestion, filters: scoped,
     });
-    const result = await answerQuestion({ client, question: item.question, passages, language: 'en', quoteOnRefusal: false });
+    const result = await answerQuestion({ client, question: item.question, passages, language: 'en', quoteOnRefusal: false, verifyRefusal: true });
     const clauses = passages.map((p) => p.clause);
 
     const expectFound = item.expected_status === 'answered';

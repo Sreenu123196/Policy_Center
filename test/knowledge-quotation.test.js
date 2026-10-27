@@ -56,3 +56,33 @@ test('the prompt tells the model that an exclusion is an answer', () => {
   assert.match(SYSTEM_PROMPT, /An exclusion counts as an answer/);
   assert.match(SYSTEM_PROMPT, /Do not reply that you could not find it when the wording excludes it/);
 });
+
+// --- verification of a refusal (B1 follow-up) -------------------------------------------------------------------
+
+function scripted(replies) {
+  let i = 0;
+  return { messages: { create: async () => ({ content: [{ type: 'text', text: replies[Math.min(i++, replies.length - 1)] }], usage: {} }) } };
+}
+
+test('a refusal is re-checked, and an ANSWERABLE verdict produces the answer', async () => {
+  const client = scripted([NOT_FOUND, 'ANSWERABLE', 'Special limits apply to jewellery [1].']);
+  const result = await answerQuestion({ client, question: 'What special limits apply?', passages: PASSAGES, verifyRefusal: true });
+  assert.equal(result.status, 'answered');
+  assert.match(result.answer, /Special limits/);
+  assert.deepEqual(result.citations, [1]);
+});
+
+test('an UNANSWERABLE verdict ends the question, and UNANSWERABLE is not read as ANSWERABLE', async () => {
+  const client = scripted([NOT_FOUND, 'UNANSWERABLE']);
+  const result = await answerQuestion({ client, question: 'What is covered on Mars?', passages: PASSAGES, verifyRefusal: true });
+  assert.equal(result.status, 'not_found');
+  assert.match(result.issues[0], /verifier agreed/);
+});
+
+test('without the flag a refusal is accepted as before, with no second call', async () => {
+  let calls = 0;
+  const client = { messages: { create: async () => { calls += 1; return { content: [{ type: 'text', text: NOT_FOUND }], usage: {} }; } } };
+  const result = await answerQuestion({ client, question: 'What special limits apply?', passages: PASSAGES });
+  assert.equal(result.status, 'not_found');
+  assert.equal(calls, 1);
+});

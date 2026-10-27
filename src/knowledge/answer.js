@@ -140,12 +140,13 @@ function validateAnswer(text, passageCount) {
  * @param {string} [options.language]
  * @returns {Promise<{status: 'answered'|'not_found'|'hand_to_person', answer: string, citations: number[], attempts: number, issues?: string[]}>}
  */
-async function answerQuestion({ client, question, passages, language = 'en', quoteOnRefusal = false }) {
+async function answerQuestion({ client, question, passages, language = 'en', quoteOnRefusal = false, verifyRefusal = false }) {
   if (!Array.isArray(passages) || passages.length === 0) {
     return { status: 'not_found', answer: NOT_FOUND, citations: [], attempts: 0, issues: ['no passages provided'] };
   }
 
   let lastIssues = [];
+  let refusalChecked = false;
   for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt += 1) {
     const request = buildRequest({ question, passages, language });
     if (attempt > 1) {
@@ -161,6 +162,24 @@ async function answerQuestion({ client, question, passages, language = 'en', quo
 
     if (!text) { lastIssues = ['empty answer']; continue; }
     if (/^i could not find that in the documents\.?$/i.test(text)) {
+      // Before accepting a refusal, ask a second call the narrow question the refusals kept getting wrong: can these passages answer this at all?
+      // UNANSWERABLE is tested first because it contains ANSWERABLE.
+      if (verifyRefusal && !refusalChecked) {
+        refusalChecked = true;
+        const verification = await client.messages.create({
+          model: request.model,
+          max_tokens: 16,
+          messages: [{ role: 'user', content: 'Question: ' + question + '\n\nPassages:\n' + passages.map((p, i) => '[' + (i + 1) + '] ' + String(p.text || '').slice(0, 600)).join('\n') + '\n\nDo these passages answer the question, including by stating an exclusion? Reply with one word: ANSWERABLE or UNANSWERABLE.' }],
+        });
+        const verdict = textOf(verification);
+        if (/UNANSWERABLE/i.test(verdict)) {
+          return { status: 'not_found', answer: NOT_FOUND, citations: [], attempts: attempt, issues: ['the verifier agreed the passages do not answer it'] };
+        }
+        if (/ANSWERABLE/i.test(verdict)) {
+          lastIssues = ['the passages do answer it: state the answer and cite the clause, including when the passage is an exclusion'];
+          continue;
+        }
+      }
       // The model declined. Before accepting that, ask whether a passage already answers the question - and quote it if so.
       const quoted = quoteOnRefusal ? quotationFallback({ question, passages }) : null;
       if (quoted) return { ...quoted, attempts: attempt };
@@ -192,5 +211,5 @@ async function answerQuestion({ client, question, passages, language = 'en', quo
 
 module.exports = {
   answerQuestion, buildRequest, validateAnswer, textOf, citationsOf,
-  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL, quotationFallback,
+  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL, quotationFallback, buildRequest,
 };
