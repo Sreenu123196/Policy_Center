@@ -224,7 +224,7 @@ const MATRIX = {
 
 // Sign-in routes need no session; /auth/password and /auth/me are checked in test/auth.test.js.
 const PUBLIC = [
-  'GET /assets/checkout.js',  'POST /webhooks/bolna',
+  'POST /webhooks/bolna',
   'POST /auth/sso/mfa',
   'POST /webhooks/razorpay','GET /health', 'GET /auth/status', 'POST /auth/setup', 'POST /auth/login', 'POST /auth/logout', 'GET /auth/me', 'POST /auth/password',
   'POST /webhooks/telegram', 'GET /webhooks/twilio/voice', 'POST /webhooks/twilio/decision'];
