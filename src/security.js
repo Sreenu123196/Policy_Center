@@ -27,9 +27,11 @@ class RateLimiter {
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
+  // Checkout renders in an iframe from Razorpay and calls their API; without these the browser blocks the frame.
+  "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "style-src 'self' 'unsafe-inline'", // the pages set a few style attributes
   "img-src 'self' data:",
-  "connect-src 'self'",
+  "connect-src 'self' https://api.razorpay.com https://lumberjack.razorpay.com",
   "object-src 'none'",
   "frame-ancestors 'none'",
   "base-uri 'none'",
