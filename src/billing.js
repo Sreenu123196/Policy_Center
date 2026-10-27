@@ -49,6 +49,19 @@ class Billing {
       .sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.invoiceNumber.localeCompare(b.invoiceNumber));
   }
 
+  // The one place an invoice is found by number and its outstanding amount computed, so a payment route does not invent a second balance arithmetic.
+  invoiceByNumber(invoiceNumber, user) {
+    this.requireBilling(user, 'see an invoice');
+    const invoice = (this.pc.db.invoices || []).find((i) => i.invoiceNumber === invoiceNumber);
+    if (!invoice) return null;
+    const paid = (this.pc.db.payments || [])
+      .flatMap((p) => p.allocations || [])
+      .filter((a) => a.invoiceNumber === invoiceNumber)
+      .reduce((sum, a) => sum + Number(a.amount || 0), 0);
+    const amount = Number(invoice.amount || 0);
+    return { ...invoice, paid: Math.round(paid * 100) / 100, outstanding: Math.max(0, Math.round((amount - paid) * 100) / 100) };
+  }
+
   paymentsFor(policyId, user) {
     this.requireBilling(user, 'see billing');
     const policy = this.pc.policy(policyId, user);
