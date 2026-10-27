@@ -483,7 +483,7 @@ const POLICY_TABS = {
     return `<div class="spread" style="margin-bottom:10px"><div class="muted">Simulated BillingCenter invoice stream for this policy. A payment is applied to the oldest invoice first.</div>
         <button class="btn small primary" data-action="record-payment">Record payment</button></div>`
       + table(['Invoice', 'Due', 'Job', 'Description', 'Status', 'Payment', '$Amount', '$Fee', '$Paid', '$Balance'], p.invoices.map((i) => [
-        esc(i.invoiceNumber) + (Number(i.balance) > 0 ? ` <button class="btn small" data-action="pay-invoice" data-invoice="${esc(i.invoiceNumber)}">Pay now</button>` : ''), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
+        esc(i.invoiceNumber) + (Number(i.balance) > 0 ? ` <button class="btn small primary" data-action="pay-invoice" data-invoice="${esc(i.invoiceNumber)}">Pay now</button>` : ''), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
       ])) + `<div class="spread" style="margin-top:10px"><span>${p.credit > 0 ? `Credit on the policy: <strong>${money(p.credit)}</strong>` : ''}</span><strong>Total billed and planned: ${money(total)} · Balance owing: ${money(balance)}</strong></div>`
       + settlementBlock(p)
       + '<h3>Payments received</h3>'
