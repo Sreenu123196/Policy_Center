@@ -451,6 +451,27 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
     return { allocations: allocations.list(), suspenseTotal: allocations.suspenseTotal() };
   }, { readOnly: true });
+  // Every invoice with what is still owed, for the screen that takes a payment. Billing authority decides who sees it.
+  route('GET', '/billing/invoices', ({ user, query }) => {
+    billing.requireBilling(user, 'see invoices');
+    const only = String(query.get('status') || '').trim();
+    // Every figure comes from invoiceByNumber, the one place outstanding is computed.
+    const rows = (pc.db.invoices || [])
+      .map((invoice) => billing.invoiceByNumber(invoice.invoiceNumber, user))
+      .filter(Boolean)
+      .map((invoice) => ({
+        invoiceNumber: invoice.invoiceNumber,
+        policyId: invoice.policyId,
+        dueDate: invoice.dueDate || null,
+        amount: invoice.amount,
+        paid: invoice.paid,
+        outstanding: invoice.outstanding,
+      }))
+      .filter((row) => (only === 'open' ? row.outstanding > 0 : true))
+      .sort((x, y) => String(x.dueDate || '').localeCompare(String(y.dueDate || '')));
+    return { invoices: rows, openCount: rows.filter((r) => r.outstanding > 0).length };
+  }, { readOnly: true });
+
   // The order a customer pays against. The invoice number travels in notes, which is what lets the webhook settle the right invoice.
   route('POST', '/billing/invoices/:invoice/pay', ({ user, params }) => {
     const invoice = billing.invoiceByNumber(params.invoice, user); // refused here for a role without billing authority
