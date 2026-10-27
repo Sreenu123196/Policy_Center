@@ -131,6 +131,7 @@ const MATRIX = {
   'POST /billing/invoices/:invoice/pay': ['agent', 'uw', 'exec'],
   'GET /billing/settled': ['agent', 'uw', 'exec'],
   'POST /billing/settled/backfill': ['agent', 'uw', 'exec'],
+  'POST /billing/settlements/reconcile/:paymentId': ['agent', 'uw', 'exec'],
   'GET /billing/invoices': ['agent', 'uw', 'exec'],
   'GET /billing/allocations': ['agent'],
   'POST /billing/allocations': ['agent'],
