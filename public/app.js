@@ -2397,9 +2397,11 @@ const ACTIONS = {
     if (!invoiceNumber) { toast('This policy has no open invoice to pay.'); return; }
     try {
       const order = await api('POST', '/billing/invoices/' + encodeURIComponent(invoiceNumber) + '/pay', {});
+      const keyId = (order && order.keyId) || (await api('GET', '/health')).razorpayKeyIdValue;
+      if (!keyId) { toast('This server has no Razorpay key id configured.'); return; }
       await loadRazorpay();
       const checkout = new window.Razorpay({
-        key: order.keyId,
+        key: keyId,
         order_id: order.orderId,
         amount: order.amountPaise,
         currency: order.currency || 'INR',

@@ -82,6 +82,8 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     // Presence, never values: enough to answer "is this server configured" from anywhere, without exposing a key.
     configured: {
       razorpayKeyId: Boolean(process.env.RAZORPAY_KEY_ID),
+      // The key id is publishable - Checkout needs it in the browser - so it is reported as a value while the secret stays a boolean.
+      razorpayKeyIdValue: process.env.RAZORPAY_KEY_ID || null,
       razorpayKeySecret: Boolean(process.env.RAZORPAY_KEY_SECRET),
       razorpayWebhookSecret: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET),
       anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
