@@ -76,7 +76,18 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
 
   // Setup: until the first account has a password, the app asks the first person to choose one.
   // Is the server up? No sign-in, nothing private: for a load balancer or a container health check.
-  route('GET', '/health', () => ({ ok: true, uptimeSeconds: Math.round(process.uptime()) }), { isPublic: true });
+  route('GET', '/health', () => ({
+    ok: true,
+    uptimeSeconds: Math.round(process.uptime()),
+    // Presence, never values: enough to answer "is this server configured" from anywhere, without exposing a key.
+    configured: {
+      razorpayKeyId: Boolean(process.env.RAZORPAY_KEY_ID),
+      razorpayKeySecret: Boolean(process.env.RAZORPAY_KEY_SECRET),
+      razorpayWebhookSecret: Boolean(process.env.RAZORPAY_WEBHOOK_SECRET),
+      anthropic: Boolean(process.env.ANTHROPIC_API_KEY),
+      voyage: Boolean(process.env.VOYAGE_API_KEY),
+    },
+  }), { isPublic: true });
   const contacts = require('./contacts').createContacts(store);
   route('GET', '/contacts', () => contacts.list(), { readOnly: true });
   const incidents = require('./incidents').createIncidents(store, pc);
