@@ -211,5 +211,5 @@ async function answerQuestion({ client, question, passages, language = 'en', quo
 
 module.exports = {
   answerQuestion, buildRequest, validateAnswer, textOf, citationsOf,
-  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL, quotationFallback, buildRequest,
+  SYSTEM_PROMPT, NOT_FOUND, CLAIMS_SENTENCE, MODEL, quotationFallback,
 };
