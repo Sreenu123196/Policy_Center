@@ -6,7 +6,7 @@ const { safeRunTool, TOOLS } = require('../src/chatbot');
 // The orchestration proof: the async runner really calls the service it is given, shapes a tool result the model can
 // read, and refuses honestly when the service is absent or fails. No network, no model.
 
-const KNOWLEDGE = { search: async (user, question) => ([{ clause: 'HO-1.2', headingPath: 'S1 > HO-1.2', page: 2, text: question }]) };
+const _KNOWLEDGE = { search: async (user, question) => ([{ clause: 'HO-1.2', headingPath: 'S1 > HO-1.2', page: 2, text: question }]) };
 
 test('search_knowledge calls the service as the signed-in user', async () => {
   let seen = null;

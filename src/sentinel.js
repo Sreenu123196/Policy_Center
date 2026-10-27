@@ -5,7 +5,6 @@
 // running. A single opinion, however confident, is not a control. Disagreement blocks rather than logs, and text that tries to
 // instruct the verifier is refused before either check runs - a proposal is data, never instructions.
 
-const { AppError } = require('./appError');
 
 // Instruction-shaped text in a proposal or a document: not evidence of an attack, but never something to obey.
 const INJECTION_PATTERNS = [

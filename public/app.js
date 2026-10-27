@@ -1244,7 +1244,7 @@ async function pageKnowledgeStats() {
         <div><div class="muted">Asked</div><strong>${esc(String(dash.asked || 0))}</strong></div>
         <div><div class="muted">Answered</div><strong>${esc(String(dash.answered || 0))}</strong></div>
         <div><div class="muted">Not found</div><strong>${esc(String(dash.notFound || 0))}</strong></div>
-        <div><div class="muted">Not found rate</div><strong>${esc(String(Math.round((dash.notFoundRate || 0) * 100)))}\%</strong></div>
+        <div><div class="muted">Not found rate</div><strong>${esc(String(Math.round((dash.notFoundRate || 0) * 100)))}%</strong></div>
         <div><div class="muted">p50</div><strong>${esc(latency.p50 === null || latency.p50 === undefined ? '—' : latency.p50 + ' ms')}</strong></div>
         <div><div class="muted">p95</div><strong>${esc(latency.p95 === null || latency.p95 === undefined ? '—' : latency.p95 + ' ms')}</strong></div>
       </div>

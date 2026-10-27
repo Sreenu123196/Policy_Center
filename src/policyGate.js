@@ -50,7 +50,7 @@ const SECRET_PATTERNS = [
   { name: 'api key assignment', re: /\b(sk|pk|rk)_(live|test)_[A-Za-z0-9]{10,}/ },
   { name: 'anthropic key', re: /sk-ant-[A-Za-z0-9_-]{10,}/ },
   { name: 'razorpay secret', re: /RAZORPAY_KEY_SECRET\s*=\s*\S{8,}/ },
-  { name: 'generic secret assignment', re: /\b(secret|password|token)\s*[:=]\s*['"][A-Za-z0-9_\-]{16,}['"]/i },
+  { name: 'generic secret assignment', re: /\b(secret|password|token)\s*[:=]\s*['"][A-Za-z0-9_-]{16,}['"]/i },
 ];
 
 function checkSecrets({ text }) {

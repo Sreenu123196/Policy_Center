@@ -3,7 +3,6 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { Chatbot } = require('../src/chatbot');
 const { createBindGate } = require('../src/bindGate');
-const { AppError } = require('../src/appError');
 
 // The whole chain through the chat loop: the model asks for an approval, a person decides, the model binds with the id it
 // was given, and the policy number comes back. The gate is real; only the model is fake, and the stream shape is the one

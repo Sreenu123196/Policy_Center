@@ -5,7 +5,6 @@
 // counted. A collection that does not match stops the run and leaves the file alone - an import that half-works is worse than one
 // that refuses.
 
-const fs = require('node:fs');
 
 const COLLECTIONS = (data) => Object.keys(data).filter((key) => Array.isArray(data[key]));
 
