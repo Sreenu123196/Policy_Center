@@ -26,7 +26,7 @@ class RateLimiter {
 // Scripts and styles come only from this site: no inline script, no eval, no framing, no plug-ins.
 const CSP = [
   "default-src 'self'",
-  "script-src 'self'",
+  "script-src 'self' https://checkout.razorpay.com",
   // Checkout renders in an iframe from Razorpay and calls their API; without these the browser blocks the frame.
   "frame-src https://api.razorpay.com https://checkout.razorpay.com",
   "style-src 'self' 'unsafe-inline'", // the pages set a few style attributes

@@ -1439,7 +1439,7 @@ function loadRazorpay() {
   return new Promise((resolve, reject) => {
     if (window.Razorpay) return resolve();
     const script = document.createElement('script');
-    script.src = '/checkout.js';
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.onload = () => resolve();
     // Say what the browser blocked, not just that something failed: a CSP refusal and a network failure look identical from here.
     const report = (detail) => toast('Checkout could not be loaded: ' + detail);
