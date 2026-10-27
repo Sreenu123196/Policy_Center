@@ -17,7 +17,7 @@ function backfillSettlements({ store, billing, pc } = {}) {
   for (const settlement of settlements) {
     const already = payments.some((p) => String(p.reference || '').trim() === String(settlement.paymentId).trim());
     if (already) { skipped.push({ paymentId: settlement.paymentId, reason: 'already applied' }); continue; }
-    let invoice = null;
+    let invoice;
     try { invoice = billing.invoiceByNumber(settlement.invoiceNumber, SYSTEM); } catch { invoice = null; }
     if (!invoice || !invoice.policyId) { skipped.push({ paymentId: settlement.paymentId, reason: 'invoice not found for ' + settlement.invoiceNumber }); continue; }
     billing.receivePayment(SYSTEM, { policyId: invoice.policyId, amount: settlement.amountRupees, method: 'Razorpay', reference: settlement.paymentId, receivedOn: settlement.receivedOn });
