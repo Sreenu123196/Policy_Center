@@ -483,7 +483,7 @@ const POLICY_TABS = {
     return `<div class="spread" style="margin-bottom:10px"><div class="muted">Simulated BillingCenter invoice stream for this policy. A payment is applied to the oldest invoice first.</div>
         <button class="btn small primary" data-action="record-payment">Record payment</button></div>`
       + table(['Invoice', 'Due', 'Job', 'Description', 'Status', 'Payment', '$Amount', '$Fee', '$Paid', '$Balance'], p.invoices.map((i) => [
-        esc(i.invoiceNumber), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
+        esc(i.invoiceNumber) + (Number(i.balance) > 0 ? ` <button class="btn small" data-action="pay-invoice" data-invoice="${esc(i.invoiceNumber)}">Pay now</button>` : ''), esc(i.dueDate), esc(i.jobNumber), esc(i.description), badge(i.status), badge(i.paymentStatus), money(i.amount), money(i.fee), money(i.paid), money(i.balance),
       ])) + `<div class="spread" style="margin-top:10px"><span>${p.credit > 0 ? `Credit on the policy: <strong>${money(p.credit)}</strong>` : ''}</span><strong>Total billed and planned: ${money(total)} · Balance owing: ${money(balance)}</strong></div>`
       + settlementBlock(p)
       + '<h3>Payments received</h3>'
@@ -1434,6 +1434,18 @@ async function pagePlatformAdmin() {
     </div>`);
 }
 
+// Loads Razorpay Checkout once, from their CDN. Nothing else in the app fetches third-party script.
+function loadRazorpay() {
+  return new Promise((resolve, reject) => {
+    if (window.Razorpay) return resolve();
+    const script = document.createElement('script');
+    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Razorpay Checkout could not be loaded'));
+    document.head.appendChild(script);
+  });
+}
+
 // ------------------------------------------------------------------ mandates
 
 // e-NACH mandates: the standing permission a debit depends on. A debit that is not allowed says why, and nothing moves.
@@ -2373,6 +2385,27 @@ const ACTIONS = {
     const r = await api('POST', `/admin/events/dead/${encodeURIComponent(d.consumer)}/${encodeURIComponent(d.event)}/redrive`);
     toast(r.ok ? 'Event handled and removed from the list' : `Still failing: ${r.error}`, r.ok ? 'success' : 'error');
     pageAdmin();
+  },
+  // Pay now: the server creates the order, Checkout collects the money, and the webhook is what settles the invoice. The browser never marks it paid.
+  'pay-invoice': async (el) => {
+    const invoiceNumber = el.getAttribute('data-invoice');
+    try {
+      const order = await api('POST', '/billing/invoices/' + encodeURIComponent(invoiceNumber) + '/pay', {});
+      await loadRazorpay();
+      const checkout = new window.Razorpay({
+        key: order.keyId,
+        order_id: order.orderId,
+        amount: order.amountPaise,
+        currency: order.currency || 'INR',
+        name: 'PolicyCenter',
+        description: 'Invoice ' + invoiceNumber,
+        handler: () => { toast('Payment received. The invoice settles when the bank confirms it.'); location.reload(); },
+        modal: { ondismiss: () => toast('Payment cancelled.') },
+      });
+      checkout.open();
+    } catch (err) {
+      toast(err.message || 'Payment could not be started');
+    }
   },
   'record-payment': () => openModal(`<h2>Record a payment for ${esc(S.policy.policyNumber)}</h2>
     <form data-form="record-payment"><div class="form-errors" role="alert"></div>
