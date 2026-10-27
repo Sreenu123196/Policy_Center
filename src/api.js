@@ -233,6 +233,15 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, { readOnly: true });
   // B15: the audit record for a call - consent, masking, retention, and the 1600-series rule for outbound service calls.
   // B23: a field recording is refused unless both parties consented before it was uploaded.
+  // A10: why a renewal is at risk, and a draft that always ends held for a person.
+  route('POST', '/renewals/risk', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    return require('./renewal').lapseRisk(body || {});
+  }, { readOnly: true });
+  route('POST', '/renewals/draft', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    return require('./renewal').draftRenewal(body || {});
+  }, { readOnly: true });
   route('POST', '/surveys/consent', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Survey consent is claims material');
     return require('./surveyorConsent').requireDualConsent(body || {});
