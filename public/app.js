@@ -1441,7 +1441,10 @@ function loadRazorpay() {
     const script = document.createElement('script');
     script.src = 'https://checkout.razorpay.com/v1/checkout.js';
     script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Razorpay Checkout could not be loaded'));
+    // Say what the browser blocked, not just that something failed: a CSP refusal and a network failure look identical from here.
+    const report = (detail) => toast('Checkout could not be loaded: ' + detail);
+    document.addEventListener('securitypolicyviolation', (e) => report(e.violatedDirective + ' blocked ' + (e.blockedURI || 'a resource')), { once: true });
+    script.onerror = () => { report('the script did not load (network, extension or policy)'); reject(new Error('Razorpay Checkout could not be loaded')); };
     document.head.appendChild(script);
   });
 }
