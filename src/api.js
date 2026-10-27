@@ -466,6 +466,25 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   }, { readOnly: true });
   // Every invoice with what is still owed, for the screen that takes a payment. Billing authority decides who sees it.
   // Settlements the webhook recorded, shown beside billing's own payments so a paid invoice never looks unpaid.
+  // B27: a signed manifest for a document we issued, and verification against the file it names. The key is ours; the CA attestation is a vendor's.
+  route('POST', '/provenance/manifest', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Issuing provenance is staff work');
+    if (!process.env.PROVENANCE_KEY) return { configured: false, reason: 'PROVENANCE_KEY is missing on this server.' };
+    const input = body || {};
+    return require('./provenance').signManifest({ document: String(input.document || ''), documentId: input.documentId, issuer: input.issuer || 'PolicyCenter', key: process.env.PROVENANCE_KEY });
+  }, {});
+  route('POST', '/provenance/verify', ({ user, body }) => {
+    if (!user || user.role === 'Agent') throw new AppError(403, 'Verifying provenance is staff work');
+    if (!process.env.PROVENANCE_KEY) return { configured: false, reason: 'PROVENANCE_KEY is missing on this server.' };
+    const input = body || {};
+    return require('./provenance').verifyManifest({ manifest: input.manifest, signature: input.signature, document: input.document === undefined ? undefined : String(input.document), key: process.env.PROVENANCE_KEY });
+  }, {});
+  // B28: the words and captions of a policy walkthrough. Rendering is a vendor's job.
+  route('POST', '/walkthrough', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    return require('./walkthrough').buildWalkthrough({ policy: input.policy || {}, language: input.language || 'en' });
+  }, {});
   route('GET', '/billing/settled', ({ user }) => {
     billing.requireBilling(user, 'see settled payments');
     return { settled: store.data.settledPayments || [] };
