@@ -451,6 +451,20 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
     return { allocations: allocations.list(), suspenseTotal: allocations.suspenseTotal() };
   }, { readOnly: true });
+  // The order a customer pays against. The invoice number travels in notes, which is what lets the webhook settle the right invoice.
+  route('POST', '/billing/invoices/:invoice/pay', ({ user, params }) => {
+    const invoice = billing.invoiceByNumber(params.invoice, user); // refused here for a role without billing authority
+    if (!invoice) throw new AppError(404, 'Invoice not found');
+    if (invoice.outstanding <= 0) throw new AppError(409, 'This invoice is already settled');
+    const keyId = process.env.RAZORPAY_KEY_ID;
+    const keySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!keyId || !keySecret) throw new AppError(503, 'Razorpay is not configured: RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is missing.');
+    const { createRazorpay } = require('./razorpay');
+    const { createFetchTransport } = require('./razorpayTransport');
+    const razorpay = createRazorpay({ keyId, keySecret, transport: createFetchTransport() });
+    return razorpay.createOrder({ amount: invoice.outstanding, receipt: invoice.invoiceNumber, notes: { invoiceNumber: invoice.invoiceNumber } })
+      .then((order) => ({ orderId: order.id, amountPaise: order.amount, currency: order.currency || 'INR', keyId, invoiceNumber: invoice.invoiceNumber }));
+  }, {});
   route('POST', '/billing/allocate', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Allocation is finance material');
     try {

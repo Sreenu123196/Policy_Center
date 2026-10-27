@@ -128,6 +128,7 @@ const MATRIX = {
   'GET /ai/usage': ['agent'],
   'GET /workflow/due': ['agent'],
   'POST /billing/allocate': ['agent'],
+  'POST /billing/invoices/:invoice/pay': ['agent', 'uw', 'exec'],
   'GET /billing/allocations': ['agent'],
   'POST /billing/allocations': ['agent'],
   'GET /billing/mandates': ['agent'],
