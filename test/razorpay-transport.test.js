@@ -27,3 +27,10 @@ test('a non-2xx answer is reported, not thrown, so the adapter produces the erro
 test('a transport needs a fetch implementation', () => {
   assert.throws(() => createFetchTransport({ fetchImpl: null }), /fetch implementation is required/);
 });
+
+test('a host without a scheme is given https, because the adapter names it that way', async () => {
+  const seen = [];
+  const transport = createFetchTransport({ fetchImpl: async (url) => { seen.push(url); return { status: 200, text: async () => '{}' }; } });
+  await transport({ host: 'api.razorpay.com', path: '/v1/orders', method: 'POST' });
+  assert.equal(seen[0], 'https://api.razorpay.com/v1/orders');
+});
