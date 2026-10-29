@@ -26,3 +26,10 @@ test('an approver number is required', async () => {
   const voice = createBolnaVoice({ bolna: { configured: true, startCall: async () => ({}) } });
   await assert.rejects(() => voice.call({ url: 'https://x' }), /approver number is required/);
 });
+
+test('the id Bolna returns is the execution id, and the status is kept', async () => {
+  const fake = { configured: true, startCall: async () => ({ status: 'queued', execution_id: 'exec-9' }) };
+  const result = await createBolnaVoice({ bolna: fake }).call({ to: '+91', url: 'https://x?t=1' });
+  assert.equal(result.sid, 'exec-9');
+  assert.equal(result.status, 'queued');
+});

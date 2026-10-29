@@ -17,7 +17,8 @@ function createBolnaVoice({ agentId = process.env.BOLNA_AGENT_ID, apiKey = proce
       variables = { ...variables, approvalToken: parsed.searchParams.get('t'), action: parsed.searchParams.get('a') || 'decision' };
     } catch { /* a url we cannot read leaves the variables as they are */ }
     const result = await client.startCall({ to, variables });
-    return { sid: result && (result.id || result.call_id || null), provider: 'bolna' };
+    // Bolna answers a placed call with an execution_id and a run_id, not an id: found by placing a real call, not by reading the docs.
+    return { sid: result && (result.id || result.call_id || result.execution_id || null), provider: 'bolna', status: result && result.status };
   }
   return { call, configured: Boolean(client.configured) };
 }
