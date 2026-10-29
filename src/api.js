@@ -703,8 +703,13 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
       .then(async () => {
         if (!question) return;
         const answer = await chatbot.chat({ message: question, conversationId: 'telegram:' + chatId }, notifier.approver());
-        const text = String((answer && (answer.reply || answer.message || answer.text)) || '').trim()
-          || 'I could not answer that just now. The app can answer it and show its sources.';
+        // Only a non-empty string is a reply. Anything else - an object, a number, undefined - becomes the fallback, because Telegram refuses an empty message and the
+        // failure would otherwise look like silence.
+        const candidate = answer && (answer.reply || answer.message || answer.text);
+        const text = (typeof candidate === 'string' && candidate.trim())
+          ? candidate.trim()
+          : 'I could not answer that just now. The app can answer it and show its sources, and its answers cite the clause they came from.';
+        console.error('Telegram reply:', JSON.stringify({ answerType: typeof candidate, length: text.length }));
         await notifier.telegram.send({ payload: { approvalId: 'chat', summary: text }, signature: '' });
       })
       .catch((err) => console.error('Telegram answer failed:', err.message));
