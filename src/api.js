@@ -690,7 +690,20 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
 
   // How an agent reaches a person when it needs a decision. These three doors cannot sign in, so each checks its sender:
   // Telegram with the secret set when the webhook was registered, Twilio with the signature over the request.
-  route('POST', '/webhooks/telegram', ({ body, headers }) => notifier.handleTelegramUpdate(body, { secret: headers['x-telegram-bot-api-secret-token'], expectedSecret: process.env.TELEGRAM_WEBHOOK_SECRET }), { isPublic: true });
+  route('POST', '/webhooks/telegram', async ({ body, headers }) => {
+  const result = notifier.handleTelegramUpdate(body, {
+    secret: headers['x-telegram-bot-api-secret-token'],
+    expectedSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
+  });
+  if (result && result.chat) {
+    const user = notifier.approver();
+    const answer = await chatbot.chat({ message: result.chat.text, conversationId: 'telegram:' + result.chat.chatId }, user);
+    const text = String((answer && (answer.reply || answer.message || answer.text)) || 'I could not answer that just now.');
+    await notifier.telegram.send({ payload: { approvalId: 'chat', summary: text }, signature: '' });
+    return { ok: true, answered: true };
+  }
+  return result;
+}, { isPublic: true });
   route('GET', '/webhooks/twilio/voice', ({ query }, res) => {
     const script = notifier.voiceScript(query.get('n'), query.get('t'));
     res.writeHead(script ? 200 : 404, { 'Content-Type': script ? 'text/xml; charset=utf-8' : 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' });
