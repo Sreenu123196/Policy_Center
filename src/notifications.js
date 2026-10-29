@@ -210,6 +210,14 @@ class Notifier {
   // Telegram sends the tap on a button here. The secret header is set when the webhook is registered (scripts/telegram-webhook.js).
   handleTelegramUpdate(update, { secret, expectedSecret } = {}) {
     if (!expectedSecret || secret !== expectedSecret) throw new AppError(401, 'Not this bot');
+    // A plain message is a question, not a decision. Answered only for the configured approver chat.
+    const incoming = update && update.message;
+    if (incoming && incoming.text) {
+      const fromChat = incoming.chat && String(incoming.chat.id);
+      const allowed = this.telegram && this.telegram.chatId ? String(this.telegram.chatId) : null;
+      if (!fromChat || (allowed && fromChat !== allowed)) throw new AppError(403, 'This chat may not ask questions');
+      return { chat: { text: String(incoming.text), chatId: fromChat } };
+    }
     const chatId = update && update.callback_query && update.callback_query.message && update.callback_query.message.chat
       ? String(update.callback_query.message.chat.id) : null;
     const configuredChat = this.telegram && this.telegram.chatId ? String(this.telegram.chatId) : null;
