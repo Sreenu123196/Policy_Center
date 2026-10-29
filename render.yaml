@@ -36,6 +36,11 @@ services:
       # Render terminates https in front of the service.
       # Billing. sync: false means the Blueprint keeps these variables but takes their values from the dashboard - without declaring them at
       # all, every deploy re-synced the environment and removed the keys, which is exactly what happened: the payment screen then answered "not configured".
+      # Approval escalation by voice. sync: false keeps them in the Blueprint and takes their values from the dashboard.
+      - key: BOLNA_API_KEY
+        sync: false
+      - key: BOLNA_AGENT_ID
+        sync: false
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET
