@@ -267,7 +267,9 @@ class Notifier {
 
 function notifierFromEnv(pc, { agents = null } = {}) {
   const telegram = telegramTransport({ token: process.env.TELEGRAM_BOT_TOKEN, chatId: process.env.TELEGRAM_CHAT_ID });
-  const voice = twilioTransport({ accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_FROM_NUMBER });
+  // Bolna first when it is configured: it places an AI call and returns a transcript, where Twilio only plays TwiML and waits for a keypress.
+  const bolnaVoice = process.env.BOLNA_API_KEY && process.env.BOLNA_AGENT_ID ? require('./bolnaVoice').createBolnaVoice() : null;
+  const voice = bolnaVoice || twilioTransport({ accountSid: process.env.TWILIO_ACCOUNT_SID, authToken: process.env.TWILIO_AUTH_TOKEN, from: process.env.TWILIO_FROM_NUMBER });
   return new Notifier(pc, {
     agents,
     telegram,
