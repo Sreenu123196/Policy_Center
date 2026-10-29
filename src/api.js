@@ -696,11 +696,19 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
     expectedSecret: process.env.TELEGRAM_WEBHOOK_SECRET,
   });
   if (result && result.chat) {
-    const user = notifier.approver();
-    const answer = await chatbot.chat({ message: result.chat.text, conversationId: 'telegram:' + result.chat.chatId }, user);
-    const text = String((answer && (answer.reply || answer.message || answer.text)) || 'I could not answer that just now.');
-    await notifier.telegram.send({ payload: { approvalId: 'chat', summary: text }, signature: '' });
-    return { ok: true, answered: true };
+    // Answer Telegram at once: it retries and reports 502 if we make it wait for the model. The reply is sent when it exists.
+    const question = String(result.chat.text || '').trim();
+    const chatId = result.chat.chatId;
+    Promise.resolve()
+      .then(async () => {
+        if (!question) return;
+        const answer = await chatbot.chat({ message: question, conversationId: 'telegram:' + chatId }, notifier.approver());
+        const text = String((answer && (answer.reply || answer.message || answer.text)) || '').trim()
+          || 'I could not answer that just now. The app can answer it and show its sources.';
+        await notifier.telegram.send({ payload: { approvalId: 'chat', summary: text }, signature: '' });
+      })
+      .catch((err) => console.error('Telegram answer failed:', err.message));
+    return { ok: true, answering: true };
   }
   return result;
 }, { isPublic: true });
