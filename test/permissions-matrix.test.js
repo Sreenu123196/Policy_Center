@@ -129,6 +129,7 @@ const MATRIX = {
   'GET /workflow/due': ['agent'],
   'POST /billing/allocate': ['agent'],
   'POST /billing/invoices/:invoice/pay': ['agent', 'uw', 'exec'],
+  'POST /claims/triage': [],
   'POST /provenance/manifest': ['agent'],
   'POST /provenance/verify': ['agent'],
   'POST /walkthrough': [],

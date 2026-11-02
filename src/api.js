@@ -467,6 +467,12 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
   // Every invoice with what is still owed, for the screen that takes a payment. Billing authority decides who sees it.
   // Settlements the webhook recorded, shown beside billing's own payments so a paid invoice never looks unpaid.
   // B27: a signed manifest for a document we issued, and verification against the file it names. The key is ours; the CA attestation is a vendor's.
+  // A12: the triage sequence with its clock. Each step is named and timed, and a refusal stops the run.
+  route('POST', '/claims/triage', ({ user, body }) => {
+    if (!user) throw new AppError(401, 'Sign in first');
+    const input = body || {};
+    return require('./claimsTriage').triage({ claim: input.claim || {}, openClaims: input.openClaims || [], sumInsured: input.sumInsured });
+  }, { readOnly: true });
   route('POST', '/provenance/manifest', ({ user, body }) => {
     if (!user || user.role === 'Agent') throw new AppError(403, 'Issuing provenance is staff work');
     if (!process.env.PROVENANCE_KEY) return { configured: false, reason: 'PROVENANCE_KEY is missing on this server.' };
