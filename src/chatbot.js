@@ -18,6 +18,19 @@ const MAX_TOOL_ROUNDS = 8;
 const MAX_TURNS = 40;
 const MAX_CONVERSATIONS = 200;
 
+// Narrowing a policy list by a number. Exported so the rule that a named policy must not become a book summary is tested rather than assumed.
+function filterPolicies(list, input = {}) {
+  let out = Array.isArray(list) ? list : [];
+  if (input.policy) {
+    const wanted = String(input.policy).toUpperCase();
+    out = out.filter((p) => String(p.policyNumber || p.policy || '').toUpperCase() === wanted);
+  }
+  if (input.product) out = out.filter((p) => p.product === input.product);
+  if (input.state) out = out.filter((p) => p.state === input.state);
+  if (input.status) out = out.filter((p) => p.status === input.status);
+  return out;
+}
+
 const SYSTEM_PROMPT = `You are the PolicyCenter Assistant inside a policy administration system for a personal lines insurer that writes Personal Auto (6-month terms) and Homeowners (12-month terms; forms HO-3, HO-5, HO-4 renters, HO-6 condo) in CA, FL, IL, NY, OH and TX.
 
 You help agents, underwriters and managers find accounts, policies and jobs, explain premiums, underwriting issues, coverages, billing and policy history, and summarize the book of business.
@@ -560,13 +573,7 @@ function runTool(pc, user, name, input) {
       if (name === 'portfolio_summary' && !canSeePortfolioReport(user)) throw new AppError(403, 'The portfolio report is for underwriters and UW managers');
       let list = pc.listPolicies('', user).map((p) => ({ ...p, state: (pc.db.accounts.find((a) => a.id === p.accountId) || { address: {} }).address.state }));
       // A named policy narrows the list before anything else: without this, 'how is HO-0000001 doing' was answered with a summary of the book.
-      if (input.policy) {
-        const wanted = String(input.policy).toUpperCase();
-        list = list.filter((p) => String(p.policyNumber || p.policy || '').toUpperCase() === wanted);
-      }
-      if (input.product) list = list.filter((p) => p.product === input.product);
-      if (input.state) list = list.filter((p) => p.state === input.state);
-      if (input.status) list = list.filter((p) => p.status === input.status);
+      list = filterPolicies(list, input);
       if (name === 'list_policies') {
         const sorters = {
           premium_desc: (a, b) => b.termPremium - a.termPremium,
@@ -962,4 +969,5 @@ class Chatbot {
   }
 }
 
-module.exports = { Chatbot, TOOLS, runTool, safeRunTool, offlineAnswer, validateInput, replyLanguage, replyStyle };
+module.exports = {
+  filterPolicies, Chatbot, TOOLS, runTool, safeRunTool, offlineAnswer, validateInput, replyLanguage, replyStyle };
