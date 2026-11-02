@@ -718,7 +718,14 @@ function createApi(pc, store, { reseed, chatbot, speech, messaging, auth, bus, b
         console.error('Telegram reply:', JSON.stringify({ answerType: typeof candidate, length: text.length }));
         await notifier.telegram.send({ payload: { approvalId: 'chat', summary: text }, signature: '' });
       })
-      .catch((err) => console.error('Telegram answer failed:', err.message));
+      // If the assistant cannot answer, say so in the chat: silence looks like a broken bot, and the usual cause is an account problem, not the question.
+      .catch(async (err) => {
+        console.error('Telegram answer failed:', err.message);
+        const outage = /credit balance|rate limit|insufficient|unauthor/i.test(err.message)
+          ? 'The assistant is unavailable at the moment (its account needs attention). Answering in the app will fail the same way until that is fixed.'
+          : 'I could not answer that just now. Please try again, or ask in the app.';
+        await notifier.telegram.send({ payload: { approvalId: 'chat', summary: outage }, signature: '' }).catch((sendErr) => console.error('Telegram notice failed:', sendErr.message));
+      });
     return { ok: true, answering: true };
   }
   return result;
