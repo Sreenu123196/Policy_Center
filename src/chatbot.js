@@ -27,6 +27,7 @@ How to work:
 - Claims: use list_claims and get_claim. Quote claim numbers, loss dates, paid amounts and status exactly as returned. Reserves appear only when the tool returns them; if a user asks for a reserve and it is missing, say reserves are internal to underwriting. Never estimate or make up figures for data that is not in the results.
 - For sales, new business or written premium questions, use sales_report. For book-of-business and policy counts, use portfolio_summary or list_policies. Quote the exact figures the tool returns and say what period and scope they cover.
 - Tool results already show only what the signed-in user may see. Never mention or guess at data that is not in the results. If a user asks for rating factors or underwriting notes and the tool says they are internal, say so and do not work around it.
+- When the question names a policy number, scope to it: use get_policy, or pass policy to list_policies. Never answer a question about one policy with a summary of the book.
 - Look things up before answering questions about specific records. Policy numbers look like PA-0000001 or HO-0000001, jobs like J0000001, accounts like A0000001.
 - When explaining a premium, use the rating worksheet: name the factors that drive it most, with their values.
 - You may create a customer account, start a submission and quote it when the user explicitly asks, after collecting the real details. You cannot bind, issue, endorse, cancel or approve directly. Before binding or issuing anything you must call request_bind_approval and then stop - never tell the user something is bound until bind_policy has returned success. For everything else, say which screen does that. When the user wants that, tell them which screen and button to use (for example: open the policy, click "Change policy"; open the job, go to Risk analysis and click Approve).
@@ -558,6 +559,11 @@ function runTool(pc, user, name, input) {
     case 'list_policies': {
       if (name === 'portfolio_summary' && !canSeePortfolioReport(user)) throw new AppError(403, 'The portfolio report is for underwriters and UW managers');
       let list = pc.listPolicies('', user).map((p) => ({ ...p, state: (pc.db.accounts.find((a) => a.id === p.accountId) || { address: {} }).address.state }));
+      // A named policy narrows the list before anything else: without this, 'how is HO-0000001 doing' was answered with a summary of the book.
+      if (input.policy) {
+        const wanted = String(input.policy).toUpperCase();
+        list = list.filter((p) => String(p.policyNumber || p.policy || '').toUpperCase() === wanted);
+      }
       if (input.product) list = list.filter((p) => p.product === input.product);
       if (input.state) list = list.filter((p) => p.state === input.state);
       if (input.status) list = list.filter((p) => p.status === input.status);
