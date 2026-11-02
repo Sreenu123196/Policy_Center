@@ -67,7 +67,6 @@ function triage({ claim, openClaims = [], sumInsured, now = () => Date.now() } =
     if (result.output) ctx.outputs[step.name] = result;
     if (!result.ok) blocked = true;
   }
-  const totalMs = steps.reduce((sum, s) => sum + (s.ms || 0), 0) + (now() - started - steps.reduce((sum, s) => sum + (s.ms || 0), 0));
   const refused = steps.find((s) => s.status === 'refused');
   return {
     claimNumber: claim.claimNumber || null,
