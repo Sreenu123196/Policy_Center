@@ -37,6 +37,13 @@ The platform (policies, billing, claims, contacts, permissions, audit) plus the 
 - Not verified against live vendors. Bolna's request paths are marked for confirmation; the regulatory corpus is illustrative and must be replaced with licensed text.
 - Vision is absent. B14 inspects whether a photograph can be trusted; it does not describe the damage.
 
+## The triage demo (A12)
+
+    npm run demo:triage
+
+Runs the same module the API uses over four claims - a clean one, an injury, one above the sum insured, and one missing a field - and prints each step with its duration, its verdict, and
+where a refusal stopped the run. A demo that needs a running server and a click cannot be re-run by a reviewer; this can.
+
 ## How to check any of this
 
     npm test
